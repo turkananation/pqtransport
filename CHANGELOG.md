@@ -1,5 +1,3 @@
-# Changelog
-
 ## Unreleased
 
 ### Added
@@ -34,6 +32,9 @@
   length / all-zero checks. TLS still does **not** call `combine()` (BLK-04).
 - `PqEncryptedUdpSocket.completeInitiate` parameter renamed
   `responderClassicalPublic` (0.1.0 is unpublished).
+- `PqEncryptedUdpSocket.initiate` / `accept` no longer take unused `role`
+  named args (OPEN-11). Putting a role string in HKDF extra would
+  desynchronise peers; the info string stays `"pqtransport udp-session v1|udp"`.
 - Tag `vX.Y.Z` now publishes to pub.dev via GitHub Actions OIDC
   (`.github/workflows/publish.yml`, environment `pub.dev`), matching pqforge.
   The GitHub Release workflow no longer treats pub.dev as a manual step.

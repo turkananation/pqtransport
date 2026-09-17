@@ -27,7 +27,6 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 | OPEN-08 | P2 | DNS | Rdata name compression that points into the **outer** message is not resolved (`_DnsReader` on rdata is a fresh buffer). Round-trips of our encoder are fine (we emit uncompressed names). | `lib/src/dns/wire.dart` |
 | OPEN-09 | P2 | mDNS / IO | `IoDatagramChannel` does not `joinMulticast` on 224.0.0.251 / ff02::fb. In-memory flood works; real LAN discovery does not. | `lib/src/socket/io_socket.dart` |
 | OPEN-10 | P2 | DoH/DoT | `DohExchange` / `DotExchange` are thin adapters. No ALPN `dot`/`h2`, no production URI template. | `lib/src/dns/pq_dns_client.dart` |
-| OPEN-11 | P3 | UDP | Public `role` named args on `initiate`/`accept` are unused (deliberate: putting role in HKDF extra desynchronises peers). API noise. | `pq_encrypted_udp_socket.dart` |
 | OPEN-12 | P3 | Coverage | leftover error paths in DNS wire, encrypted UDP, TLS decode, unused `concatInfo`. | `coverage/lcov.info` |
 | OPEN-13 | P2 | TLS | No ChaCha20-Poly1305 records / IANA `0x1303`. pqforge 0.4.4 exported sync `chacha20Poly1305Encrypt/Decrypt`; not wired into `PqTransportCrypto.aeadSeal` yet. | Roadmap 0.3.6. |
 
@@ -70,3 +69,4 @@ records / 0x1303). Do not vendor either.
 | BLK-05 | KEM | encapsulate throws on a bad modulus. | `checkEncapsulationKey` → `illegalKemKey` before encapsulate. |
 | OPEN-01 | TLS | Compact private hellos. | RFC 8446 ClientHello/ServerHello + extensions. Compact body retired. Cipher `0xFF00`, not IANA `0x1302`. `test/tls/rfc8446_hello_test.dart`. |
 | OPEN-04 | TLS | Silent raw ML-DSA cert. | RFC 7250 `server_certificate_type = RawPublicKey` on CH + EncryptedExtensions. Payload still raw ML-DSA-65, not X.509. |
+| OPEN-11 | UDP | Unused `role` named args on `initiate`/`accept`. | Args removed. HKDF extra stays role-free (`udpSessionInfo('udp')`). |

@@ -21,10 +21,10 @@ PQ path.
 ## 0.2 — RFC 8446-shaped wire
 
 ClientHello / ServerHello are RFC 8446-shaped (OPEN-01 **done**). Cipher
-on the wire is private-use `0xFF00`, not IANA `0x1302`. Remaining in 0.2:
-EncryptedExtensions as a real message + Certificate as X.509 or explicit
-raw-pk (OPEN-04); HelloRetryRequest on the wire with cookie (OPEN-05);
-drop unused UDP `role` args (OPEN-11, parallel).
+on the wire is private-use `0xFF00`, not IANA `0x1302`. Raw-pk is
+negotiated (OPEN-04 **done**). Unused UDP `role` args are gone
+(OPEN-11 **done**). Remaining in 0.2: HelloRetryRequest on the wire
+with cookie (OPEN-05).
 
 Still SHA-256. Still do not put IANA `0x1302` on the wire. OpenSSL
 **parsing** of hellos is unblocked; handshake completion still needs

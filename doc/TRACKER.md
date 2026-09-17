@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 111 passed |
+| Tests | 113 passed |
 | Coverage | 90.5% of `lib/` (`1854/2049`) on the codec pass; NIST live tests added after |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | OpenSSL interop | Not started |
@@ -86,7 +86,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-08 | P2 | pqtransport | Foreign DNS | Resolve rdata name pointers into the outer message |
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
-| OPEN-11 | P3 | pqtransport | API noise | Drop unused `role` named args |
 | OPEN-12 | P3 | pqtransport | Coverage | Hit leftover DNS/UDP/TLS error paths |
 | OPEN-13 | P2 | pqtransport | IANA 0x1303 | Wire pqforge sync ChaCha into `aeadSeal` (export exists) |
 
@@ -102,6 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-03 | P1 | **Fixed** | `requireGroup` |
 | OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired; cipher `0xFF00` |
 | OPEN-04 | P1 | **Fixed** | RFC 7250 RawPublicKey negotiated; payload still raw ML-DSA-65 |
+| OPEN-11 | P3 | **Fixed** | `initiate`/`accept` no longer take `role` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,7 +120,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 **done** | OPEN-05, OPEN-11 |
+| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 / OPEN-11 **done** | OPEN-05 |
 | 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |
