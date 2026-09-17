@@ -16,6 +16,7 @@ pqtransport/
   test/                      # mirrors lib/src plus extra_coverage_test.dart
   example/                   # in-memory demos, not OpenSSL peers
   doc/                       # this folder
+  site/                      # workspace member (Jaspr). Analyzed, not excluded.
   tool/agent_framework/      # machine-readable twin of the skill YAML
 ```
 
@@ -41,11 +42,12 @@ gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead.
 ## Commands
 
 ```bash
-dart analyze
+dart pub get
+dart analyze --fatal-infos . site
 dart test
 dart test test/core
 dart test test/tls/handshake_test.dart
-dart format .
+dart format --set-exit-if-changed lib test example site
 ```
 
 Invariant script (no `dart:ffi` import, no stray size literals, claim

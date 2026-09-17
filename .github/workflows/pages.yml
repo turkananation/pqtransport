@@ -36,8 +36,7 @@ jobs:
       - name: Stage agent files into the Jaspr web root
         run: cp llms.txt site/web/llms.txt
 
-      - name: Install site dependencies
-        working-directory: site
+      - name: Install workspace dependencies
         run: dart pub get
 
       - name: Activate Jaspr

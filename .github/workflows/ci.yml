@@ -38,14 +38,14 @@ jobs:
       - name: Print Dart version
         run: dart --version
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: dart pub get
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
+        run: dart format --output=none --set-exit-if-changed lib test example site
 
-      - name: Analyze source
-        run: dart analyze --fatal-infos
+      - name: Analyze package and Jaspr site
+        run: dart analyze --fatal-infos . site
 
       - name: Check claim-boundary and FFI invariants
         run: bash tool/check_invariants.sh .
@@ -105,7 +105,7 @@ jobs:
         with:
           sdk: stable
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: dart pub get
 
       - name: Run examples
@@ -131,7 +131,7 @@ jobs:
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v2
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: dart pub get
 
       - name: Run portable tests under dart2js

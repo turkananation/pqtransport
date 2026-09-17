@@ -2,3 +2,5 @@
 .packages
 build/
 .jaspr_config.json
+# Workspace lockfile lives at the repository root.
+pubspec.lock

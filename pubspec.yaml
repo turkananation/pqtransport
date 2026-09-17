@@ -18,6 +18,9 @@ topics:
 environment:
   sdk: '>=3.12.0 <4.0.0'
 
+workspace:
+  - site
+
 dependencies:
   pqforge: ^0.4.3
   swissarmyknife: ^0.1.0

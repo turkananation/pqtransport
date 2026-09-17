@@ -64,12 +64,52 @@ else
 fi
 
 # Positive claims only. Denials ("no CMVP claim") are required by the evidence boundary.
+# Limit the scan to package surfaces so nested site/build HTML cannot false-positive.
 if grep -RIn --include='*.md' --include='*.dart' \
   -E 'FIPS validated|CMVP validated|constant-time Dart|securely erased' \
-  "$ROOT" >/dev/null 2>&1; then
+  "$ROOT/lib" "$ROOT/test" "$ROOT/example" "$ROOT/doc" \
+  "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$ROOT/llms.txt" \
+  >/dev/null 2>&1; then
   bad "forbidden claim language"
 else
   ok "claim language"
+fi
+
+# site/ is a workspace member, not an excluded folder. The 201 CI errors were
+# the root analyzer resolving site/lib against package:pqtransport (no jaspr).
+# Hiding that with analyzer.exclude is forbidden. Pub workspaces give site
+# its own package_config so dart analyze actually type-checks it.
+if [[ -f "$ROOT/site/pubspec.yaml" ]]; then
+  if grep -qE 'package:jaspr' "$ROOT/pubspec.yaml"; then
+    bad "root pubspec must not depend on jaspr; that belongs in site/"
+  else
+    ok "root pubspec does not depend on jaspr"
+  fi
+  if grep -qE 'site/\*\*' "$ROOT/analysis_options.yaml"; then
+    bad "do not analyzer.exclude site/**; it is a workspace package and must be analyzed"
+  else
+    ok "site/ is not hidden from the analyzer"
+  fi
+  if grep -qE '^workspace:' "$ROOT/pubspec.yaml" && grep -qE '^\s*-\s*site\s*$' "$ROOT/pubspec.yaml"; then
+    ok "root pubspec workspace lists site"
+  else
+    bad "root pubspec must declare workspace: [site]"
+  fi
+  if grep -qE '^resolution:\s*workspace' "$ROOT/site/pubspec.yaml"; then
+    ok "site/ uses resolution: workspace"
+  else
+    bad "site/pubspec.yaml must set resolution: workspace"
+  fi
+  if grep -qE '^publish_to:\s*none' "$ROOT/site/pubspec.yaml"; then
+    ok "site/ is publish_to: none"
+  else
+    bad "site/ must be publish_to: none"
+  fi
+  if [[ -f "$ROOT/site/pubspec.lock" ]]; then
+    bad "site/pubspec.lock must not exist; workspace lockfile is the root pubspec.lock"
+  else
+    ok "no stray site/pubspec.lock"
+  fi
 fi
 
 exit "$fail"
