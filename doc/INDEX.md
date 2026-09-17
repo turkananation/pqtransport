@@ -47,6 +47,7 @@ upgrade a claim this layer is not allowed to make. See
 | Open work | [TRACKER.md](TRACKER.md) | [ROADMAP.md](ROADMAP.md) |
 | What pqforge 0.4.4 exports | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | [IMPROVEMENTS.md](IMPROVEMENTS.md) |
 | Claim language | [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| dart2js ChaCha | [CHACHA_DART2JS.md](CHACHA_DART2JS.md) | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) |
 | Contributor loop | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | [TRACKER.md](TRACKER.md) |
 
 ## Documents
@@ -66,6 +67,7 @@ upgrade a claim this layer is not allowed to make. See
 | [ROADMAP.md](ROADMAP.md) | 0.2 → 0.5 direction. Order is not optional. |
 | [IMPROVEMENTS.md](IMPROVEMENTS.md) | Prioritized engineering improvements. |
 | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs. Do not vendor crypto. |
+| [CHACHA_DART2JS.md](CHACHA_DART2JS.md) | Report: dart2js ChaCha guard vs pqforge engine fix. |
 | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | Interop milestone status (not claimed). |
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |

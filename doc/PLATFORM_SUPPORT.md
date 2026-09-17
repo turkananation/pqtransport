@@ -41,7 +41,9 @@ Dart. Web callers:
    (WebSocket, a VM sidecar, `MemoryByteSocket` in tests).
 3. Run `PqTlsSocket` on that pipe. Default suite is IANA `0x1302`
    (AES-256-GCM). IANA `0x1303` (ChaCha) is refused on dart2js because
-   PointyCastle Poly1305 needs 64-bit integers.
+   PointyCastle Poly1305 needs 64-bit integers. That is a protocol guard,
+   not a dart2js ChaCha implementation. Report:
+   [CHACHA_DART2JS.md](CHACHA_DART2JS.md).
 
 DoH in a browser is an HTTPS POST of `application/dns-message`. 0.1.0
 `DohExchange` is a helper, not a `fetch` wrapper — the caller provides

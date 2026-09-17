@@ -29,7 +29,7 @@ and what is still not wired. IDs: [BUGS.md](BUGS.md).
 | **RFC 5869 SHA-256 (BLK-02)** | `hkdfExtractSha256` / `hkdfExpandSha256` |
 | RFC 5869 SHA-384 | `hkdfExtractSha384` / `hkdfExpandSha384` / `hmacSha384` — **wired** (OPEN-02) |
 | AES-256-GCM (sync) | `PqSymmetricPrimitives.aesGcmEncrypt` / `aesGcmDecrypt` |
-| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js fail-closes (Poly1305 needs 64-bit integers). |
+| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js fail-closes (Poly1305 needs 64-bit integers). Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |

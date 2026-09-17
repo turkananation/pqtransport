@@ -78,3 +78,5 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
 OPEN-04, OPEN-05, OPEN-12, OPEN-13 are done. Do not mix with QUIC work.
+ChaCha on dart2js is a **pqforge** engine slice
+([CHACHA_DART2JS.md](CHACHA_DART2JS.md)) — do not vendor it here.
