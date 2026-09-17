@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" role="img" aria-labelledby="title desc">
+  <title id="title">RFC 10024 hybrid concatenation</title>
+  <desc id="desc">X25519MLKEM768 puts ML-KEM first on the wire. NIST-curve groups put ECDHE first. Shared secrets follow the same order.</desc>
+  <rect width="760" height="520" fill="#070d14"/>
+  <rect x="24" y="24" width="712" height="472" rx="12" fill="#0e1822" stroke="#1e3340"/>
+  <text x="52" y="68" fill="#b6f25c" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="13" font-weight="700" letter-spacing="2">RFC 10024 · GROUP-DEPENDENT CONCAT</text>
+  <text x="52" y="104" fill="#e8f4ef" font-family="IBM Plex Sans, Inter, sans-serif" font-size="26" font-weight="800">X25519MLKEM768 is ML-KEM first</text>
+  <text x="52" y="134" fill="#8aa3a8" font-family="IBM Plex Sans, Inter, sans-serif" font-size="15">The name does not follow RFC 9954 order. Getting this wrong is the #1 interop bug.</text>
+
+  <rect x="52" y="168" width="300" height="96" rx="8" fill="#12241c" stroke="#b6f25c"/>
+  <text x="72" y="204" fill="#b6f25c" font-family="IBM Plex Mono, monospace" font-size="12">LATTICE</text>
+  <text x="72" y="232" fill="#e8f4ef" font-family="IBM Plex Sans, sans-serif" font-size="20" font-weight="800">ML-KEM-768 ek</text>
+  <text x="72" y="252" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="13">1184 bytes</text>
+
+  <text x="368" y="226" fill="#4ee0d4" font-family="IBM Plex Mono, monospace" font-size="22" font-weight="700">‖</text>
+
+  <rect x="408" y="168" width="300" height="96" rx="8" fill="#101c28" stroke="#4ee0d4"/>
+  <text x="428" y="204" fill="#4ee0d4" font-family="IBM Plex Mono, monospace" font-size="12">CLASSICAL</text>
+  <text x="428" y="232" fill="#e8f4ef" font-family="IBM Plex Sans, sans-serif" font-size="20" font-weight="800">X25519 pk</text>
+  <text x="428" y="252" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="13">32 bytes</text>
+
+  <rect x="52" y="288" width="656" height="72" rx="8" fill="#050b12" stroke="#1e3340"/>
+  <text x="72" y="318" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="12">CLIENT SHARE</text>
+  <text x="72" y="344" fill="#e8f4ef" font-family="IBM Plex Mono, monospace" font-size="16">1216 B = 1184 ‖ 32 · IANA 0x11EC · ss 64</text>
+
+  <rect x="52" y="380" width="200" height="88" rx="8" fill="#122018" stroke="#24332c"/>
+  <text x="68" y="412" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="11">LIVE KEX</text>
+  <text x="68" y="440" fill="#b6f25c" font-family="IBM Plex Sans, sans-serif" font-size="18" font-weight="800">X25519 only</text>
+
+  <rect x="268" y="380" width="220" height="88" rx="8" fill="#1a160c" stroke="#f5c35b55"/>
+  <text x="284" y="412" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="11">NIST GROUPS</text>
+  <text x="284" y="440" fill="#f5c35b" font-family="IBM Plex Sans, sans-serif" font-size="18" font-weight="800">Fail closed</text>
+
+  <rect x="504" y="380" width="204" height="88" rx="8" fill="#101c28" stroke="#4ee0d455"/>
+  <text x="520" y="412" fill="#8aa3a8" font-family="IBM Plex Mono, monospace" font-size="11">FFI / PLATFORM TLS</text>
+  <text x="520" y="440" fill="#4ee0d4" font-family="IBM Plex Sans, sans-serif" font-size="18" font-weight="800">Zero</text>
+</svg>

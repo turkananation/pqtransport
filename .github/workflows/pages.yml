@@ -4,15 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "lib/**"
-      - "doc/**"
-      - "site/**"
-      - "README.md"
-      - "CHANGELOG.md"
-      - "llms.txt"
-      - "dartdoc_options.yaml"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,76 +12,57 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
+  build:
+    name: Build Jaspr site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Stage agent files into the Jaspr web root
+        run: cp llms.txt site/web/llms.txt
+
+      - name: Install site dependencies
+        working-directory: site
+        run: dart pub get
+
+      - name: Activate Jaspr
+        run: dart pub global activate jaspr_cli
+
+      - name: Build site
+        working-directory: site
+        run: dart pub global run jaspr_cli:jaspr build --verbose --sitemap-domain https://turkananation.github.io/pqtransport
+
+      - name: Rewrite absolute anchors for /pqtransport/ base
+        run: python3 tool/fix_pages_base.py site/build/jaspr
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/build/jaspr
+
   deploy:
-    name: Deploy documentation site
+    name: Deploy Pages
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Dart SDK
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Generate API docs
-        run: |
-          set -euo pipefail
-          # pqcrypto's published dartdoc_options references a cookbook path
-          # that is not in the pub cache. If dartdoc walks that graph, skip
-          # API HTML and keep the markdown site.
-          if ! dart doc --output site/api; then
-            echo "dartdoc failed; staging markdown-only API stub."
-            mkdir -p site/api
-            cat > site/api/index.html <<'HTML'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <title>pqtransport API</title>
-            <meta http-equiv="refresh" content="0; url=../doc/INDEX.md">
-          </head>
-          <body>
-            <p>API HTML could not be generated in this run.
-            See <a href="../doc/INDEX.md">doc/INDEX.md</a> and
-            <a href="https://github.com/turkananation/pqtransport/tree/main/lib">lib/</a>.</p>
-          </body>
-          </html>
-          HTML
-          fi
-
-
-      - name: Stage markdown docs
-        run: |
-          set -euo pipefail
-          mkdir -p site/doc
-          cp README.md CHANGELOG.md LICENSE llms.txt site/
-          cp -R doc/. site/doc/
-
-      - name: Configure GitHub Pages
-        id: pages
-        continue-on-error: true
-        uses: actions/configure-pages@v6
-        with:
-          enablement: true
-
-      - name: Upload Pages artifact
-        if: steps.pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        if: steps.pages.outcome == 'success'
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5

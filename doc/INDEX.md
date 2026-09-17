@@ -63,6 +63,7 @@ upgrade a claim this layer is not allowed to make. See
 | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Exact APIs pqforge should grow so pqtransport does not vendor crypto. |
 | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | Interop milestone status (not claimed). |
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
+| [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |
 
 ## Verification snapshot (this documentation pass)
 

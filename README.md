@@ -19,7 +19,9 @@ zeroization in Dart are best-effort. ML-KEM/ML-DSA evidence lives in
 
 Documentation (architecture, features, bugs, tracker, roadmap):
 [`doc/INDEX.md`](doc/INDEX.md).
-Site: [turkananation.github.io/pqtransport](https://turkananation.github.io/pqtransport/).
+Site (Jaspr, same engine as swissarmyknife):
+[turkananation.github.io/pqtransport](https://turkananation.github.io/pqtransport/).
+How the site is built: [`doc/SITE.md`](doc/SITE.md).
 
 ## Hybrid groups (RFC 10024)
 
