@@ -5,6 +5,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/crypto.dart';
 import '../core/errors.dart';
+import '../core/hybrid.dart';
 import '../core/lengths.dart';
 import '../socket/pq_transport_socket.dart';
 import 'pq_tls_client.dart';
@@ -19,16 +20,18 @@ final class PqTlsSocket {
   factory PqTlsSocket.client(
     PqTransportSocket inner, {
     PqTransportCrypto? crypto,
-  }) => PqTlsSocket._(inner, PqTlsClient(crypto: crypto), null);
+    HybridGroup group = HybridGroup.x25519MlKem768,
+  }) => PqTlsSocket._(inner, PqTlsClient(crypto: crypto, group: group), null);
 
   factory PqTlsSocket.server(
     PqTransportSocket inner, {
     PqTransportCrypto? crypto,
     PqTlsServerIdentity? identity,
+    HybridGroup group = HybridGroup.x25519MlKem768,
   }) => PqTlsSocket._(
     inner,
     null,
-    PqTlsServer(crypto: crypto, identity: identity),
+    PqTlsServer(crypto: crypto, identity: identity, group: group),
   );
 
   final PqTransportSocket _inner;

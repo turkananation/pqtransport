@@ -14,11 +14,11 @@ production hardening.
 
 | Rating | Count | Notes |
 |---|---|---|
-| P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop X25519MLKEM768 is the claim |
-| P1 wrong-on-the-wire or fail-open | 4 | OPEN-01, OPEN-02, OPEN-03, OPEN-04 |
-| P2 incomplete protocol | 6 | OPEN-05 … OPEN-10 |
+| P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
+| P1 wrong-on-the-wire or fail-open | 3 | OPEN-01, OPEN-02, OPEN-04 |
+| P2 incomplete protocol | 7 | OPEN-05 … OPEN-10, OPEN-13 |
 | P3 hygiene | 2 | OPEN-11, OPEN-12 |
-| Blocked on pqforge | 5 | BLK-01 … BLK-05 |
+| Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |
 
 No P0 against the documented 0.1.0 claim. Several P1s against an
@@ -27,8 +27,8 @@ OpenSSL / IANA / profile-footgun reading of the same code. Read
 
 ## What was reviewed (evidence)
 
-- Live X25519MLKEM768 handshake (`test/tls/handshake_test.dart`) —
-  client, server, exporters match.
+- Live X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+  handshakes (`test/tls/handshake_test.dart`) — client, server, exporters match.
 - Hybrid concat for all three RFC 10024 groups
   (`test/core/hybrid_share_test.dart`) — the two 64-byte combiners
   differ for the same `(ssKem, ssEcdh)` pair.
@@ -54,15 +54,15 @@ self-interop; do not put this on the public internet as "TLS 1.3".
 Traffic keys are AES-256-GCM from HKDF-SHA-256. Advertising
 `TLS_AES_256_GCM_SHA384` would desynchronise the transcript hash with
 any SHA-384 peer. **Mitigation:** no IANA codepoint on the 0.1 wire.
-**Fix:** pqforge SHA-384 HKDF (BLK-02) then slice 0.3.5.
+**Fix:** SHA-384 schedule (OPEN-02 / 0.3.5). pqforge already exports
+SHA-384 Extract/Expand.
 
-### S3 — Profile / group mismatch is constructible (OPEN-03, P1)
+### S3 — Profile / group mismatch refused (OPEN-03, closed)
 
-`PqTransportCrypto(profile: PqForgeProfile.maximum)` selects
-ML-KEM-1024 + ML-DSA-87 while the live TLS path is sized for 768/65.
-A caller can build the inconsistent pair. **Mitigation:** default
-profile is `balanced`; NIST groups fail closed on ECDH. **Fix:**
-refuse at `startHandshake` / constructor.
+`PqTransportCrypto.requireGroup` refuses `maximum` with ML-KEM-768
+groups and `balanced`/`compact` with SecP384r1MLKEM1024 **before**
+keygen. Evidence: `test/tls/handshake_test.dart`,
+`test/core/crypto_facade_test.dart`.
 
 ### S4 — Certificate is a raw ML-DSA-65 key (OPEN-04, P1)
 
@@ -136,7 +136,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | DNS cache poisoning from compressed rdata names | OPEN-08 (our encoder emits uncompressed names) |
 | mDNS spoofing on a real LAN | OPEN-09 (no multicast join); TXT sig helps when used |
 | QUIC injection via unprotected headers | OPEN-06 |
-| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.3` / transitive 0.4.1 |
+| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.4` / transitive 0.4.1 |
 
 ## Audit extras that are **not** claimed
 

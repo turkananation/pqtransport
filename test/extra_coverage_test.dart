@@ -82,7 +82,7 @@ void main() {
         crypto: crypto,
       );
       final r = await sock.completeInitiate(
-        responderX25519Public: Uint8List(x25519ShareBytes),
+        responderClassicalPublic: Uint8List(x25519ShareBytes),
       );
       expect(r.isFailure, isTrue);
     });

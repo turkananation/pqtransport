@@ -16,7 +16,7 @@ import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
 
-/// TLS 1.3 client with RFC 10024 X25519MLKEM768.
+/// TLS 1.3 client with RFC 10024 hybrid key exchange.
 final class PqTlsClient {
   PqTlsClient({
     PqTransportCrypto? crypto,
@@ -33,7 +33,7 @@ final class PqTlsClient {
   late final TlsKeySchedule schedule = TlsKeySchedule(crypto);
   TlsRecordLayer? records;
 
-  Uint8List? _xSecret;
+  Uint8List? _classicalSecret;
   Uint8List? _kemSecret;
   Uint8List? _hybridSs;
   var helloRetryCount = 0;
@@ -42,24 +42,19 @@ final class PqTlsClient {
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
-    if (group != HybridGroup.x25519MlKem768) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          '${group.name} live handshake needs classical ECDH from pqforge',
-        ),
-      );
-    }
+    final compatible = crypto.requireGroup(group);
+    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final driven = driveTls(machine, TlsEvent.startHandshake);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     final kem = crypto.kemKeyGen();
-    final x = await crypto.x25519KeyGen();
+    final classical = await crypto.classicalKeyGen(group);
     _kemSecret = kem.secretKey;
-    _xSecret = x.secretKey;
+    _classicalSecret = classical.secretKey;
     final share = encodeClientShare(
       HybridClientShare(
         group: group,
         kemEncapsulationKey: kem.publicKey,
-        classicalShare: x.publicKey,
+        classicalShare: classical.publicKey,
       ),
     );
     if (share.isFailure) return Result.failure(share.errorOrNull!);
@@ -124,18 +119,19 @@ final class PqTlsClient {
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final share = decoded.valueOrNull!;
     Uint8List? ssKem;
-    Uint8List? ssX;
+    Uint8List? ssClassical;
     try {
       ssKem = crypto.decapsulate(_kemSecret!, share.kemCiphertext);
-      ssX = await crypto.x25519Agree(
-        secretKey: _xSecret!,
+      ssClassical = await crypto.classicalAgree(
+        group,
+        secretKey: _classicalSecret!,
         remotePublicKey: share.classicalShare,
       );
-      if (isAllZeros(ssX)) return _fail('x25519 all-zero');
+      if (isAllZeros(ssClassical)) return _fail('classical all-zero');
       final combined = combineSharedSecret(
         group: group,
         kemSharedSecret: ssKem,
-        classicalSharedSecret: ssX,
+        classicalSharedSecret: ssClassical,
       );
       if (combined.isFailure) return Result.failure(combined.errorOrNull!);
       _hybridSs = combined.valueOrNull!;
@@ -149,9 +145,9 @@ final class PqTlsClient {
       return _fail('kex ${e.runtimeType}');
     } finally {
       zeroize(_kemSecret);
-      zeroize(_xSecret);
+      zeroize(_classicalSecret);
       zeroize(ssKem);
-      zeroize(ssX);
+      zeroize(ssClassical);
     }
   }
 

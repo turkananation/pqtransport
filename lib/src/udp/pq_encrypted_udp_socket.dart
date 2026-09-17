@@ -51,11 +51,10 @@ final class PqUdpSocket {
   Future<void> close() => channel.close();
 }
 
-/// ML-KEM + X25519 session then AEAD datagrams.
+/// ML-KEM + classical ECDH session then AEAD datagrams.
 ///
-/// Live key agreement is implemented for [HybridGroup.x25519MlKem768].
-/// Other groups encode shares correctly but ECDH for P-256/P-384 is not
-/// exported by pqforge — those groups fail closed at handshake.
+/// Live key agreement is implemented for all three RFC 10024 groups.
+/// [HybridGroup.secP384r1MlKem1024] requires `PqForgeProfile.maximum`.
 final class PqEncryptedUdpSocket {
   PqEncryptedUdpSocket({
     required this.raw,
@@ -92,34 +91,34 @@ final class PqEncryptedUdpSocket {
     required Uint8List deploymentSalt,
     String role = 'initiator',
   }) async {
-    if (group != HybridGroup.x25519MlKem768) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          '${group.name} UDP handshake needs classical ECDH from pqforge',
-        ),
-      );
-    }
+    final compatible = crypto.requireGroup(group);
+    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final sized = requireLength(
       peerKemPublicKey,
       group.kemPublicKeyBytes,
       group.kemPublicLabel,
     );
     if (sized.isFailure) return Result.failure(sized.errorOrNull!);
-    final x = await crypto.x25519KeyGen();
+    if (!crypto.checkEncapsulationKey(peerKemPublicKey)) {
+      return Result.failure(
+        PqTransportError.illegalKemKey(group.kemPublicLabel),
+      );
+    }
+    final classical = await crypto.classicalKeyGen(group);
     try {
       final enc = crypto.encapsulate(peerKemPublicKey);
       _pendingInitiate = _PendingInitiate(
-        xSecret: x.secretKey,
-        xPublic: x.publicKey,
+        classicalSecret: classical.secretKey,
+        classicalPublic: classical.publicKey,
         ciphertext: enc.ciphertext,
         ssKem: enc.sharedSecret,
         salt: deploymentSalt,
       );
       return Result.success(
-        Uint8List.fromList([...x.publicKey, ...enc.ciphertext]),
+        Uint8List.fromList([...classical.publicKey, ...enc.ciphertext]),
       );
     } on Object catch (e) {
-      zeroize(x.secretKey);
+      zeroize(classical.secretKey);
       return Result.failure(
         PqTransportError.handshakeFailure('udp initiate: ${e.runtimeType}'),
       );
@@ -129,7 +128,7 @@ final class PqEncryptedUdpSocket {
   _PendingInitiate? _pendingInitiate;
 
   Future<Result<void, PqTransportError>> completeInitiate({
-    required Uint8List responderX25519Public,
+    required Uint8List responderClassicalPublic,
   }) async {
     final p = _pendingInitiate;
     if (p == null) {
@@ -137,16 +136,17 @@ final class PqEncryptedUdpSocket {
         PqTransportError.handshakeFailure('no pending initiate'),
       );
     }
-    Uint8List? ssX;
+    Uint8List? ssClassical;
     try {
-      ssX = await crypto.x25519Agree(
-        secretKey: p.xSecret,
-        remotePublicKey: responderX25519Public,
+      ssClassical = await crypto.classicalAgree(
+        group,
+        secretKey: p.classicalSecret,
+        remotePublicKey: responderClassicalPublic,
       );
       final combined = combineSharedSecret(
         group: group,
         kemSharedSecret: p.ssKem,
-        classicalSharedSecret: ssX,
+        classicalSharedSecret: ssClassical,
       );
       if (combined.isFailure) return Result.failure(combined.errorOrNull!);
       _installSession(
@@ -154,8 +154,8 @@ final class PqEncryptedUdpSocket {
         salt: p.salt,
         extra: Uint8List.fromList([
           ...p.ciphertext,
-          ...p.xPublic,
-          ...responderX25519Public,
+          ...p.classicalPublic,
+          ...responderClassicalPublic,
         ]),
       );
       _pendingInitiate = null;
@@ -166,9 +166,9 @@ final class PqEncryptedUdpSocket {
         PqTransportError.handshakeFailure('udp complete: ${e.runtimeType}'),
       );
     } finally {
-      zeroize(p.xSecret);
+      zeroize(p.classicalSecret);
       zeroize(p.ssKem);
-      zeroize(ssX);
+      zeroize(ssClassical);
     }
   }
 
@@ -179,14 +179,9 @@ final class PqEncryptedUdpSocket {
     required Uint8List deploymentSalt,
     String role = 'responder',
   }) async {
-    if (group != HybridGroup.x25519MlKem768) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          '${group.name} UDP handshake needs classical ECDH from pqforge',
-        ),
-      );
-    }
-    final need = x25519ShareBytes + group.kemCiphertextBytes;
+    final compatible = crypto.requireGroup(group);
+    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
+    final need = group.classicalShareBytes + group.kemCiphertextBytes;
     if (initiatorFlight.length != need) {
       return Result.failure(
         PqTransportError.illegalParameter(
@@ -196,38 +191,43 @@ final class PqEncryptedUdpSocket {
         ),
       );
     }
-    final peerX = initiatorFlight.sublist(0, x25519ShareBytes);
-    final ct = initiatorFlight.sublist(x25519ShareBytes);
-    final x = await crypto.x25519KeyGen();
+    final peerClassical = initiatorFlight.sublist(0, group.classicalShareBytes);
+    final ct = initiatorFlight.sublist(group.classicalShareBytes);
+    final classical = await crypto.classicalKeyGen(group);
     Uint8List? ssKem;
-    Uint8List? ssX;
+    Uint8List? ssClassical;
     try {
       ssKem = crypto.decapsulate(kemSecretKey, ct);
-      ssX = await crypto.x25519Agree(
-        secretKey: x.secretKey,
-        remotePublicKey: peerX,
+      ssClassical = await crypto.classicalAgree(
+        group,
+        secretKey: classical.secretKey,
+        remotePublicKey: peerClassical,
       );
       final combined = combineSharedSecret(
         group: group,
         kemSharedSecret: ssKem,
-        classicalSharedSecret: ssX,
+        classicalSharedSecret: ssClassical,
       );
       if (combined.isFailure) return Result.failure(combined.errorOrNull!);
       _installSession(
         combined.valueOrNull!,
         salt: deploymentSalt,
-        extra: Uint8List.fromList([...ct, ...peerX, ...x.publicKey]),
+        extra: Uint8List.fromList([
+          ...ct,
+          ...peerClassical,
+          ...classical.publicKey,
+        ]),
       );
       await _listen();
-      return Result.success(x.publicKey);
+      return Result.success(classical.publicKey);
     } on Object catch (e) {
       return Result.failure(
         PqTransportError.handshakeFailure('udp accept: ${e.runtimeType}'),
       );
     } finally {
-      zeroize(x.secretKey);
+      zeroize(classical.secretKey);
       zeroize(ssKem);
-      zeroize(ssX);
+      zeroize(ssClassical);
     }
   }
 
@@ -307,15 +307,15 @@ final class PqEncryptedUdpSocket {
 
 final class _PendingInitiate {
   _PendingInitiate({
-    required this.xSecret,
-    required this.xPublic,
+    required this.classicalSecret,
+    required this.classicalPublic,
     required this.ciphertext,
     required this.ssKem,
     required this.salt,
   });
 
-  final Uint8List xSecret;
-  final Uint8List xPublic;
+  final Uint8List classicalSecret;
+  final Uint8List classicalPublic;
   final Uint8List ciphertext;
   final Uint8List ssKem;
   final Uint8List salt;

@@ -19,12 +19,12 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 |---|---|
 | Package | `pqtransport 0.1.0` (unpublished on pub.dev until the owner cuts a release) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Crypto | `pqforge ^0.4.3` |
+| Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 93 passed |
-| Coverage | 90.5% of `lib/` (`1854/2049`) |
-| Live handshake | X25519MLKEM768 self-interop only |
+| Tests | 104 passed |
+| Coverage | 90.5% of `lib/` (`1854/2049`) on the codec pass; NIST live tests added after |
+| Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | OpenSSL interop | Not started |
 | CMVP / FIPS 140 | Not claimed |
 
@@ -34,8 +34,9 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 |---|---|---|
 | Core lengths + hybrid concat (3 groups) | Done | `test/core/` |
 | Socket abstraction + in-memory drivers | Done | `test/io/`, `test/extra_coverage_test.dart` |
-| Encrypted UDP (X25519MLKEM768) | Done | `test/udp/datagram_test.dart` |
+| Encrypted UDP (all three groups) | Done | `test/udp/datagram_test.dart` |
 | TLS machines + compact handshake + records | Done | `test/tls/` |
+| Live NIST groups (P-256 / P-384) | Done | `handshake_test.dart`, `crypto_facade_test.dart` |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
 | mDNS probe/announce/browse + ML-DSA TXT | Done | `test/mdns/mdns_test.dart` |
@@ -79,8 +80,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | ID | Sev | Owner | Blocks | Next action |
 |---|---|---|---|---|
 | OPEN-01 | P1 | pqtransport | 0.2 OpenSSL hello | RFC 8446 ClientHello / ServerHello / extensions |
-| OPEN-02 | P1 | pqtransport + pqforge | IANA 0x1302 | Keep SHA-256 schedule until BLK-02 lands; never put 0x1302 on the wire |
-| OPEN-03 | P1 | pqtransport | Footgun | Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups |
+| OPEN-02 | P1 | pqtransport | IANA 0x1302 | SHA-384 Extract/Expand is in pqforge; **schedule** is still SHA-256. Never put 0x1302 on the wire until 0.3.5 |
 | OPEN-04 | P1 | pqtransport | Cert interop | X.509 `Certificate` (or an explicit raw-pk flag) |
 | OPEN-05 | P2 | pqtransport | HRR interop | Cookie + actual HRR flight |
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
@@ -89,17 +89,19 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 | OPEN-11 | P3 | pqtransport | API noise | Drop unused `role` named args |
-| OPEN-12 | P3 | pqtransport | Coverage | Hit leftover DNS/UDP/TLS error paths (~9.5%) |
+| OPEN-12 | P3 | pqtransport | Coverage | Hit leftover DNS/UDP/TLS error paths |
+| OPEN-13 | P2 | pqtransport | IANA 0x1303 | Wire pqforge sync ChaCha into `aeadSeal` (export exists) |
 
-### Blocked on pqforge (do not vendor)
+### pqforge exports (0.4.4 — consumed)
 
-| ID | Sev | Needed from pqforge | Unblocks |
+| ID | Sev | Status | Evidence |
 |---|---|---|---|
-| BLK-01 | P0 for NIST groups | P-256 / P-384 ECDH (x-coordinate, uncompressed `0x04\|\|X\|\|Y`) | Live SecP256r1MLKEM768 / SecP384r1MLKEM1024 |
-| BLK-02 | P1 | `hkdfExpandSha256`; SHA-384 Extract/Expand | Drop local Expand; IANA 0x1302 (with SHA-384) |
-| BLK-03 | P2 | Sync ChaCha20-Poly1305 primitive | `TLS_CHACHA20_POLY1305_SHA256` (0x1303) |
-| BLK-04 | P2 | Group-aware combiner **or** leave concat here | Avoids reversing X25519MLKEM768 |
-| BLK-05 | P3 | `checkEncapsulationKey` before encapsulate | `illegal_parameter` without catching pqcrypto |
+| BLK-01 | P0 | **Fixed** | Live SecP256r1MLKEM768 / SecP384r1MLKEM1024 |
+| BLK-02 | P1 | **Fixed** (SHA-256). SHA-384 schedule is OPEN-02 | `hkdfExtract`/`hkdfExpand` + RFC 5869 A.1 |
+| BLK-03 | P2 | Export landed; **not wired** → OPEN-13 | pqforge `chacha20Poly1305Encrypt` |
+| BLK-04 | P2 | **Fixed** | `concatenateSharedSecrets` pin; no `combine()` |
+| BLK-05 | P3 | **Fixed** | `checkEncapsulationKey` → `illegalKemKey` |
+| OPEN-03 | P1 | **Fixed** | `requireGroup` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -107,7 +109,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 | ID | Summary | Roadmap slice |
 |---|---|---|
-| LIM-01 | OpenSSL / BoringSSL handshake | 0.3, after OPEN-01 + BLK-01/02 |
+| LIM-01 | OpenSSL / BoringSSL handshake | 0.4, after OPEN-01 |
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
 | LIM-04 | Browser raw UDP / mDNS | Never (browser platform) |
@@ -117,14 +119,14 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
-| 0.1.0 | Self-interop vertical slice | — | Shipped |
-| 0.2 | RFC 8446-shaped hellos + profile guard | none of BLK-* strictly | OPEN-01, OPEN-03, OPEN-04, OPEN-05, OPEN-11 |
-| 0.3 | Live NIST groups + IANA cipher | pqforge BLK-01, BLK-02 | BLK-01, BLK-02, OPEN-02 |
-| 0.4 | OpenSSL 3.5+ fixture | 0.2 + 0.3 | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
+| 0.2 | RFC 8446-shaped hellos | none of BLK-* | OPEN-01, OPEN-04, OPEN-05, OPEN-11 |
+| 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
+| 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |
 
 Do not start 0.4 before 0.2 hellos parse. Do not start 0.5 HTTP/3 before
-OPEN-06. Do not vendor P-256 ECDH to jump 0.3.
+OPEN-06. Do not vendor P-256 ECDH (pqforge 0.4.4 already exports it).
 
 ## Verification commands
 

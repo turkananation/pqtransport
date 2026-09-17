@@ -42,7 +42,7 @@ Please include, where possible:
 ## Scope and cryptographic caveats
 
 `pqtransport` provides **implementation evidence** (unit tests, live
-X25519MLKEM768 handshake against pqforge, RFC 10024 length/concat tests).
+RFC 10024 handshakes against pqforge, RFC 10024 length/concat tests).
 It is **not** a validated cryptographic module. See
 [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md).
 
@@ -55,15 +55,17 @@ In particular:
   Self-interop works; OpenSSL will not parse us. See
   [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md).
 - **Record protection is AES-256-GCM with HKDF-SHA-256.** That is not IANA
-  `TLS_AES_256_GCM_SHA384` (0x1302).
+  `TLS_AES_256_GCM_SHA384` (0x1302). SHA-384 Extract/Expand is exported by
+  pqforge 0.4.4; the **schedule** is still SHA-256 (OPEN-02).
 - **Best-effort side-channel resistance.** Pure Dart compiled to the VM,
   dart2js, or dart2wasm cannot guarantee constant-time execution (JIT, GC,
   and per-iteration branch directions are out of our control).
 - **Best-effort zeroization.** Secret buffers are overwritten where the
   code can see them, but Dart's garbage collector may have already copied
   or retained values.
-- **P-256 / P-384 ECDH is fail-closed.** pqforge 0.4.3 does not export it.
-  Those hybrid groups encode shares only.
+- **P-256 / P-384 ECDH is live** via pqforge 0.4.4 for all three RFC 10024
+  groups. Profile/group mismatches still fail closed (`requireGroup`). Do
+  not vendor ECDH here.
 
 These are documented design boundaries, not vulnerabilities. Reports that
 *demonstrate* a concrete, exploitable weakening (for example, a parse that
@@ -78,5 +80,6 @@ Primitive KATs (ML-KEM / ML-DSA / SLH-DSA) belong in
 - Requests for CMVP / FIPS 140 certification (a separate, formal process).
 - Theoretical side-channel concerns already documented in
   [doc/SECURITY_AUDIT.md](doc/SECURITY_AUDIT.md) without a concrete exploit.
-- Missing OpenSSL interop (tracked as LIM-01 / milestone 0.4).
-- Vendoring P-256 ECDH inside this package (blocked on pqforge; BLK-01).
+- Missing OpenSSL interop (tracked as LIM-01 / milestone 0.4; blocked on
+  OPEN-01 hellos, not on ECDH).
+- Vendoring cryptographic primitives inside this package. Consume pqforge.

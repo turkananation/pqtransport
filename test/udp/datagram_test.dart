@@ -128,7 +128,7 @@ void main() {
       );
       expect(reply.isSuccess, isTrue, reason: '${reply.errorOrNull}');
       final done = await a.completeInitiate(
-        responderX25519Public: reply.valueOrNull!,
+        responderClassicalPublic: reply.valueOrNull!,
       );
       expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
       expect(a.isEstablished, isTrue);
@@ -177,7 +177,7 @@ void main() {
           initiatorFlight: flight.valueOrNull!,
           deploymentSalt: salt,
         );
-        await a.completeInitiate(responderX25519Public: reply.valueOrNull!);
+        await a.completeInitiate(responderClassicalPublic: reply.valueOrNull!);
 
         final first = b.incoming.first;
         await a.send(Uint8List.fromList([1]), epB);
@@ -215,7 +215,42 @@ void main() {
       },
     );
 
-    test('P-256 group fails closed on UDP handshake', () async {
+    test('P-256 group completes a live UDP handshake', () async {
+      final net = MemoryDatagramNetwork();
+      final epA = const PqEndpoint('1.1.1.1', 9);
+      final epB = const PqEndpoint('1.1.1.2', 9);
+      final a = PqEncryptedUdpSocket(
+        raw: PqUdpSocket(channel: net.bind(epA), throttleWindow: Duration.zero),
+        crypto: crypto,
+        group: HybridGroup.secP256r1MlKem768,
+      );
+      final b = PqEncryptedUdpSocket(
+        raw: PqUdpSocket(channel: net.bind(epB), throttleWindow: Duration.zero),
+        crypto: crypto,
+        group: HybridGroup.secP256r1MlKem768,
+      );
+      final kem = crypto.kemKeyGen();
+      final salt = crypto.randomBytes(16);
+      final flight = await a.initiate(
+        peerKemPublicKey: kem.publicKey,
+        deploymentSalt: salt,
+      );
+      expect(flight.isSuccess, isTrue, reason: '${flight.errorOrNull}');
+      final reply = await b.accept(
+        kemSecretKey: kem.secretKey,
+        initiatorFlight: flight.valueOrNull!,
+        deploymentSalt: salt,
+      );
+      expect(reply.isSuccess, isTrue, reason: '${reply.errorOrNull}');
+      final done = await a.completeInitiate(
+        responderClassicalPublic: reply.valueOrNull!,
+      );
+      expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
+      expect(a.isEstablished, isTrue);
+      expect(b.isEstablished, isTrue);
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    test('P-384 group needs profile.maximum', () async {
       final net = MemoryDatagramNetwork();
       final sock = PqEncryptedUdpSocket(
         raw: PqUdpSocket(
@@ -223,15 +258,40 @@ void main() {
           throttleWindow: Duration.zero,
         ),
         crypto: crypto,
-        group: HybridGroup.secP256r1MlKem768,
+        group: HybridGroup.secP384r1MlKem1024,
       );
       final r = await sock.initiate(
-        peerKemPublicKey: Uint8List(mlKem768PublicKeyBytes),
+        peerKemPublicKey: Uint8List(mlKem1024PublicKeyBytes),
         deploymentSalt: Uint8List(16),
       );
       expect(r.isFailure, isTrue);
       expect(r.errorOrNull!.code, PqTransportErrorCode.unsupported);
     });
+
+    test(
+      'modulus-corrupted kem public key is illegal_parameter (FIPS 203 §7.2)',
+      () async {
+        final net = MemoryDatagramNetwork();
+        final sock = PqEncryptedUdpSocket(
+          raw: PqUdpSocket(
+            channel: net.bind(const PqEndpoint('1.1.1.4', 9)),
+            throttleWindow: Duration.zero,
+          ),
+          crypto: crypto,
+        );
+        final pair = crypto.kemKeyGen();
+        final bad = Uint8List.fromList(pair.publicKey);
+        for (var i = 0; i < 384; i++) {
+          bad[i] = 0xff;
+        }
+        final r = await sock.initiate(
+          peerKemPublicKey: bad,
+          deploymentSalt: Uint8List(16),
+        );
+        expect(r.isFailure, isTrue);
+        expect(r.errorOrNull!.code, PqTransportErrorCode.illegalParameter);
+      },
+    );
 
     test('wrong-length kem public key is illegal_parameter', () async {
       final net = MemoryDatagramNetwork();

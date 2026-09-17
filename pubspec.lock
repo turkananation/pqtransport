@@ -525,10 +525,10 @@ packages:
     dependency: "direct main"
     description:
       name: pqforge
-      sha256: "0b0ed571f4b916721d27f13bf6b31a7fbffe073685b4fa0635b81226bd2eb640"
+      sha256: "4a2afab1423d4a73ab3d6c3d70f904d1ef5b6b5127feb6bf6c1f7b6b291534b9"
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.3"
+    version: "0.4.4"
   protobuf:
     dependency: transitive
     description:

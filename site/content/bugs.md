@@ -19,7 +19,6 @@ Canonical tracker:
 | --- | --- | --- |
 | OPEN-01 | P1 | Compact private TLS encoding, not RFC 8446 hellos |
 | OPEN-02 | P1 | AES-256-GCM with SHA-256 schedule — not IANA 0x1302 |
-| OPEN-03 | P1 | `PqForgeProfile.maximum` with ML-KEM-768 groups is constructible |
 | OPEN-04 | P1 | Certificate is a raw ML-DSA-65 key, not X.509 |
 | OPEN-05 | P2 | HelloRetryRequest is a counter, not a wire HRR |
 | OPEN-06 | P2 | QUIC has no header protection / ACK / RFC 9001 |
@@ -28,27 +27,25 @@ Canonical tracker:
 | OPEN-09 | P2 | `IoDatagramChannel` does not join mDNS multicast |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
 | OPEN-11 | P3 | Unused UDP `role` named args |
-| OPEN-12 | P3 | ~9.5% of `lib/` unhit |
+| OPEN-12 | P3 | leftover DNS/UDP/TLS error paths |
+| OPEN-13 | P2 | ChaCha records / IANA 0x1303 not wired (export exists) |
 
 ## Blocked on pqforge
 
-| ID | Summary |
-| --- | --- |
-| BLK-01 | No P-256 / P-384 ECDH |
-| BLK-02 | No RFC 5869 Expand / SHA-384 HKDF |
-| BLK-03 | No sync ChaCha20-Poly1305 primitive |
-| BLK-04 | `PqForgeCombiner` is always classical then PQ |
-| BLK-05 | No pre-encapsulate `checkEncapsulationKey` |
+None. pqforge **0.4.4** shipped BLK-01 … BLK-05. Remaining crypto work is
+**this package**: OPEN-02 (SHA-384 schedule) and OPEN-13 (ChaCha records).
 
 ## Honest limits (won't fix in 0.1)
 
-LIM-01 OpenSSL handshake. LIM-02 CMVP / FIPS 140. LIM-03 hard
-constant-time / hard erasure. LIM-04 browser raw UDP / mDNS. LIM-05
-QUIC 0-RTT.
+LIM-01 OpenSSL handshake (needs OPEN-01 hellos; NIST live KEX is no
+longer the blocker). LIM-02 CMVP / FIPS 140. LIM-03 hard constant-time /
+hard erasure. LIM-04 browser raw UDP / mDNS. LIM-05 QUIC 0-RTT.
 
 ## Fixed in 0.1.0
 
 Replay-before-AEAD, epoch record sequences, `MemoryByteSocket` buffering,
 multicast flood, NS codec, combiner-order tests, SDK pin `>=3.12.0`,
-handshake `late` application secrets. Twelve FIX-* rows in the canonical
-file.
+handshake `late` application secrets. OPEN-03 (`requireGroup`), BLK-01
+(live NIST ECDH), BLK-02 (SHA-256 HKDF helpers), BLK-04
+(`concatenateSharedSecrets`), BLK-05 (`checkEncapsulationKey`). Twelve
+FIX-* rows plus those five in the canonical file.

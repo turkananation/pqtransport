@@ -45,12 +45,24 @@ final txt = signTxt(crypto, identity, 'pqtransport=1');
 final ok = verifyTxt(crypto, identity.publicKey, txt);
 ```
 
-## Fail closed on NIST groups
+## Live NIST group
 
 ```dart
+final crypto = PqTransportCrypto();
 final r = PqTlsClient(
   crypto: crypto,
   group: HybridGroup.secP256r1MlKem768,
 ).startHandshake();
-// Result.failure until pqforge exports P-256 ECDH.
+// Live via pqforge 0.4.4. SecP384r1MLKEM1024 needs PqForgeProfile.maximum.
+```
+
+## Profile / group mismatch still fails closed
+
+```dart
+final crypto = PqTransportCrypto(profile: PqForgeProfile.maximum);
+final r = await PqTlsClient(
+  crypto: crypto,
+  group: HybridGroup.x25519MlKem768,
+).startHandshake();
+// Result.failure — maximum is ML-KEM-1024; X25519MLKEM768 needs 768.
 ```

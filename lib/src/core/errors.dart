@@ -19,6 +19,16 @@ final class PqTransportError implements Exception {
     alert: tlsAlertIllegalParameter,
   );
 
+  /// Wrong-on-the-wire KEM key that passed length but failed FIPS 203 §7.2.
+  factory PqTransportError.illegalKemKey(PqLengthLabel label) =>
+      PqTransportError._(
+        code: PqTransportErrorCode.illegalParameter,
+        message:
+            'illegal_parameter: ${label.name} failed FIPS 203 §7.2 '
+            'encapsulation-key check',
+        alert: tlsAlertIllegalParameter,
+      );
+
   factory PqTransportError.decodeFailure(String why) => PqTransportError._(
     code: PqTransportErrorCode.decodeFailure,
     message: 'decode_failure: $why',

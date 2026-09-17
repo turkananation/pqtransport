@@ -25,14 +25,14 @@ upgrade a claim this layer is not allowed to make. See
 
 | Area | Current state |
 |---|---|
-| Package version | `0.1.0` (GitHub tag `vX.Y.Z` publishes via `.github/workflows/publish.yml` once pub.dev automated publishing is enabled; first upload is a one-time manual `dart pub publish`) |
+| Package version | `0.1.0` (unpublished on pub.dev; GitHub tag `vX.Y.Z` publishes via `publish.yml` once automated publishing is enabled) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Runtime dependencies | `pqforge ^0.4.3`, `swissarmyknife ^0.1.0` |
+| Runtime dependencies | `pqforge ^0.4.4`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
-| Hybrid groups | RFC 10024 codecs for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
-| Live handshake | **X25519MLKEM768 only** (self-interop). NIST-curve groups fail closed (pqforge has no P-256/P-384 ECDH). |
+| Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
+| Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
 | TLS wire | Compact private encoding, **not** RFC 8446 ClientHello/ServerHello |
-| Tests | `dart analyze` clean; **93** tests pass; **90.5%** line coverage of `lib/` |
+| Tests | `dart analyze` clean; **104** tests pass |
 | OpenSSL interop | Not started. Do not claim it. [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | CMVP / FIPS 140 | Not claimed. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 
@@ -45,7 +45,7 @@ upgrade a claim this layer is not allowed to make. See
 | Public API and barrels | [API.md](API.md) | [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
 | Known defects | [BUGS.md](BUGS.md) | [SECURITY_AUDIT.md](SECURITY_AUDIT.md) |
 | Open work | [TRACKER.md](TRACKER.md) | [ROADMAP.md](ROADMAP.md) |
-| What pqforge must export | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | [IMPROVEMENTS.md](IMPROVEMENTS.md) |
+| What pqforge 0.4.4 exports | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | [IMPROVEMENTS.md](IMPROVEMENTS.md) |
 | Claim language | [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | Contributor loop | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | [TRACKER.md](TRACKER.md) |
 
@@ -65,7 +65,7 @@ upgrade a claim this layer is not allowed to make. See
 | [PROGRESS_TRACKER.md](PROGRESS_TRACKER.md) | Pointer to [TRACKER.md](TRACKER.md) (sister-package name). |
 | [ROADMAP.md](ROADMAP.md) | 0.2 → 0.5 direction. Order is not optional. |
 | [IMPROVEMENTS.md](IMPROVEMENTS.md) | Prioritized engineering improvements. |
-| [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Exact APIs pqforge should grow so pqtransport does not vendor crypto. |
+| [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs. Do not vendor crypto. |
 | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | Interop milestone status (not claimed). |
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |
@@ -74,10 +74,13 @@ upgrade a claim this layer is not allowed to make. See
 ## Verification snapshot (this documentation pass)
 
 - `dart analyze` — no issues.
-- `dart test` — 93 passed.
-- Line coverage of `lib/` — 90.5% (`1854/2049`).
+- `dart test` — 104 passed.
+- Line coverage of `lib/` — 90.5% (`1854/2049`) on the codec pass; NIST
+  live tests added after.
 - Invariant script: no `import 'dart:ffi'`, no stray `1184|1216|1120|1249|1153|0x11EC|0x11EB` outside `lengths.dart`, claim language clean.
-- Live X25519MLKEM768 handshake test green (client, server, exporters match).
+- Live X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 handshake
+  tests green (client, server, exporters match). Profile/group mismatch
+  refused (`requireGroup`).
 - HTTP/1.1 GET over `PqTlsSocket` green.
 - `doc/` set complete: achievements, architecture, features, API, platform,
   claim boundary, security audit, bugs, tracker, progress-tracker alias,

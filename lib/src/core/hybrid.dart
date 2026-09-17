@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:pqforge/pqforge.dart' hide requireLength;
 import 'package:swissarmyknife/swissarmyknife.dart';
 
 import 'bytes.dart';
@@ -268,8 +269,16 @@ Result<Uint8List, PqTransportError> combineSharedSecret({
       ),
     );
   }
+  final order = switch (group.concatOrder) {
+    HybridConcatOrder.kemThenClassical => PqHybridConcatOrder.pqThenClassical,
+    HybridConcatOrder.classicalThenKem => PqHybridConcatOrder.classicalThenPq,
+  };
   return Result.success(
-    _concat(group.concatOrder, kem.valueOrNull!, cls.valueOrNull!),
+    PqForgeCombiner.concatenateSharedSecrets(
+      classicalSharedSecret: cls.valueOrNull!,
+      postQuantumSharedSecret: kem.valueOrNull!,
+      order: order,
+    ),
   );
 }
 

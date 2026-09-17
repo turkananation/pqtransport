@@ -20,10 +20,13 @@ Tracked as LIM-01. Slice 0.4 in [ROADMAP.md](ROADMAP.md).
 | ServerHello | Same compact shape | RFC 8446 ServerHello + `key_share` |
 | Certificate | Raw ML-DSA-65 public key | X.509 `Certificate` message (or raw-pk extension, negotiated) |
 | Cipher suite | AES-256-GCM keys from HKDF-**SHA-256** | Typically `TLS_AES_256_GCM_SHA384` (0x1302) for this AEAD |
-| Groups | X25519MLKEM768 live; NIST groups fail closed | OpenSSL 3.5+ implements RFC 10024 groups when built with the hybrid KEM |
+| Groups | All three RFC 10024 groups **live** (self-interop). Compact hello still will not parse | OpenSSL 3.5+ implements RFC 10024 groups when built with the hybrid KEM |
 
 Self-interop (client and server both `package:pqtransport`) is tested and
-green. That is a different claim.
+green for X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(`maximum` profile). That is a different claim.
+
+Live NIST KEX is **not** the OpenSSL blocker. OPEN-01 hellos are.
 
 ## Concatenation is already the RFC join
 
@@ -43,9 +46,11 @@ group name (that would be a stop-ship).
 
 1. **0.2** — RFC 8446-shaped ClientHello/ServerHello/Certificate in
    pqtransport (OPEN-01, OPEN-04). Still SHA-256 schedule. Still no
-   0x1302 on the wire.
-2. **0.3** — pqforge P-256/P-384 ECDH (BLK-01) and SHA-384 HKDF (BLK-02)
-   if the fixture peer offers 0x1302. Live NIST groups.
+   0x1302 on the wire. Unblocks OpenSSL **parsing**.
+2. **0.3 remaining** — SHA-384 schedule (OPEN-02) then and only then
+   IANA `0x1302` if the fixture peer offers it. ChaCha records (OPEN-13)
+   if the peer offers `0x1303`. Live NIST groups are **already done**
+   (BLK-01 consumed in pqforge 0.4.4).
 3. **0.4.1** — recorded transcript against OpenSSL 3.5+
    (`openssl s_server` / `s_client` with X25519MLKEM768).
 4. Only then may README say "handshakes with OpenSSL 3.5+ on fixture X."
@@ -53,6 +58,8 @@ group name (that would be a stop-ship).
 A Wireshark screenshot is not a fixture. The fixture is bytes + a test
 that either drives `Process` against a pinned OpenSSL or replays a
 checked-in flight.
+
+Do not start this fixture before OPEN-01 hellos parse.
 
 ## Suggested fixture (when directed)
 

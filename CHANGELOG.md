@@ -2,13 +2,39 @@
 
 ## Unreleased
 
+### Added
+
+- Live **SecP256r1MLKEM768** and **SecP384r1MLKEM1024** TLS and encrypted-UDP
+  handshakes via pqforge 0.4.4 P-256 / P-384 ECDH (`PqTransportCrypto.p256*` /
+  `p384*` / `classicalKeyGen` / `classicalAgree`). NIST groups no longer
+  fail-closed.
+- `PqTransportCrypto.requireGroup` — refuses `PqForgeProfile.maximum` with
+  ML-KEM-768 groups and `balanced`/`compact` with SecP384r1MLKEM1024 (OPEN-03).
+- `PqKemPrimitives.checkEncapsulationKey` before encapsulate; a bad modulus
+  is `illegal_parameter` without catching pqcrypto (BLK-05).
+- `PqTlsSocket` accepts `HybridGroup`.
+
 ### Changed
 
+- Floor is **pqforge ^0.4.4**.
+- `hkdfExtract` / `hkdfExpand` now call pqforge RFC 5869 SHA-256 helpers
+  (local HMAC loop deleted). Expand-Label stays in TLS. RFC 5869 A.1 pin
+  unchanged (BLK-02 SHA-256 half).
+- `combineSharedSecret` uses `PqForgeCombiner.concatenateSharedSecrets` after
+  length / all-zero checks. TLS still does **not** call `combine()` (BLK-04).
+- `PqEncryptedUdpSocket.completeInitiate` parameter renamed
+  `responderClassicalPublic` (0.1.0 is unpublished).
 - Tag `vX.Y.Z` now publishes to pub.dev via GitHub Actions OIDC
   (`.github/workflows/publish.yml`, environment `pub.dev`), matching pqforge.
   The GitHub Release workflow no longer treats pub.dev as a manual step.
   First package upload is still a one-time maintainer `dart pub publish`
   because pub.dev only enables automated publishing after the package exists.
+
+### Tests
+
+- 104 tests. Live SecP256r1MLKEM768 and SecP384r1MLKEM1024 TLS + UDP,
+  `requireGroup` refuse, `checkEncapsulationKey` on a modulus-corrupted ek,
+  `concatenateSharedSecrets` pin vs pqforge.
 
 ## 0.1.0
 
@@ -43,7 +69,7 @@
 - No OpenSSL interop fixture yet. Wording is RFC 10024-aligned encoding with
   unit-tested concatenation, not "interoperable with OpenSSL".
 - No FIPS 140 module validation claim. Best-effort zeroization only.
-- P-256 / P-384 ECDH not performed (pqforge gap). Share codecs only.
-- TLS schedule is HKDF-SHA-256, not SHA-384.
+- TLS schedule is HKDF-SHA-256, not SHA-384. Do not put IANA `0x1302` on
+  the wire (OPEN-02).
 - QUIC is 1-RTT packet protect + frames, not a full RFC 9000 stack.
 - HTTP/3 is frames, not QPACK.

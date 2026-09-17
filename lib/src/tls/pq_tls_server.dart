@@ -31,7 +31,7 @@ final class PqTlsServerIdentity {
   }
 }
 
-/// TLS 1.3 server with RFC 10024 X25519MLKEM768.
+/// TLS 1.3 server with RFC 10024 hybrid key exchange.
 final class PqTlsServer {
   PqTlsServer({
     PqTransportCrypto? crypto,
@@ -73,13 +73,8 @@ final class PqTlsServer {
   Future<Result<List<Uint8List>, PqTransportError>> _onClientHello(
     Uint8List recordBytes,
   ) async {
-    if (group != HybridGroup.x25519MlKem768) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          '${group.name} live handshake needs classical ECDH from pqforge',
-        ),
-      );
-    }
+    final compatible = crypto.requireGroup(group);
+    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final rec = decodePlainRecord(recordBytes);
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
     if (rec.valueOrNull!.type != tlsContentHandshake) {
@@ -94,21 +89,28 @@ final class PqTlsServer {
     final decoded = decodeClientShare(group, ch.valueOrNull!.share);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final clientShare = decoded.valueOrNull!;
-    final x = await crypto.x25519KeyGen();
+    if (!crypto.checkEncapsulationKey(clientShare.kemEncapsulationKey)) {
+      driveTls(machine, TlsEvent.fatal);
+      return Result.failure(
+        PqTransportError.illegalKemKey(group.kemPublicLabel),
+      );
+    }
+    final classical = await crypto.classicalKeyGen(group);
     Uint8List? ssKem;
-    Uint8List? ssX;
+    Uint8List? ssClassical;
     try {
       final enc = crypto.encapsulate(clientShare.kemEncapsulationKey);
       ssKem = enc.sharedSecret;
-      ssX = await crypto.x25519Agree(
-        secretKey: x.secretKey,
+      ssClassical = await crypto.classicalAgree(
+        group,
+        secretKey: classical.secretKey,
         remotePublicKey: clientShare.classicalShare,
       );
-      if (isAllZeros(ssX)) return _fail('x25519 all-zero');
+      if (isAllZeros(ssClassical)) return _fail('classical all-zero');
       final combined = combineSharedSecret(
         group: group,
         kemSharedSecret: ssKem,
-        classicalSharedSecret: ssX,
+        classicalSharedSecret: ssClassical,
       );
       if (combined.isFailure) return Result.failure(combined.errorOrNull!);
       _hybridSs = combined.valueOrNull!;
@@ -116,7 +118,7 @@ final class PqTlsServer {
         HybridServerShare(
           group: group,
           kemCiphertext: enc.ciphertext,
-          classicalShare: x.publicKey,
+          classicalShare: classical.publicKey,
         ),
       );
       if (serverShare.isFailure) {
@@ -167,9 +169,9 @@ final class PqTlsServer {
     } on Object catch (e) {
       return _fail('kex ${e.runtimeType}');
     } finally {
-      zeroize(x.secretKey);
+      zeroize(classical.secretKey);
       zeroize(ssKem);
-      zeroize(ssX);
+      zeroize(ssClassical);
     }
   }
 

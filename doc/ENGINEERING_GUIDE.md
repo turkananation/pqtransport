@@ -34,7 +34,7 @@ cd pqtransport
 dart pub get
 ```
 
-Dependencies: `pqforge ^0.4.3`, `swissarmyknife ^0.1.0`. Do not add
+Dependencies: `pqforge ^0.4.4`, `swissarmyknife ^0.1.0`. Do not add
 `pqcrypto`, `pointycastle`, or `cryptography` as direct dependencies
 to grab a missing helper — that splits the crypto story. Report the
 gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead.
@@ -161,7 +161,7 @@ If you cannot fill that card, you are not ready to edit.
 - Temptation to stub pqforge: refuse. Stub **peers**, never the crypto
   library.
 - Temptation to use `SecureSocket` "just to get HTTP working": refuse.
-- Temptation to vendor P-256 ECDH: refuse. [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
+- Temptation to vendor P-256 ECDH: refuse. Call `PqTransportCrypto.p256Agree`.
 
 ## Examples
 

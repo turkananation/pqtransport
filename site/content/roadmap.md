@@ -3,9 +3,10 @@ title: Roadmap
 description: 0.2 through 0.5 for pqtransport. Order is not optional.
 ---
 
-0.1.0 is the self-interop vertical slice. Order after that is not
-optional: inverting a slice produces fake HTTP clients on unimplemented
-QUIC, DoT without TLS, or OpenSSL claims on a compact private encoding.
+0.1.0 is the self-interop vertical slice **plus live NIST groups**
+(pqforge 0.4.4). Order after that is not optional: inverting a slice
+produces fake HTTP clients on unimplemented QUIC, DoT without TLS, or
+OpenSSL claims on a compact private encoding.
 
 Canonical:
 [`doc/ROADMAP.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ROADMAP.md).
@@ -23,24 +24,24 @@ Real ClientHello / ServerHello (`legacy_version`, `cipher_suites`,
 `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN).
 EncryptedExtensions as a real message. Certificate as X.509 or an
 explicit raw-public-key extension. HelloRetryRequest on the wire with
-cookie. Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups.
+cookie. `requireGroup` (OPEN-03) is already done.
 
 Still SHA-256. Still do not put IANA `0x1302` on the wire. Unblocks
-OpenSSL **parsing** without waiting on pqforge ECDH.
+OpenSSL **parsing**. Live NIST KEX is already in tree — OpenSSL still
+needs hellos, not ECDH.
 
-## 0.3 — live NIST groups + honest cipher suite
+## 0.3 remaining — honest cipher suite
 
-Blocked on pqforge exports: `p256SharedSecret` / `p384SharedSecret`,
-`hkdfExpandSha256`, SHA-384 Extract/Expand, optional sync ChaCha,
-optional `checkEncapsulationKey`. Exit gate: live handshake tests for
-**all three** RFC 10024 groups; cipher suite bytes match the transcript
-hash.
+Live NIST groups, HKDF-SHA-256 Expand, and `checkEncapsulationKey` are
+**done** (pqforge 0.4.4). Remaining: SHA-384 schedule then IANA
+`0x1302` (OPEN-02); wire sync ChaCha as `0x1303` (OPEN-13). Do not put
+`0x1302` on a SHA-256 schedule.
 
 ## 0.4 — OpenSSL 3.5+ / BoringSSL fixture
 
 Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server /
-s_client. Until that is green, wording stays "unit-tested
-concatenation," not "interoperable with OpenSSL."
+s_client. Requires OPEN-01 hellos. Until that is green, wording stays
+"unit-tested concatenation," not "interoperable with OpenSSL."
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
 
