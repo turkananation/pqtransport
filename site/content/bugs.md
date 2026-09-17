@@ -26,7 +26,6 @@ Canonical tracker:
 | OPEN-08 | P2 | DNS rdata compression into the outer message is not resolved |
 | OPEN-09 | P2 | `IoDatagramChannel` does not join mDNS multicast |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
-| OPEN-11 | P3 | Unused UDP `role` named args |
 | OPEN-12 | P3 | leftover DNS/UDP/TLS error paths |
 | OPEN-13 | P2 | ChaCha records / IANA 0x1303 not wired (export exists) |
 
@@ -47,5 +46,6 @@ Replay-before-AEAD, epoch record sequences, `MemoryByteSocket` buffering,
 multicast flood, NS codec, combiner-order tests, SDK pin `>=3.12.0`,
 handshake `late` application secrets. OPEN-03 (`requireGroup`), BLK-01
 (live NIST ECDH), BLK-02 (SHA-256 HKDF helpers), BLK-04
-(`concatenateSharedSecrets`), BLK-05 (`checkEncapsulationKey`). Twelve
-FIX-* rows plus those five in the canonical file.
+(`concatenateSharedSecrets`), BLK-05 (`checkEncapsulationKey`), OPEN-11
+(unused UDP `role` args removed). Twelve FIX-* rows plus those in the
+canonical file.

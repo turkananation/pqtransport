@@ -88,7 +88,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-08 | P2 | pqtransport | Foreign DNS | Resolve rdata name pointers into the outer message |
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
-| OPEN-11 | P3 | pqtransport | API noise | Drop unused `role` named args |
 | OPEN-12 | P3 | pqtransport | Coverage | Hit leftover DNS/UDP/TLS error paths |
 | OPEN-13 | P2 | pqtransport | IANA 0x1303 | Wire pqforge sync ChaCha into `aeadSeal` (export exists) |
 
@@ -102,6 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | BLK-04 | P2 | **Fixed** | `concatenateSharedSecrets` pin; no `combine()` |
 | BLK-05 | P3 | **Fixed** | `checkEncapsulationKey` → `illegalKemKey` |
 | OPEN-03 | P1 | **Fixed** | `requireGroup` |
+| OPEN-11 | P3 | **Fixed** | `initiate`/`accept` no longer take `role` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,7 +120,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | none of BLK-* | OPEN-01, OPEN-04, OPEN-05, OPEN-11 |
+| 0.2 | RFC 8446-shaped hellos | none of BLK-* | OPEN-01, OPEN-04, OPEN-05 |
 | 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |

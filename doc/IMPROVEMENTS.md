@@ -17,7 +17,6 @@ hygiene.
 | IMP-02 | P1 | RFC 8446 ClientHello / ServerHello / extensions | OPEN-01; unblocks every interop claim |
 | IMP-03 | P1 | Certificate as X.509 or explicit raw-pk | OPEN-04; auth story is currently a raw key |
 | IMP-04 | P2 | HelloRetryRequest flight + cookie | OPEN-05; machine edge already exists |
-| IMP-05 | P3 | Delete unused UDP `role` named args | OPEN-11 |
 | IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | OPEN-12 |
 
 IMP-02 is the load-bearing next slice. Do not start IMP-06 as a dedicated
@@ -31,6 +30,7 @@ IMP-02 is the load-bearing next slice. Do not start IMP-06 as a dedicated
 | IMP-07 | P0 | Live SecP256r1MLKEM768 + SecP384r1MLKEM1024 | **Done** (BLK-01) |
 | IMP-08 | P1 | Replace local `hkdfExpand` with pqforge Expand | **Done** (BLK-02 SHA-256) |
 | IMP-11 | P3 | `checkEncapsulationKey` without catch | **Done** (BLK-05) |
+| IMP-05 | P3 | Delete unused UDP `role` named args | **Done** (OPEN-11) |
 
 ## Still this package (exports exist)
 
