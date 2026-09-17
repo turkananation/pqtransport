@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 138 passed |
+| Tests | 140 passed |
 | Coverage | 90.7% of `lib/` (`2404/2650`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered |

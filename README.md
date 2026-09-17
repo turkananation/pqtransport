@@ -22,7 +22,7 @@ Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
 [![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](doc/API.md)
 [![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-138_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-140_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -130,7 +130,7 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **138 tests**, **90.7% line coverage** of `lib/`.
+`dart analyze` is clean. **140 tests**, **90.7% line coverage** of `lib/`.
 Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
 TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
 IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,

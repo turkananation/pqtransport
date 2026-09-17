@@ -31,11 +31,12 @@ enum TlsCipherSuite {
   }
 
   /// Server preference: IANA `0x1302` first, then `0x1303`.
-  static TlsCipherSuite? select(List<int> offered) {
+  /// [chachaOk] is false on dart2js (PointyCastle Poly1305 needs 64-bit ints).
+  static TlsCipherSuite? select(List<int> offered, {bool chachaOk = true}) {
     if (offered.contains(tlsCipherAes256GcmSha384)) {
       return TlsCipherSuite.aes256GcmSha384;
     }
-    if (offered.contains(tlsCipherChaCha20Poly1305Sha256)) {
+    if (chachaOk && offered.contains(tlsCipherChaCha20Poly1305Sha256)) {
       return TlsCipherSuite.chacha20Poly1305Sha256;
     }
     return null;
@@ -46,3 +47,7 @@ const List<int> tlsDefaultOfferedCipherSuites = [
   tlsCipherAes256GcmSha384,
   tlsCipherChaCha20Poly1305Sha256,
 ];
+
+/// Suites this runtime can complete. dart2js drops `0x1303`.
+List<int> tlsOfferedCipherSuitesForRuntime({required bool chachaOk}) =>
+    chachaOk ? tlsDefaultOfferedCipherSuites : const [tlsCipherAes256GcmSha384];

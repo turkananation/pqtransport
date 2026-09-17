@@ -20,7 +20,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-138_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-140_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
 
 ## Automation
 

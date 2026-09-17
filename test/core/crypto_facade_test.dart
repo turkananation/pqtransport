@@ -57,4 +57,26 @@ void main() {
     expect(a.publicKey.length, secp256r1UncompressedBytes);
     expect(a.publicKey[0], uncompressedPointPrefix);
   });
+
+  test('ChaCha support is the 64-bit integer capability, not a skip', () {
+    final wide = 9007199254740992 + 1 != 9007199254740992;
+    expect(crypto.supportsChaCha20Poly1305, wide);
+    expect(transportHasFullWidthInteger, wide);
+    if (wide) return;
+    expect(
+      () => crypto.aeadSeal(
+        key: crypto.randomBytes(aeadKeyBytes),
+        nonce: crypto.randomBytes(aeadNonceBytes),
+        plaintext: Uint8List.fromList([1]),
+        aead: TransportAead.chacha20Poly1305,
+      ),
+      throwsA(
+        isA<PqTransportError>().having(
+          (e) => e.message,
+          'message',
+          chachaUnavailableMessage,
+        ),
+      ),
+    );
+  });
 }

@@ -28,7 +28,11 @@ final class PqTlsClient {
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
-           offeredCipherSuites ?? tlsDefaultOfferedCipherSuites;
+           offeredCipherSuites ??
+           tlsOfferedCipherSuitesForRuntime(
+             chachaOk:
+                 (crypto ?? const PqTransportCrypto()).supportsChaCha20Poly1305,
+           );
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
@@ -146,6 +150,9 @@ final class PqTlsClient {
       );
       records = TlsRecordLayer(crypto, schedule);
       return const Result.success([]);
+    } on PqTransportError catch (e) {
+      driveTls(machine, TlsEvent.fatal);
+      return Result.failure(e);
     } on Object catch (e) {
       return _fail('kex ${e.runtimeType}');
     } finally {
@@ -328,6 +335,11 @@ final class PqTlsClient {
     if (!offeredCipherSuites.contains(selected.codepoint)) {
       return Result.failure(
         PqTransportError.handshakeFailure('cipher not offered'),
+      );
+    }
+    if (selected.usesChaCha && !crypto.supportsChaCha20Poly1305) {
+      return Result.failure(
+        PqTransportError.unsupported(chachaUnavailableMessage),
       );
     }
     _suite = selected;

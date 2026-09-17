@@ -11,6 +11,18 @@ import 'zeroize.dart';
 /// AEAD primitive. Protocol files pick one; they do not vendor ChaCha or AES.
 enum TransportAead { aes256Gcm, chacha20Poly1305 }
 
+/// PointyCastle Poly1305 (pqforge ChaCha) needs integers wider than the
+/// IEEE-754 mantissa. dart2js does not; the VM and dart2wasm do.
+/// Runtime, not `const` — dart2js must evaluate this with JS numbers.
+final bool transportHasFullWidthInteger =
+    9007199254740992 + 1 != 9007199254740992;
+
+/// Why IANA `0x1303` is refused on dart2js. Do not wrap PointyCastle's
+/// `PlatformException` as a KEX failure.
+const String chachaUnavailableMessage =
+    'IANA 0x1303 ChaCha20-Poly1305 requires 64-bit integers; '
+    'this runtime does not provide them';
+
 /// Thin facade over `package:pqforge`. Protocol files must not invent primitives.
 final class PqTransportCrypto {
   const PqTransportCrypto({this.profile = PqForgeProfile.balanced});
@@ -161,6 +173,9 @@ final class PqTransportCrypto {
 
   Uint8List randomBytes(int length) => PqBytes.randomBytes(length);
 
+  /// PointyCastle Poly1305 needs 64-bit integers. dart2js cannot run ChaCha.
+  bool get supportsChaCha20Poly1305 => transportHasFullWidthInteger;
+
   /// RFC 5869 Extract (SHA-256) via pqforge. UDP and the ChaCha suite.
   Uint8List hkdfExtract(Uint8List salt, Uint8List ikm) =>
       PqSymmetricPrimitives.hkdfExtractSha256(ikm: ikm, salt: salt);
@@ -211,27 +226,32 @@ final class PqTransportCrypto {
 
   /// AEAD via pqforge (sync). Nonce uniqueness is the caller's duty.
   /// Default is AES-256-GCM (UDP, TLS `0x1302`). ChaCha is TLS `0x1303`.
+  /// ChaCha on dart2js throws [PqTransportError.unsupported] — do not call
+  /// PointyCastle and relabel the result as KEX.
   Uint8List aeadSeal({
     required Uint8List key,
     required Uint8List nonce,
     required Uint8List plaintext,
     Uint8List? aad,
     TransportAead aead = TransportAead.aes256Gcm,
-  }) => switch (aead) {
-    TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmEncrypt(
-      key: key,
-      nonce: nonce,
-      plaintext: plaintext,
-      aad: aad,
-    ),
-    TransportAead.chacha20Poly1305 =>
-      PqSymmetricPrimitives.chacha20Poly1305Encrypt(
+  }) {
+    _requireChaCha(aead);
+    return switch (aead) {
+      TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmEncrypt(
         key: key,
         nonce: nonce,
         plaintext: plaintext,
         aad: aad,
       ),
-  };
+      TransportAead.chacha20Poly1305 =>
+        PqSymmetricPrimitives.chacha20Poly1305Encrypt(
+          key: key,
+          nonce: nonce,
+          plaintext: plaintext,
+          aad: aad,
+        ),
+    };
+  }
 
   Uint8List aeadOpen({
     required Uint8List key,
@@ -239,21 +259,30 @@ final class PqTransportCrypto {
     required Uint8List ciphertextWithTag,
     Uint8List? aad,
     TransportAead aead = TransportAead.aes256Gcm,
-  }) => switch (aead) {
-    TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmDecrypt(
-      key: key,
-      nonce: nonce,
-      ciphertext: ciphertextWithTag,
-      aad: aad,
-    ),
-    TransportAead.chacha20Poly1305 =>
-      PqSymmetricPrimitives.chacha20Poly1305Decrypt(
+  }) {
+    _requireChaCha(aead);
+    return switch (aead) {
+      TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmDecrypt(
         key: key,
         nonce: nonce,
         ciphertext: ciphertextWithTag,
         aad: aad,
       ),
-  };
+      TransportAead.chacha20Poly1305 =>
+        PqSymmetricPrimitives.chacha20Poly1305Decrypt(
+          key: key,
+          nonce: nonce,
+          ciphertext: ciphertextWithTag,
+          aad: aad,
+        ),
+    };
+  }
+
+  void _requireChaCha(TransportAead aead) {
+    if (aead == TransportAead.chacha20Poly1305 && !supportsChaCha20Poly1305) {
+      throw PqTransportError.unsupported(chachaUnavailableMessage);
+    }
+  }
 
   HybridGroup get defaultGroup => switch (kem) {
     PqKemAlgorithm.mlKem1024 => HybridGroup.secP384r1MlKem1024,

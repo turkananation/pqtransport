@@ -38,6 +38,10 @@
 
 ### Changed
 
+- dart2js fail-closes IANA `0x1303` with `unsupported` (PointyCastle
+  Poly1305 needs 64-bit integers). Default ClientHello on that runtime
+  offers `0x1302` only. Do not wrap the PointyCastle `PlatformException`
+  as `kex`. VM and dart2wasm still complete ChaCha.
 - TLS default Hash is SHA-384. SHA-256 remains for UDP HKDF and for the
   ChaCha suite (`0x1303`).
 - Floor is **pqforge ^0.4.4**.
