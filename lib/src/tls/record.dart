@@ -109,6 +109,7 @@ final class TlsRecordLayer {
       key: key,
       nonce: nonce,
       plaintext: innerBytes,
+      aead: schedule.aead,
     );
     final b = BytesBuilder(copy: false);
     b.addByte(tlsContentApplicationData);
@@ -133,6 +134,7 @@ final class TlsRecordLayer {
         key: key,
         nonce: nonce,
         ciphertextWithTag: rec.valueOrNull!.payload,
+        aead: schedule.aead,
       );
       if (plain.isEmpty) {
         return Result.failure(PqTransportError.decodeFailure('empty inner'));

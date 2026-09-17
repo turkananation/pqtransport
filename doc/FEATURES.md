@@ -27,14 +27,15 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | RFC 8446 ClientHello / ServerHello | Done | `legacy_version` 0x0303, extensions, `key_share`. Compact 0.1 retired. |
 | EncryptedExtensions + Certificate + CertVerify + Finished | Done | EE carries RFC 7250 RawPublicKey. Certificate payload is raw ML-DSA-65, negotiated not silent. |
 | AES-256-GCM records (TLSInnerPlaintext style) | Done | Handshake vs application epochs reset sequence |
-| Finished verify-data (HMAC-SHA-256) | Done | |
-| TLS exporter | Done | Deterministic on a fixture |
-| HKDF-SHA-256 schedule | Done | Not SHA-384. Not IANA 0x1302. |
+| Finished verify-data | Done | HMAC-SHA-384 for `0x1302`; HMAC-SHA-256 for `0x1303` |
+| TLS exporter | Done | Deterministic on a fixture. Hash follows the suite. |
+| HKDF-SHA-384 schedule | Done | IANA `TLS_AES_256_GCM_SHA384` (`0x1302`). Default. |
+| HKDF-SHA-256 schedule | Done | ChaCha suite (`0x1303`) and UDP |
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
 | HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
 | SNI, ALPN, supported_versions, key_share extensions | Done | On ClientHello. ServerHello has supported_versions + key_share. |
 | X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). X.509 chains are a later interop extra. |
-| ChaCha20-Poly1305 records | Not started | pqforge 0.4.4 exported sync ChaCha; not wired (OPEN-13) |
+| ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
 | OpenSSL interop | Not started | |
 
 ## UDP

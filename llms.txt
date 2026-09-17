@@ -7,12 +7,12 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - Wiki: https://github.com/turkananation/pqtransport/wiki
 - Docs: https://github.com/turkananation/pqtransport/blob/main/doc/INDEX.md
 - Claim boundary: https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md
-- Crypto: package:pqforge ^0.4.4 (ML-KEM, ML-DSA, AES-256-GCM, X25519, P-256/P-384 ECDH, RFC 5869 HKDF)
+- Crypto: package:pqforge ^0.4.5 (ML-KEM, ML-DSA, AES-256-GCM, dart2js-safe ChaCha, X25519, P-256/P-384 ECDH, RFC 5869 HKDF)
 - Infra: package:swissarmyknife (Result, StateMachine, CircuitBreaker, Cache)
 - No dart:ffi. No platform TLS on the PQ path.
 - Live handshake in 0.1.0: all three RFC 10024 groups (X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024). P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup).
-- TLS encoding is RFC 8446-shaped ClientHello/ServerHello (OPEN-01 done). Compact 0.1 body retired. Cipher private-use 0xFF00, not IANA 0x1302. Certificate is still raw ML-DSA-65; raw-pk is negotiated (OPEN-04). HelloRetryRequest is on the wire with cookie (OPEN-05). Not OpenSSL-interop.
-- Record schedule is HKDF-SHA-256, not IANA TLS_AES_256_GCM_SHA384 (0x1302). SHA-384 Extract/Expand is exported; schedule not wired (OPEN-02).
+- TLS encoding is RFC 8446-shaped ClientHello/ServerHello (OPEN-01 done). Compact 0.1 body retired. Cipher IANA 0x1302 (SHA-384 AES-GCM, default) and 0x1303 (ChaCha). Certificate is still raw ML-DSA-65; raw-pk is negotiated (OPEN-04). HelloRetryRequest is on the wire with cookie (OPEN-05). Not OpenSSL-interop.
+- Record schedule follows the suite: HKDF-SHA-384 for 0x1302, HKDF-SHA-256 for 0x1303. OPEN-02 and OPEN-13 are Fixed. dart2js fail-closes 0x1303 (PointyCastle Poly1305 needs 64-bit integers); AES-GCM 0x1302 is the web suite.
 - Not a FIPS 140 module.
 
 Start at doc/INDEX.md. Do not invent FIPS/CMVP, constant-time, or erasure claims.

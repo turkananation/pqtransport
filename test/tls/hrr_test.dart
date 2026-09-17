@@ -36,7 +36,7 @@ void main() {
     expect(out.group, p256);
     expect(out.share, isEmpty);
     expect(out.cookie, cookie);
-    expect(out.cipherSuite, tlsCipherAes256GcmSha256Private);
+    expect(out.cipherSuite, tlsCipherAes256GcmSha384);
 
     final body = decodeHandshake(encoded).valueOrNull!.$2;
     expect(readUint16(body, 0), tlsLegacyVersion);
@@ -118,18 +118,18 @@ void main() {
       transcript: t,
       clientHello1: ch,
       helloRetryRequest: hrr,
-      sha256: crypto.sha256,
+      hash: crypto.sha256,
     );
     expect(t.bytes[0], tlsHsMessageHash);
-    expect(readUint24(t.bytes, 1), transcriptHashBytes);
+    expect(readUint24(t.bytes, 1), sha256HashBytes);
     expect(
       t.bytes.sublist(
         tlsHandshakeHeaderBytes,
-        tlsHandshakeHeaderBytes + transcriptHashBytes,
+        tlsHandshakeHeaderBytes + sha256HashBytes,
       ),
       crypto.sha256(ch),
     );
-    expect(t.bytes.sublist(tlsHandshakeHeaderBytes + transcriptHashBytes), hrr);
+    expect(t.bytes.sublist(tlsHandshakeHeaderBytes + sha256HashBytes), hrr);
   });
 
   test(

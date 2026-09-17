@@ -14,10 +14,16 @@ hygiene.
 
 | ID | Pri | Item | Why |
 |---|---|---|---|
-| IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | OPEN-12 |
+| IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | **Done** OPEN-12 |
 
 OPEN-05 is done. Do not start IMP-06 as a dedicated "coverage sprint"
 until directed.
+
+## pqforge 0.4.5 consumption (ChaCha on dart2js)
+
+| ID | Pri | Item | Status |
+|---|---|---|---|
+| OPEN-13 dart2js | P1 | Drive ChaCha from pqforge Dart engine; delete 2^53 guard | **Done** |
 
 ## pqforge 0.4.4 consumption (done this turn)
 
@@ -36,8 +42,8 @@ until directed.
 
 | ID | Pri | Item | Tracks |
 |---|---|---|---|
-| IMP-09 | P1 | SHA-384 schedule, then and only then IANA 0x1302 | OPEN-02 |
-| IMP-10 | P2 | Sync ChaCha records (IANA 0x1303) | OPEN-13 |
+| IMP-09 | P1 | SHA-384 schedule, then and only then IANA 0x1302 | **Done** OPEN-02 |
+| IMP-10 | P2 | Sync ChaCha records (IANA 0x1303) | **Done** OPEN-13 |
 
 Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -76,7 +82,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 ## Suggested first PR (when directed)
 
-OPEN-12 (coverage) while 0.1.0 is unpublished. OPEN-01, OPEN-04, OPEN-05,
-and OPEN-11 are done. OpenSSL
-interop (IMP-12) is still forbidden until a recorded fixture exists.
-Do not mix with QUIC work.
+LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
+OPEN-04, OPEN-05, OPEN-12, OPEN-13 are done. Do not mix with QUIC work.
+ChaCha on dart2js is **done** in pqforge 0.4.5 (Dart engine), consumed
+here. Do not vendor ChaCha. See [CHACHA_DART2JS.md](CHACHA_DART2JS.md).

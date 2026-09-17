@@ -12,8 +12,8 @@ pub.dev until the owner cuts a release.
 - `dart format`
 - `dart analyze --fatal-infos`
 - `bash tool/check_invariants.sh .` (no `dart:ffi`, no stray sizes, claim language)
-- `dart test` — 104 passed
-- Line coverage of `lib/` — 90.5%
+- `dart test` — 140 passed
+- Line coverage of `lib/` — 90.7%
 - This Jaspr site build (`cd site && jaspr build`)
 
 ## What 0.1.0 actually shipped
@@ -21,7 +21,8 @@ pub.dev until the owner cuts a release.
 Live RFC 10024 handshake for all three groups, RFC 10024 codecs,
 encrypted UDP with replay-before-AEAD, DNS wire + breaker + cache,
 mDNS probe/announce/browse, HTTP/1.1 over `PqTlsSocket`, QUIC 1-RTT
-sketch. `requireGroup` refuses profile/group mismatch. Evidence:
+sketch. IANA `0x1302` (SHA-384 AES-GCM) default and `0x1303` (ChaCha)
+offered. `requireGroup` refuses profile/group mismatch. Evidence:
 [`doc/ACHIEVEMENTS.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md).
 
 ## Tag

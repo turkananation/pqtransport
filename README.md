@@ -19,10 +19,10 @@ Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
 [![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge&logoColor=0b1220)](doc/ARCHITECTURE.md)
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](doc/FEATURES.md)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](doc/FEATURES.md)
-[![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM-7c3aed?style=for-the-badge)](doc/API.md)
-[![schedule](https://img.shields.io/badge/HKDF-SHA--256_(not_0x1302)-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
+[![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](doc/API.md)
+[![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-104_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-140_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -72,18 +72,19 @@ implemented for **all three RFC 10024 groups**. SecP384r1MLKEM1024 requires
 `PqForgeProfile.maximum`. Profile/group mismatches are refused (`requireGroup`)
 rather than silently dropping the classical share.
 
-TLS record protection uses AES-256-GCM via pqforge and an HKDF-SHA-256
-schedule (SHA-384 Extract/Expand is exported but the **schedule** is still
-SHA-256, so IANA `TLS_AES_256_GCM_SHA384` is not claimed). Concatenation is
-RFC 10024-aligned and unit-tested — this release does **not** claim OpenSSL
-interop.
+TLS record protection defaults to AES-256-GCM with HKDF-SHA-384
+(IANA `TLS_AES_256_GCM_SHA384`, `0x1302`). The client also offers
+`TLS_CHACHA20_POLY1305_SHA256` (`0x1303`), which completes on VM,
+dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
+Concatenation is RFC 10024-aligned and unit-tested — this release does **not**
+claim OpenSSL interop.
 
 ## Install
 
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 
@@ -130,10 +131,10 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **104 tests**, **90.5% line coverage** of `lib/`
-(codec pass; NIST live tests added after). Gates: hybrid concat (all three
-groups), AEAD round-trip, replay-before-open, TLS state machines, live
-RFC 10024 handshakes (X25519, P-256, P-384), `requireGroup` refuse,
+`dart analyze` is clean. **140 tests**, **90.7% line coverage** of `lib/`.
+Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
+TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
+IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,
 `checkEncapsulationKey` on a bad modulus, HTTP/1.1 GET over `PqTlsSocket`,
 DNS circuit-breaker + TTL cache, mDNS probe/announce/browse, ML-DSA-65 TXT,
 QUIC CRYPTO frames carrying the 1216-byte share, `dart:io` UDP.
@@ -151,7 +152,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 | [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
 | [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
 | [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs |
+| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.5 APIs |
 | [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages

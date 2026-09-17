@@ -36,7 +36,7 @@ evidence_boundary:
   side_channel_posture: best_effort_dart
   sdk: '>=3.12.0 <4.0.0'
   dependencies:
-    pqforge: ^0.4.4
+    pqforge: ^0.4.5
     swissarmyknife: ^0.1.0
   allowed_claims:
     - FIPS 203-aligned ML-KEM via package:pqforge / package:pqcrypto with checked-in KAT evidence in pqcrypto.

@@ -17,7 +17,7 @@ Sister evidence:
 | Package | Floor | Role |
 |---|---|---|
 | pqcrypto | 0.4.1 (via pqforge, not a direct dep) | FIPS 203/204/205 primitives, KATs |
-| pqforge | **0.4.4** | Hybrid KEX, AEAD, HKDF, signatures |
+| pqforge | **0.4.5** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
 | pqtransport | 0.1.0 in this tree, unpublished until gates pass | Protocol layer |
 
@@ -64,17 +64,17 @@ Also forbidden in meaning, even if the substring differs:
 - "Production-ready post-quantum TLS" in the OpenSSL sense.
 - RFC-byte-exact TLS 1.3 interoperability with OpenSSL / BoringSSL
   **before** the fixture in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) is green.
-- "IANA `TLS_AES_256_GCM_SHA384` (0x1302)" for the 0.1.0 record cipher.
-  The schedule is HKDF-SHA-256. Putting 0x1302 on the wire would be a lie.
+- Putting IANA `0x1302` on a SHA-256 schedule (that lie is closed: the
+  `0x1302` path is SHA-384).
 - Web UDP / mDNS / raw QUIC when the target is a browser.
 
 ## RFC claim map
 
 | Need | Cite | 0.1.0 honesty |
 |---|---|---|
-| TLS 1.3 record + handshake + key schedule | RFC 8446 | Schedule structure yes; hellos RFC 8446-shaped; hash SHA-256; cipher `0xFF00` not IANA 0x1302 |
+| TLS 1.3 record + handshake + key schedule | RFC 8446 | Schedule structure yes; hellos RFC 8446-shaped; `0x1302` is SHA-384; `0x1303` is SHA-256+ChaCha |
 | Hybrid KEX framework in TLS 1.3 | RFC 9954 | Concat is group-dependent; X25519 name order is **not** followed |
-| X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs for all three; live KEX for 0x11EC only |
+| X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |
 | ML-KEM / ML-DSA / SLH-DSA | FIPS 203 / 204 / 205 | Via pqforge → pqcrypto |
 | QUIC | RFC 9000, 9001, 9002 | Packet + frame sketch, not a connection |

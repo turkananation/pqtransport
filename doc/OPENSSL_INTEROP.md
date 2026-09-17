@@ -16,19 +16,19 @@ Tracked as LIM-01. Slice 0.4 in [ROADMAP.md](ROADMAP.md).
 | Layer | What we send | What OpenSSL 3.5+ expects |
 |---|---|---|
 | Record | Compact length-prefixed handshake bytes inside AES-256-GCM | RFC 8446 TLSPlaintext / TLSCiphertext |
-| ClientHello | RFC 8446-shaped (`legacy_version` 0x0303, extensions, `key_share`). Cipher private-use `0xFF00` | Same shape; typically `TLS_AES_256_GCM_SHA384` (0x1302) |
+| ClientHello | RFC 8446-shaped (`legacy_version` 0x0303, extensions, `key_share`). IANA `0x1302` / `0x1303` | Same shape; typically `TLS_AES_256_GCM_SHA384` (0x1302) |
 | ServerHello | RFC 8446-shaped + `key_share` + `supported_versions` | RFC 8446 ServerHello + `key_share` |
-| Certificate | Raw ML-DSA-65 public key | X.509 `Certificate` message (or raw-pk extension, negotiated) |
-| Cipher suite | AES-256-GCM keys from HKDF-**SHA-256** | Typically `TLS_AES_256_GCM_SHA384` (0x1302) for this AEAD |
+| Certificate | Raw ML-DSA-65 public key (RFC 7250 RawPublicKey negotiated) | X.509 `Certificate` message (or raw-pk, which we negotiate) |
+| Cipher suite | `0x1302` SHA-384 AES-GCM (default); `0x1303` ChaCha | Typically `TLS_AES_256_GCM_SHA384` (0x1302) for this AEAD |
 | Groups | All three RFC 10024 groups **live** | OpenSSL 3.5+ implements RFC 10024 groups when built with the hybrid KEM |
 
 Self-interop (client and server both `package:pqtransport`) is tested and
 green for X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
 (`maximum` profile). That is a different claim.
 
-Live NIST KEX is **not** the OpenSSL blocker. Remaining: OPEN-04 (raw cert),
-OPEN-02 (SHA-256 vs 0x1302), EncryptedExtensions still empty, no recorded
-fixture (LIM-01). Hellos are RFC 8446-shaped (OPEN-01 **done**).
+Live NIST KEX is **not** the OpenSSL blocker. Remaining: raw ML-DSA
+payload (not X.509), no recorded fixture (LIM-01). Hellos, IANA suites,
+raw-pk, and HRR are on the wire.
 
 ## Concatenation is already the RFC join
 
@@ -46,13 +46,10 @@ group name (that would be a stop-ship).
 
 ## Milestone sequence (do not skip)
 
-1. **0.2** — RFC 8446-shaped ClientHello/ServerHello/Certificate in
-   pqtransport (OPEN-01, OPEN-04). Still SHA-256 schedule. Still no
-   0x1302 on the wire. Unblocks OpenSSL **parsing**.
-2. **0.3 remaining** — SHA-384 schedule (OPEN-02) then and only then
-   IANA `0x1302` if the fixture peer offers it. ChaCha records (OPEN-13)
-   if the peer offers `0x1303`. Live NIST groups are **already done**
-   (BLK-01 consumed in pqforge 0.4.4).
+1. **0.2** — RFC 8446-shaped ClientHello/ServerHello/Certificate
+   (**done**: OPEN-01, OPEN-04, OPEN-05).
+2. **0.3 remaining** — SHA-384 schedule + IANA `0x1302` (**done**, OPEN-02).
+   ChaCha `0x1303` (**done**, OPEN-13).
 3. **0.4.1** — recorded transcript against OpenSSL 3.5+
    (`openssl s_server` / `s_client` with X25519MLKEM768).
 4. Only then may README say "handshakes with OpenSSL 3.5+ on fixture X."
@@ -61,7 +58,8 @@ A Wireshark screenshot is not a fixture. The fixture is bytes + a test
 that either drives `Process` against a pinned OpenSSL or replays a
 checked-in flight.
 
-Do not start this fixture before OPEN-01 hellos parse.
+Do not start this fixture claiming success before a recorded peer flight
+exists. Parsing is unblocked; completion is LIM-01.
 
 ## Suggested fixture (when directed)
 
@@ -73,7 +71,7 @@ auth:    ML-DSA or a classical cert with an explicit verify hook
 negative:
   - swap concat order → peer aborts
   - truncate ek to 1183 → illegal_parameter
-  - SHA-256 schedule vs SHA-384 suite → abort (documents OPEN-02)
+  - SHA-256 Hash with a `0x1302` hello → abort
 ```
 
 BoringSSL is a second peer, not a substitute. One green OpenSSL fixture

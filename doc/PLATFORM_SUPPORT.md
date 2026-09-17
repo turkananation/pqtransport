@@ -21,6 +21,7 @@ not exist — `pqtransport_io.dart` only adds a datagram driver.
 | Capability | Dart VM (Linux/macOS/Windows) | Flutter iOS/Android | Flutter desktop | Web |
 |---|---|---|---|---|
 | In-memory TLS (`MemoryByteSocket` + `PqTlsSocket`) | Yes | Yes | Yes | Yes |
+| ChaCha20-Poly1305 (`0x1303`) | Yes | Yes | Yes | Yes (pqforge 0.4.5 Dart engine). AES-GCM `0x1302` is the default suite. |
 | HTTP/1.1 codec over that TLS | Yes | Yes | Yes | Yes |
 | DNS wire codec / cache / breaker | Yes | Yes | Yes | Yes |
 | Encrypted UDP (memory network) | Yes | Yes | Yes | Yes |
@@ -38,7 +39,9 @@ Dart. Web callers:
 1. Import the web barrel only.
 2. Supply a `PqTransportSocket` over whatever byte pipe they have
    (WebSocket, a VM sidecar, `MemoryByteSocket` in tests).
-3. Run `PqTlsSocket` on that pipe.
+3. Run `PqTlsSocket` on that pipe. Default suite is IANA `0x1302`
+   (AES-256-GCM). IANA `0x1303` (ChaCha) is offered and completes on
+   dart2js via pqforge 0.4.5. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md).
 
 DoH in a browser is an HTTPS POST of `application/dns-message`. 0.1.0
 `DohExchange` is a helper, not a `fetch` wrapper — the caller provides

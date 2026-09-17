@@ -15,7 +15,7 @@ hand-roll state machines, Result, caches, or breakers. Those come from
   pqtransport  ── StateMachine / Result / Cache / CircuitBreaker / Throttler
            │        (swissarmyknife)
            ▼
-  pqforge      ── ML-KEM / ML-DSA / X25519 / AES-256-GCM / HKDF-SHA-256
+  pqforge      ── ML-KEM / ML-DSA / X25519 / AES-256-GCM / ChaCha / HKDF
            │
            ▼
   pqcrypto     ── FIPS 203/204/205 primitives + KAT evidence
@@ -76,11 +76,12 @@ Implemented in `lib/src/core/hybrid.dart`. See [Hybrid Groups](hybrid).
 ## TLS 1.3 (0.1.0 shape)
 
 RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
-`supported_versions`, `key_share`, SNI, ALPN). Cipher suite is
-private-use `0xFF00` (AES-256-GCM + HKDF-SHA-256), **not** IANA `0x1302`.
+`supported_versions`, `key_share`, SNI, ALPN). Cipher suite is IANA
+`0x1302` (AES-256-GCM + HKDF-SHA-384, default) or IANA `0x1303`
+(ChaCha20-Poly1305 + HKDF-SHA-256). Private-use `0xFF00` is retired.
 Handshake vs application epochs reset the record sequence. Finished is
-HMAC-SHA-256 over the transcript. Certificate is a raw ML-DSA-65 public
-key (OPEN-04).
+HMAC over the transcript (SHA-384 for `0x1302`, SHA-256 for `0x1303`).
+Certificate is a raw ML-DSA-65 public key (OPEN-04).
 
 Wording stays "RFC 10024-aligned hybrid share encoding with unit-tested
 concatenation," not "OpenSSL interop."

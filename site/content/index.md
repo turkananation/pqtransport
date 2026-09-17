@@ -20,10 +20,10 @@ Infrastructure is exclusively
 There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 
 <Info>
-  v0.1.0 is a self-interop vertical slice. 104 tests pass, 90.5% line coverage
+  v0.1.0 is a self-interop vertical slice. 140 tests pass, 90.7% line coverage
   of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
-  groups**. RFC 8446-shaped hellos (cipher `0xFF00`, not IANA `0x1302`).
-  Not OpenSSL interop. Not a FIPS 140 module.
+  groups**. RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303`
+  ChaCha). Not OpenSSL interop. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -58,8 +58,8 @@ final key = client.exporter('app', Uint8List(0), 32);
 | --- | --- |
 | Version | 0.1.0 |
 | SDK | `>=3.12.0 <4.0.0` |
-| Tests | 104 passed |
-| Line coverage | 90.5% of `lib/` |
+| Tests | 140 passed |
+| Line coverage | 90.7% of `lib/` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
 | Live KEX | X25519, P-256, P-384 |
 | FFI | none |
@@ -88,7 +88,7 @@ See [Hybrid Groups](hybrid) and [Claim Boundary](claim-boundary).
 | --- | --- |
 | Core | `HybridGroup`, `requireLength`, `Transcript`, `PqTransportCrypto`, every protocol size in `lengths.dart` |
 | UDP | AES-256-GCM datagrams, replay **before** AEAD, Throttler, encrypted session (all three groups) |
-| TLS 1.3 | swissarmyknife `StateMachine`, RFC 8446 hellos, ML-DSA-65 CertificateVerify, exporter |
+| TLS 1.3 | swissarmyknife `StateMachine`, RFC 8446 hellos, IANA `0x1302`/`0x1303`, ML-DSA-65 CertificateVerify, exporter |
 | DNS | A/AAAA/CNAME/MX/TXT/SRV/CAA/HTTPS/SVCB/OPT/PTR/NS, CircuitBreaker, TTL Cache |
 | mDNS | Probe / announce / browse, optional ML-DSA-65 TXT |
 | QUIC / HTTP | 1-RTT packet protect, CRYPTO/STREAM frames, HTTP/1.1 over `PqTlsSocket` |
@@ -100,7 +100,7 @@ application  (HTTP, DNS, mDNS, QUIC frames)
      │
 pqtransport  — this package. Protocol. No primitives.
      │
-pqforge      — ML-KEM, ML-DSA, X25519, P-256/P-384 ECDH, AES-256-GCM, HKDF
+pqforge      — ML-KEM, ML-DSA, X25519, P-256/P-384 ECDH, AES-256-GCM, ChaCha, HKDF
      │
 pqcrypto     — FIPS 203/204/205 primitives + KAT evidence
 ```
@@ -117,7 +117,8 @@ This layer may not invent a stronger claim than pqcrypto / pqforge.
 - RFC 10024-aligned hybrid encoding with unit-tested concatenation —
   **not** "interoperable with OpenSSL."
 - Live KEX in 0.1.0 is all three RFC 10024 groups.
-- TLS schedule is HKDF-SHA-256, not IANA `TLS_AES_256_GCM_SHA384` (0x1302).
+- TLS default suite is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, SHA-384).
+  `0x1303` (ChaCha + SHA-256) is offered and completes on dart2js. Private-use `0xFF00` is retired.
 
 Full wording: [Claim Boundary](claim-boundary).
 
@@ -126,7 +127,7 @@ Full wording: [Claim Boundary](claim-boundary).
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 

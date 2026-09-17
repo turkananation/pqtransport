@@ -5,16 +5,24 @@ import '../core/bytes.dart';
 import '../core/crypto.dart';
 import '../core/lengths.dart';
 import '../core/zeroize.dart';
+import 'cipher_suite.dart';
 
-/// RFC 8446 key schedule over HKDF-SHA-256 (pqforge HMAC).
+/// RFC 8446 key schedule. Hash and AEAD follow [suite].
 ///
-/// Traffic keys are 32-byte AES-256-GCM keys. TLS_AES_256_GCM_SHA384 is not
-/// offered: pqforge does not export HKDF-SHA-384. Cipher on the wire is
-/// AES-256-GCM with SHA-256 schedule (documented, not an IANA codepoint).
+/// Default is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`): HKDF-SHA-384, 48-byte
+/// Hash, 32-byte AES-256-GCM keys. `0x1303` switches Hash to SHA-256 and AEAD
+/// to ChaCha20-Poly1305. Expand-Label stays in this file.
 final class TlsKeySchedule {
-  TlsKeySchedule(this.crypto);
+  TlsKeySchedule(this.crypto, {this.suite = TlsCipherSuite.aes256GcmSha384});
 
   final PqTransportCrypto crypto;
+  TlsCipherSuite suite;
+
+  int get hashLen => suite.hashBytes;
+
+  TransportAead get aead => suite.usesChaCha
+      ? TransportAead.chacha20Poly1305
+      : TransportAead.aes256Gcm;
 
   late final Uint8List clientHandshakeTraffic;
   late final Uint8List serverHandshakeTraffic;
@@ -28,15 +36,32 @@ final class TlsKeySchedule {
   late final Uint8List clientFinishedKey;
   late final Uint8List serverFinishedKey;
 
+  Uint8List _extract(Uint8List salt, Uint8List ikm) => suite.usesSha384
+      ? crypto.hkdfExtractSha384(salt, ikm)
+      : crypto.hkdfExtract(salt, ikm);
+
+  Uint8List _expand(Uint8List prk, Uint8List info, int length) =>
+      suite.usesSha384
+      ? crypto.hkdfExpandSha384(prk, info, length)
+      : crypto.hkdfExpand(prk, info, length);
+
+  Uint8List transcriptHash(Uint8List data) =>
+      suite.usesSha384 ? crypto.sha384(data) : crypto.sha256(data);
+
+  Uint8List finishedMac(Uint8List finishedKey, Uint8List transcriptHashBytes) =>
+      suite.usesSha384
+      ? crypto.hmacSha384(finishedKey, transcriptHashBytes)
+      : crypto.hmac(finishedKey, transcriptHashBytes);
+
   void derive({
     required Uint8List hybridSharedSecret,
     required Uint8List handshakeTranscriptHash,
     required Uint8List applicationTranscriptHash,
   }) {
-    final zeros = Uint8List(transcriptHashBytes);
-    final early = crypto.hkdfExtract(zeros, zeros);
+    final zeros = Uint8List(hashLen);
+    final early = _extract(zeros, zeros);
     final derivedEarly = deriveSecret(early, tlsLabelDerived, zeros);
-    final handshake = crypto.hkdfExtract(derivedEarly, hybridSharedSecret);
+    final handshake = _extract(derivedEarly, hybridSharedSecret);
     clientHandshakeTraffic = deriveSecret(
       handshake,
       tlsLabelCHsTraffic,
@@ -48,7 +73,7 @@ final class TlsKeySchedule {
       handshakeTranscriptHash,
     );
     final derivedHs = deriveSecret(handshake, tlsLabelDerived, zeros);
-    final master = crypto.hkdfExtract(derivedHs, zeros);
+    final master = _extract(derivedHs, zeros);
     clientApplicationTraffic = deriveSecret(
       master,
       tlsLabelCApTraffic,
@@ -120,12 +145,12 @@ final class TlsKeySchedule {
     required Uint8List hybridSharedSecret,
     required Uint8List applicationTranscriptHash,
   }) {
-    final zeros = Uint8List(transcriptHashBytes);
-    final early = crypto.hkdfExtract(zeros, zeros);
+    final zeros = Uint8List(hashLen);
+    final early = _extract(zeros, zeros);
     final derivedEarly = deriveSecret(early, tlsLabelDerived, zeros);
-    final handshake = crypto.hkdfExtract(derivedEarly, hybridSharedSecret);
+    final handshake = _extract(derivedEarly, hybridSharedSecret);
     final derivedHs = deriveSecret(handshake, tlsLabelDerived, zeros);
-    final master = crypto.hkdfExtract(derivedHs, zeros);
+    final master = _extract(derivedHs, zeros);
     clientApplicationTraffic = deriveSecret(
       master,
       tlsLabelCApTraffic,
@@ -161,7 +186,7 @@ final class TlsKeySchedule {
   }
 
   Uint8List deriveSecret(Uint8List secret, String label, Uint8List context) {
-    return expandLabel(secret, label, context, transcriptHashBytes);
+    return expandLabel(secret, label, context, hashLen);
   }
 
   Uint8List expandLabel(
@@ -177,15 +202,15 @@ final class TlsKeySchedule {
     b.add(labelBytes);
     b.addByte(context.length);
     b.add(context);
-    return crypto.hkdfExpand(secret, b.takeBytes(), length);
+    return _expand(secret, b.takeBytes(), length);
   }
 
   Uint8List exporter(String label, Uint8List context, int length) {
     final derived = expandLabel(
       exporterMaster,
       label,
-      crypto.sha256(context),
-      transcriptHashBytes,
+      transcriptHash(context),
+      hashLen,
     );
     return expandLabel(derived, tlsLabelExporter, context, length);
   }

@@ -10,7 +10,7 @@ imports only `package:pqtransport/pqtransport.dart`.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 
@@ -30,8 +30,8 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `combineSharedSecret` | Group-order concatenation of component secrets |
 | `requireLength` / `requireMinLength` | Length filter |
 | `PqTransportError` / `PqTransportErrorCode` | Failures without secret bytes |
-| `PqTransportCrypto` | Facade over pqforge (KEM, X25519, ML-DSA, HKDF, AES-GCM) |
-| `Transcript` | Running SHA-256 handshake transcript |
+| `PqTransportCrypto` | Facade over pqforge (KEM, ECDH, ML-DSA, HKDF, AES-GCM, dart2js-safe ChaCha) |
+| `Transcript` | Running SHA-256 or SHA-384 handshake transcript |
 | `zeroize` / `withSecrets` | Best-effort wipe |
 | Length constants | `x25519MlKem768ClientShareBytes` (1216), etc. |
 
@@ -63,9 +63,10 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records |
 | `PqTlsServerIdentity` | ML-DSA-65 key pair |
 | `TlsState` / `TlsEvent` / `tlsClientMachine` / `tlsServerMachine` | Machines |
-| `TlsKeySchedule` | HKDF-SHA-256 schedule + exporter |
-| `TlsRecordLayer` | Epoch-aware AES-256-GCM |
-| `ClientHello` / `ServerHello` | Compact (not RFC 8446) codecs |
+| `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
+| `TlsCipherSuite` | IANA `0x1302` / `0x1303` |
+| `TlsRecordLayer` | Epoch-aware AES-256-GCM or ChaCha20-Poly1305 |
+| `ClientHello` / `ServerHello` | RFC 8446 codecs |
 
 ### In-memory handshake
 

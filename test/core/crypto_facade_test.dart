@@ -57,4 +57,86 @@ void main() {
     expect(a.publicKey.length, secp256r1UncompressedBytes);
     expect(a.publicKey[0], uncompressedPointPrefix);
   });
+
+  test('ChaCha is dart2js-safe via pqforge and round-trips', () {
+    expect(crypto.supportsChaCha20Poly1305, isTrue);
+    expect(
+      crypto.supportsChaCha20Poly1305,
+      PqSymmetricPrimitives.supportsChaCha20Poly1305,
+    );
+    final key = crypto.randomBytes(aeadKeyBytes);
+    final nonce = crypto.randomBytes(aeadNonceBytes);
+    final pt = Uint8List.fromList([1, 2, 3, 4]);
+    final ct = crypto.aeadSeal(
+      key: key,
+      nonce: nonce,
+      plaintext: pt,
+      aead: TransportAead.chacha20Poly1305,
+    );
+    expect(
+      crypto.aeadOpen(
+        key: key,
+        nonce: nonce,
+        ciphertextWithTag: ct,
+        aead: TransportAead.chacha20Poly1305,
+      ),
+      pt,
+    );
+  });
+
+  test('RFC 8439 §2.8.2 through the transport facade', () {
+    final key = _hex(
+      '808182838485868788898a8b8c8d8e8f'
+      '909192939495969798999a9b9c9d9e9f',
+    );
+    final nonce = _hex('070000004041424344454647');
+    final aad = _hex('50515253c0c1c2c3c4c5c6c7');
+    final plaintext = _hex(
+      '4c616469657320616e642047656e746c'
+      '656d656e206f662074686520636c6173'
+      '73206f66202739393a20496620492063'
+      '6f756c64206f6666657220796f75206f'
+      '6e6c79206f6e652074697020666f7220'
+      '746865206675747572652c2073756e73'
+      '637265656e20776f756c642062652069'
+      '742e',
+    );
+    final expected = _hex(
+      'd31a8d34648e60db7b86afbc53ef7ec2'
+      'a4aded51296e08fea9e2b5a736ee62d6'
+      '3dbea45e8ca9671282fafb69da92728b'
+      '1a71de0a9e060b2905d6a5b67ecd3b36'
+      '92ddbd7f2d778b8c9803aee328091b58'
+      'fab324e4fad675945585808b4831d7bc'
+      '3ff4def08e4b7a9de576d26586cec64b'
+      '6116'
+      '1ae10b594f09e26a7e902ecbd0600691',
+    );
+    final sealed = crypto.aeadSeal(
+      key: key,
+      nonce: nonce,
+      plaintext: plaintext,
+      aad: aad,
+      aead: TransportAead.chacha20Poly1305,
+    );
+    expect(sealed, orderedEquals(expected));
+    expect(
+      crypto.aeadOpen(
+        key: key,
+        nonce: nonce,
+        ciphertextWithTag: sealed,
+        aad: aad,
+        aead: TransportAead.chacha20Poly1305,
+      ),
+      plaintext,
+    );
+  });
+}
+
+Uint8List _hex(String s) {
+  final out = Uint8List(s.length ~/ 2);
+  for (var i = 0; i < out.length; i++) {
+    out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
+  }
+  return out;
 }

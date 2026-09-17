@@ -34,7 +34,7 @@ cd pqtransport
 dart pub get
 ```
 
-Dependencies: `pqforge ^0.4.4`, `swissarmyknife ^0.1.0`. Do not add
+Dependencies: `pqforge ^0.4.5`, `swissarmyknife ^0.1.0`. Do not add
 `pqcrypto`, `pointycastle`, or `cryptography` as direct dependencies
 to grab a missing helper — that splits the crypto story. Report the
 gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead.
@@ -57,8 +57,7 @@ language):
 bash ../.grok/skills/pqtransport-distinguished-engineer/scripts/check_invariants.sh .
 ```
 
-Coverage (line coverage of `lib/` was **90.5%**, `1854/2049`, on the
-0.1.0 pass):
+Coverage (line coverage of `lib/` is **90.7%**, `2404/2650`):
 
 ```bash
 dart pub global activate coverage
