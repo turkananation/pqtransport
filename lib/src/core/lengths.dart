@@ -139,6 +139,11 @@ const int tlsHandshakeHeaderBytes = 4;
 const int tlsFinishedLabelBytes = 32;
 const int tlsCipherChaCha20Poly1305Sha256 = 0x1303;
 const int tlsCipherAes256GcmSha384 = 0x1302;
+
+/// AES-256-GCM with HKDF-SHA-256. **Not** an IANA suite. Do not put
+/// [tlsCipherAes256GcmSha384] on this schedule (OPEN-02). Private-use
+/// 0xFF00 until the schedule is SHA-384.
+const int tlsCipherAes256GcmSha256Private = 0xFF00;
 const int tlsContentHandshake = 22;
 const int tlsContentApplicationData = 23;
 const int tlsContentAlert = 21;
@@ -154,6 +159,15 @@ const int tlsExtSupportedVersions = 43;
 const int tlsExtKeyShare = 51;
 const int tlsExtSignatureAlgorithms = 13;
 const int tlsExtSupportedGroups = 10;
+const int tlsExtServerName = 0;
+const int tlsExtAlpn = 16;
+const int tlsExtClientCertificateType = 19;
+const int tlsExtServerCertificateType = 20;
+const int tlsServerNameTypeHostName = 0;
+const int tlsSignatureMldsa65 = 0x0905;
+const int tlsCertTypeRawPublicKey = 2;
+const int tlsCompressionNull = 0;
+const int tlsLegacySessionIdMaxBytes = 32;
 const int tlsAlertIllegalParameter = 47;
 const int tlsAlertUnexpectedMessage = 10;
 const int tlsAlertDecryptError = 51;

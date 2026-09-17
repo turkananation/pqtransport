@@ -30,7 +30,7 @@ Build order from the skill was respected:
 | 0 Core | `lengths.dart` holds every protocol size; `requireLength`; hybrid concat for **three** groups including ML-KEM-1024 | `test/core/` |
 | 1 Socket | `PqTransportSocket`, `MemoryByteSocket` (buffers until listen), `MemoryDatagramNetwork` (unicast + mDNS multicast flood), `IoDatagramChannel` | `test/io/`, `test/extra_coverage_test.dart` |
 | 2 UDP | `PqDatagram` AES-256-GCM, replay peek **before** AEAD, Throttler, `PqEncryptedUdpSocket` for all three RFC 10024 groups | `test/udp/datagram_test.dart` |
-| 3 TLS | `StateMachine`, compact ClientHello/ServerHello, ML-DSA-65 CertificateVerify, Finished HMAC, exporter, epoch-separated record sequences, `PqTlsSocket`, live NIST groups | `test/tls/` |
+| 3 TLS | `StateMachine`, RFC 8446 ClientHello/ServerHello, ML-DSA-65 CertificateVerify, Finished HMAC, exporter, epoch-separated record sequences, `PqTlsSocket`, live NIST groups | `test/tls/` |
 | 4 DNS | Wire codec for v1 RRs including PTR/NS; CircuitBreaker; TTL Cache; DoH/DoT helpers | `test/dns/wire_test.dart` |
 | 5 mDNS | Probe/announce/browse; ML-DSA-65 TXT sign/verify | `test/mdns/mdns_test.dart` |
 | 6 HTTP/1.1 | Encoder/decoder; GET over a completed `PqTlsSocket` | `test/tls/socket_http_test.dart` |

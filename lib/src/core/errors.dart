@@ -134,6 +134,13 @@ enum PqLengthLabel {
   handshakeRandom,
   verifyData,
   datagram,
+  tlsHello,
+  tlsExtension,
+  tlsKeyShare,
+  tlsServerName,
+  tlsAlpn,
+  tlsCipherSuite,
+  tlsSessionId,
 }
 
 const int tlsAlertDecodeError = 50;

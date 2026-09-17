@@ -166,14 +166,20 @@ void main() {
     });
 
     test('unknown named group is unsupported', () {
-      final body = BytesBuilder(copy: false)
-        ..add(Uint8List(handshakeRandomBytes))
-        ..addByte(0x00)
-        ..addByte(0x01) // bogus group
-        ..addByte(0x00)
-        ..addByte(0x00);
-      final hs = encodeHandshake(tlsHsClientHello, body.takeBytes());
-      expect(ClientHello.decode(hs).isFailure, isTrue);
+      final g = HybridGroup.x25519MlKem768;
+      final encoded = ClientHello(
+        random: Uint8List(handshakeRandomBytes),
+        group: g,
+        share: Uint8List(g.clientShareBytes)..[0] = 1,
+      ).encode();
+      final smashed = Uint8List.fromList(encoded);
+      for (var i = 0; i < smashed.length - 1; i++) {
+        if (smashed[i] == 0x11 && smashed[i + 1] == 0xEC) {
+          smashed[i] = 0x00;
+          smashed[i + 1] = 0x01;
+        }
+      }
+      expect(ClientHello.decode(smashed).isFailure, isTrue);
     });
   });
 

@@ -74,12 +74,12 @@ upgrade a claim this layer is not allowed to make. See
 ## Verification snapshot (this documentation pass)
 
 - `dart analyze` — no issues.
-- `dart test` — 104 passed.
+- `dart test` — 111 passed.
 - Line coverage of `lib/` — 90.5% (`1854/2049`) on the codec pass; NIST
   live tests added after.
 - Invariant script: no `import 'dart:ffi'`, no stray `1184|1216|1120|1249|1153|0x11EC|0x11EB` outside `lengths.dart`, claim language clean.
 - Live X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 handshake
-  tests green (client, server, exporters match). Profile/group mismatch
+  tests green. RFC 8446-shaped hellos (OPEN-01). Profile/group mismatch
   refused (`requireGroup`).
 - HTTP/1.1 GET over `PqTlsSocket` green.
 - `doc/` set complete: achievements, architecture, features, API, platform,

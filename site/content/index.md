@@ -22,8 +22,8 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 <Info>
   v0.1.0 is a self-interop vertical slice. 104 tests pass, 90.5% line coverage
   of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
-  groups**. Compact TLS encoding — not RFC 8446 ClientHello. Not OpenSSL
-  interop. Not a FIPS 140 module.
+  groups**. RFC 8446-shaped hellos (cipher `0xFF00`, not IANA `0x1302`).
+  Not OpenSSL interop. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -88,7 +88,7 @@ See [Hybrid Groups](hybrid) and [Claim Boundary](claim-boundary).
 | --- | --- |
 | Core | `HybridGroup`, `requireLength`, `Transcript`, `PqTransportCrypto`, every protocol size in `lengths.dart` |
 | UDP | AES-256-GCM datagrams, replay **before** AEAD, Throttler, encrypted session (all three groups) |
-| TLS 1.3 | swissarmyknife `StateMachine`, compact hello, ML-DSA-65 CertificateVerify, exporter |
+| TLS 1.3 | swissarmyknife `StateMachine`, RFC 8446 hellos, ML-DSA-65 CertificateVerify, exporter |
 | DNS | A/AAAA/CNAME/MX/TXT/SRV/CAA/HTTPS/SVCB/OPT/PTR/NS, CircuitBreaker, TTL Cache |
 | mDNS | Probe / announce / browse, optional ML-DSA-65 TXT |
 | QUIC / HTTP | 1-RTT packet protect, CRYPTO/STREAM frames, HTTP/1.1 over `PqTlsSocket` |

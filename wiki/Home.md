@@ -36,7 +36,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](Claim-Boundary)
 [![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/OPENSSL_INTEROP.md)
-[![encoding](https://img.shields.io/badge/TLS_wire-compact_0.1-bf8700?style=for-the-badge)](Roadmap)
+[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446_hellos-bf8700?style=for-the-badge)](Roadmap)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
 [![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
@@ -51,7 +51,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## 0.1.0 snapshot
 
 - Live handshake: **all three RFC 10024 groups** (X25519, P-256, P-384)
-- Compact TLS encoding (not RFC 8446 ClientHello) — OPEN-01
+- RFC 8446-shaped TLS hellos (cipher `0xFF00`, raw cert) — OPEN-01 done
 - HKDF-SHA-256 schedule (not IANA 0x1302) — OPEN-02
 - Not a FIPS 140 module
 - No `dart:ffi`, no platform TLS on the PQ path

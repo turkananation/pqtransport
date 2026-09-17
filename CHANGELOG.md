@@ -11,6 +11,16 @@
 - `PqKemPrimitives.checkEncapsulationKey` before encapsulate; a bad modulus
   is `illegal_parameter` without catching pqcrypto (BLK-05).
 - `PqTlsSocket` accepts `HybridGroup`.
+- RFC 8446-shaped ClientHello / ServerHello: `legacy_version` 0x0303,
+  `legacy_session_id`, `cipher_suites`, `legacy_compression_methods`,
+  extensions `supported_versions`, `supported_groups`, `key_share`,
+  `signature_algorithms`, SNI, ALPN (OPEN-01). Compact 0.1 hello body is
+  retired (0.1.0 unpublished). Cipher on the wire is private-use `0xFF00`
+  (AES-256-GCM + HKDF-SHA-256). **Not** IANA `0x1302`.
+- EncryptedExtensions is a real extensions vector carrying RFC 7250
+  `server_certificate_type = RawPublicKey` (OPEN-04). Certificate payload
+  is still raw ML-DSA-65, but the raw-pk path is **negotiated**, not silent.
+  ClientHello offers the same type. Not X.509.
 
 ### Changed
 
@@ -35,7 +45,7 @@
 
 - Live P-256 / P-384 TLS and encrypted-UDP handshakes, `requireGroup` refuse
   tests, modulus-corrupted ek → `illegal_parameter`, concat pins against
-  pqforge `concatenateSharedSecrets`. **104** tests.
+  pqforge `concatenateSharedSecrets`. RFC 8446 hello structural tests.
 
 ## 0.1.0
 

@@ -15,9 +15,9 @@ production hardening.
 | Rating | Count | Notes |
 |---|---|---|
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
-| P1 wrong-on-the-wire or fail-open | 3 | OPEN-01, OPEN-02, OPEN-04 |
+| P1 wrong-on-the-wire or fail-open | 1 | OPEN-02 |
 | P2 incomplete protocol | 7 | OPEN-05 … OPEN-10, OPEN-13 |
-| P3 hygiene | 2 | OPEN-11, OPEN-12 |
+| P3 hygiene | 1 | OPEN-12 |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |
 
@@ -95,8 +95,8 @@ gate).
 
 Both roles mix `ct || initiatorX || responderX` and the same info
 string `"pqtransport udp-session v1|udp"`. Putting a role string in
-the extra desynchronises peers (OPEN-11 leftover named args). Do not
-"fix" that by hashing the role.
+the extra desynchronises peers (OPEN-11 closed: unused `role` args
+removed). Do not "fix" that by hashing the role.
 
 ### S9 — Best-effort zeroize / no constant-time guarantee (LIM-03)
 

@@ -11,7 +11,7 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - Infra: package:swissarmyknife (Result, StateMachine, CircuitBreaker, Cache)
 - No dart:ffi. No platform TLS on the PQ path.
 - Live handshake in 0.1.0: all three RFC 10024 groups (X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024). P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup).
-- TLS encoding is compact / private, not RFC 8446 ClientHello. Not OpenSSL-interop (OPEN-01).
+- TLS encoding is RFC 8446-shaped ClientHello/ServerHello (OPEN-01 done). Compact 0.1 body retired. Cipher private-use 0xFF00, not IANA 0x1302. Certificate is still raw ML-DSA-65 (OPEN-04). Not OpenSSL-interop.
 - Record schedule is HKDF-SHA-256, not IANA TLS_AES_256_GCM_SHA384 (0x1302). SHA-384 Extract/Expand is exported; schedule not wired (OPEN-02).
 - Not a FIPS 140 module.
 

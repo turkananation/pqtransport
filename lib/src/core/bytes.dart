@@ -79,6 +79,16 @@ void writeUint64(BytesBuilder builder, int value) {
   writeUint32(builder, value & 0xffffffff);
 }
 
+void writeOpaque8(BytesBuilder builder, Uint8List data) {
+  builder.addByte(data.length);
+  builder.add(data);
+}
+
+void writeOpaque16(BytesBuilder builder, Uint8List data) {
+  writeUint16(builder, data.length);
+  builder.add(data);
+}
+
 int readUint16(Uint8List bytes, int offset) =>
     ((bytes[offset] << 8) | bytes[offset + 1]) & 0xffff;
 
@@ -164,5 +174,17 @@ final class ByteReader {
     final v = readUint64(bytes, offset);
     offset += 8;
     return Result.success(v);
+  }
+
+  Result<Uint8List, PqTransportError> opaque8(PqLengthLabel label) {
+    final n = u8();
+    if (n.isFailure) return Result.failure(n.errorOrNull!);
+    return take(n.valueOrNull!, label);
+  }
+
+  Result<Uint8List, PqTransportError> opaque16(PqLengthLabel label) {
+    final n = u16();
+    if (n.isFailure) return Result.failure(n.errorOrNull!);
+    return take(n.valueOrNull!, label);
   }
 }
