@@ -84,12 +84,12 @@ final class PqEncryptedUdpSocket {
 
   /// Initiator: encapsulate to [peerKemPublicKey], emit handshake bytes.
   ///
-  /// [role] is accepted for API compatibility and is **not** mixed into HKDF
-  /// extra — initiator and responder must derive the same session key.
+  /// HKDF extra is identical on both roles (`ct || initiatorX || responderX`
+  /// plus info `"pqtransport udp-session v1|udp"`). A role string must not be
+  /// mixed in — that would desynchronise the session key.
   Future<Result<Uint8List, PqTransportError>> initiate({
     required Uint8List peerKemPublicKey,
     required Uint8List deploymentSalt,
-    String role = 'initiator',
   }) async {
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
@@ -177,7 +177,6 @@ final class PqEncryptedUdpSocket {
     required Uint8List kemSecretKey,
     required Uint8List initiatorFlight,
     required Uint8List deploymentSalt,
-    String role = 'responder',
   }) async {
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);

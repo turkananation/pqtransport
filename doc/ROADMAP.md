@@ -35,7 +35,7 @@ Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 | 0.2.2 | EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension (not a silent raw key) | OPEN-04 |
 | 0.2.3 | HelloRetryRequest on the wire with cookie; keep the existing once-only machine edge | OPEN-05 |
 | 0.2.4 | ~~Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups~~ | **Done** (OPEN-03 / `requireGroup`) |
-| 0.2.5 | Drop unused UDP `role` named args (breaking, still 0.x) | OPEN-11 |
+| 0.2.5 | ~~Drop unused UDP `role` named args~~ | **Done** (OPEN-11) |
 | 0.2.6 | Coverage of leftover DNS/UDP/TLS error paths | OPEN-12 |
 
 Still SHA-256 schedule. Still **do not** put IANA `0x1302` on the wire.
@@ -118,7 +118,7 @@ Never parallelize:
 ## Suggested next coding turn (when directed)
 
 1. OPEN-01 (RFC 8446 hello) — load-bearing for every later interop claim.
-2. Then 0.2.2–0.2.6 (Certificate, HRR cookie, unused `role`).
+2. Then 0.2.2–0.2.3 (Certificate, HRR cookie). OPEN-11 is done.
 3. OPEN-02 / OPEN-13 only after the SHA-256 schedule is an explicit choice
    on the 0.2 wire, not a silent `0x1302`.
 
