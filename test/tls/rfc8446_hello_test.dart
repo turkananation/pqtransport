@@ -101,6 +101,23 @@ void main() {
     expect(r.isFailure, isTrue);
     expect(r.errorOrNull!.code, PqTransportErrorCode.unsupported);
   });
+
+  test('OPEN-04 EncryptedExtensions advertises RawPublicKey', () {
+    final ee = encodeEncryptedExtensions();
+    final decoded = decodeEncryptedExtensions(ee);
+    expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
+    expect(decoded.valueOrNull, tlsCertTypeRawPublicKey);
+    expect(
+      decodeEncryptedExtensions(
+        encodeHandshake(tlsHsEncryptedExtensions, Uint8List(0)),
+      ).isFailure,
+      isTrue,
+    );
+  });
+
+  test('OPEN-04 ClientHello requires server_certificate_type RawPublicKey', () {
+    expect(ClientHello.decode(fixtureHello().encode()).isSuccess, isTrue);
+  });
 }
 
 bool _containsSuite(Uint8List hello, int suite) {

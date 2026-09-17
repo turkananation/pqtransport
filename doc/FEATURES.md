@@ -25,7 +25,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 |---|---|---|
 | Client / server state machines | Done | swissarmyknife `StateMachine`; illegal event → `failed` |
 | RFC 8446 ClientHello / ServerHello | Done | `legacy_version` 0x0303, extensions, `key_share`. Compact 0.1 retired. |
-| EncryptedExtensions + Certificate + CertVerify + Finished | Done | Certificate is raw ML-DSA-65 public key (OPEN-04) |
+| EncryptedExtensions + Certificate + CertVerify + Finished | Done | EE carries RFC 7250 RawPublicKey. Certificate payload is raw ML-DSA-65, negotiated not silent. |
 | AES-256-GCM records (TLSInnerPlaintext style) | Done | Handshake vs application epochs reset sequence |
 | Finished verify-data (HMAC-SHA-256) | Done | |
 | TLS exporter | Done | Deterministic on a fixture |
@@ -33,7 +33,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
 | HelloRetryRequest on the wire | Partial | Counter + machine edge only |
 | SNI, ALPN, supported_versions, key_share extensions | Done | On ClientHello. ServerHello has supported_versions + key_share. |
-| X.509 / certificate chains | Not started | OPEN-04. Raw ML-DSA-65 still. |
+| X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). X.509 chains are a later interop extra. |
 | ChaCha20-Poly1305 records | Not started | pqforge 0.4.4 exported sync ChaCha; not wired (OPEN-13) |
 | OpenSSL interop | Not started | |
 

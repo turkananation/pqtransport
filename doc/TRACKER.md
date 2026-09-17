@@ -80,7 +80,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | ID | Sev | Owner | Blocks | Next action |
 |---|---|---|---|---|
 | OPEN-02 | P1 | pqtransport | IANA 0x1302 | SHA-384 Extract/Expand is in pqforge; **schedule** is still SHA-256. Never put 0x1302 on the wire until 0.3.5 |
-| OPEN-04 | P1 | pqtransport | Cert interop | X.509 `Certificate` (or an explicit raw-pk flag) |
 | OPEN-05 | P2 | pqtransport | HRR interop | Cookie + actual HRR flight |
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
@@ -102,6 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | BLK-05 | P3 | **Fixed** | `checkEncapsulationKey` → `illegalKemKey` |
 | OPEN-03 | P1 | **Fixed** | `requireGroup` |
 | OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired; cipher `0xFF00` |
+| OPEN-04 | P1 | **Fixed** | RFC 7250 RawPublicKey negotiated; payload still raw ML-DSA-65 |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,7 +120,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | OPEN-01 **done** | OPEN-04, OPEN-05, OPEN-11 |
+| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 **done** | OPEN-05, OPEN-11 |
 | 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |

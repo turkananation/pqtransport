@@ -18,7 +18,6 @@ Canonical tracker:
 | ID | Sev | Summary |
 | --- | --- | --- |
 | OPEN-02 | P1 | AES-256-GCM with SHA-256 schedule — not IANA 0x1302 |
-| OPEN-04 | P1 | Certificate is a raw ML-DSA-65 key, not X.509 |
 | OPEN-05 | P2 | HelloRetryRequest is a counter, not a wire HRR |
 | OPEN-06 | P2 | QUIC has no header protection / ACK / RFC 9001 |
 | OPEN-07 | P2 | HTTP/2 missing; HTTP/3 is frames without QPACK |

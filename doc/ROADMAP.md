@@ -32,7 +32,7 @@ Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 | # | Work | Closes |
 |---|---|---|
 | 0.2.1 | ~~Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN~~ | **Done** (OPEN-01). Cipher is private-use `0xFF00`, not IANA `0x1302`. Compact 0.1 body retired. |
-| 0.2.2 | EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension (not a silent raw key) | OPEN-04 |
+| 0.2.2 | ~~EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension~~ | **Done** (OPEN-04). RFC 7250 RawPublicKey negotiated. Payload is still raw ML-DSA-65, not X.509. |
 | 0.2.3 | HelloRetryRequest on the wire with cookie; keep the existing once-only machine edge | OPEN-05 |
 | 0.2.4 | ~~Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups~~ | **Done** (OPEN-03 / `requireGroup`) |
 | 0.2.5 | Drop unused UDP `role` named args (breaking, still 0.x) | OPEN-11 |
