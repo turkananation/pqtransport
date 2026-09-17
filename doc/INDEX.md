@@ -31,7 +31,7 @@ upgrade a claim this layer is not allowed to make. See
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
 | Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
 | Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
-| TLS wire | Compact private encoding, **not** RFC 8446 ClientHello/ServerHello |
+| TLS wire | RFC 8446 ClientHello/ServerHello (OPEN-01). Raw-pk negotiated (OPEN-04). HRR + cookie (OPEN-05). Cipher `0xFF00`, not IANA `0x1302`. |
 | Tests | `dart analyze` clean; **104** tests pass |
 | OpenSSL interop | Not started. Do not claim it. [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | CMVP / FIPS 140 | Not claimed. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
@@ -74,13 +74,14 @@ upgrade a claim this layer is not allowed to make. See
 ## Verification snapshot (this documentation pass)
 
 - `dart analyze` — no issues.
-- `dart test` — 111 passed.
+- `dart test` — 126 passed.
 - Line coverage of `lib/` — 90.5% (`1854/2049`) on the codec pass; NIST
   live tests added after.
 - Invariant script: no `import 'dart:ffi'`, no stray `1184|1216|1120|1249|1153|0x11EC|0x11EB` outside `lengths.dart`, claim language clean.
 - Live X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 handshake
-  tests green. RFC 8446-shaped hellos (OPEN-01). Profile/group mismatch
-  refused (`requireGroup`).
+  tests green. RFC 8446-shaped hellos (OPEN-01). Raw-pk negotiated
+  (OPEN-04). HelloRetryRequest on the wire (OPEN-05). Profile/group
+  mismatch refused (`requireGroup`).
 - HTTP/1.1 GET over `PqTlsSocket` green.
 - `doc/` set complete: achievements, architecture, features, API, platform,
   claim boundary, security audit, bugs, tracker, progress-tracker alias,

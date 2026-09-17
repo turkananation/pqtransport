@@ -14,7 +14,7 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.4` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 104 passed | `dart test` |
+| Tests | 126 passed | `dart test` |
 | Coverage | 90.5% of `lib/` on the codec pass; NIST live tests added after | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
@@ -96,7 +96,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | P-256 1249 / 1153, ECDHE first, leading `0x04` | Done |
 | Happy path `handshakeCompleted` | Done |
 | Illegal event → `failed` + `Result.failure` | Done |
-| HRR once; second HRR fails | Done (state-machine API, not a wire HRR) |
+| HRR once; second HRR fails | Done (wire HRR + cookie, OPEN-05) |
 | Wrong-length ek → `illegal_parameter` | Done |
 | Bad-modulus ek → `illegal_parameter` without catch | Done |
 | Profile/group mismatch refused | Done (`requireGroup`) |
@@ -114,9 +114,9 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 
 Recorded so achievements cannot be misread:
 
-- RFC 8446-shaped ClientHello / ServerHello / X.509 certificates.
 - IANA `TLS_AES_256_GCM_SHA384` (0x1302) or `TLS_CHACHA20_POLY1305_SHA256` (0x1303).
-- OpenSSL 3.5+ / BoringSSL interop (needs OPEN-01 hellos, not ECDH).
+- OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped).
+- X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
 - Full RFC 9000 QUIC, HTTP/2, HTTP/3+QPACK.
 - Production DoH/DoT with ALPN.
 - Real multicast join on `IoDatagramChannel`.

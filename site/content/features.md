@@ -24,13 +24,13 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Feature | Status |
 | --- | --- |
 | Client / server state machines | Done |
-| Compact ClientHello / ServerHello | Done |
+| Compact ClientHello / ServerHello | Done (RFC 8446-shaped; compact 0.1 retired) |
 | AES-256-GCM records, epoch sequences | Done |
 | TLS exporter | Done |
 | HKDF-SHA-256 schedule | Done |
-| HelloRetryRequest on the wire | Partial |
-| SNI, ALPN, key_share extensions | Not started |
-| X.509 / certificate chains | Not started |
+| HelloRetryRequest on the wire | Done (cookie + selected_group, OPEN-05) |
+| SNI, ALPN, key_share extensions | Done |
+| X.509 / certificate chains | Not started (raw-pk negotiated, OPEN-04) |
 | ChaCha20-Poly1305 records | Not started |
 | OpenSSL interop | Not started |
 

@@ -141,6 +141,7 @@ enum PqLengthLabel {
   tlsAlpn,
   tlsCipherSuite,
   tlsSessionId,
+  tlsCookie,
 }
 
 const int tlsAlertDecodeError = 50;

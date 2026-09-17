@@ -19,15 +19,17 @@ Reliability states exist; they are not a full ACK/retransmit protocol.
 ## TLS 1.3
 
 Client and server `StateMachine`s from swissarmyknife. Illegal event →
-`failed` + `Result.failure`. Compact ClientHello / ServerHello — private
-encoding, **not** RFC 8446 extensions. EncryptedExtensions + Certificate +
-CertificateVerify + Finished. Certificate is a raw ML-DSA-65 public key.
-AES-256-GCM records, handshake vs application epochs reset sequence.
-TLS exporter is deterministic on a fixture. HKDF-SHA-256 schedule.
+`failed` + `Result.failure`. RFC 8446-shaped ClientHello / ServerHello
+(OPEN-01). EncryptedExtensions + Certificate + CertificateVerify +
+Finished. RFC 7250 RawPublicKey is negotiated; certificate payload is
+still a raw ML-DSA-65 public key. AES-256-GCM records, handshake vs
+application epochs reset sequence. TLS exporter is deterministic on a
+fixture. HKDF-SHA-256 schedule. Cipher on the wire is private-use
+`0xFF00`, not IANA `0x1302`.
 
-HelloRetryRequest is a counter plus a machine edge (Partial). SNI, ALPN,
-supported_versions, key_share extensions, X.509 chains, ChaCha records,
-and OpenSSL interop are not started.
+HelloRetryRequest is on the wire with cookie extension 44 and
+`selected_group` (OPEN-05). Once-only; a second HRR fails closed. X.509
+chains, ChaCha records, and OpenSSL interop are not started.
 
 ## DNS / DoH / DoT
 

@@ -21,11 +21,14 @@ final class PqTlsClient {
   PqTlsClient({
     PqTransportCrypto? crypto,
     this.group = HybridGroup.x25519MlKem768,
+    List<HybridGroup>? offeredGroups,
     this.allowUnauthenticated = false,
-  }) : crypto = crypto ?? const PqTransportCrypto();
+  }) : crypto = crypto ?? const PqTransportCrypto(),
+       offeredGroups = offeredGroups ?? [group];
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
+  final List<HybridGroup> offeredGroups;
   final bool allowUnauthenticated;
 
   final StateMachine<TlsState, TlsEvent> machine = tlsClientMachine();
@@ -36,6 +39,8 @@ final class PqTlsClient {
   Uint8List? _classicalSecret;
   Uint8List? _kemSecret;
   Uint8List? _hybridSs;
+  Uint8List? _clientRandom;
+  late HybridGroup _activeGroup;
   var helloRetryCount = 0;
 
   TlsState get state => machine.currentState;
@@ -46,23 +51,11 @@ final class PqTlsClient {
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final driven = driveTls(machine, TlsEvent.startHandshake);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
-    final kem = crypto.kemKeyGen();
-    final classical = await crypto.classicalKeyGen(group);
-    _kemSecret = kem.secretKey;
-    _classicalSecret = classical.secretKey;
-    final share = encodeClientShare(
-      HybridClientShare(
-        group: group,
-        kemEncapsulationKey: kem.publicKey,
-        classicalShare: classical.publicKey,
-      ),
-    );
+    _activeGroup = group;
+    _clientRandom = crypto.randomBytes(handshakeRandomBytes);
+    final share = await _newClientShare(_activeGroup);
     if (share.isFailure) return Result.failure(share.errorOrNull!);
-    final hello = ClientHello(
-      random: crypto.randomBytes(handshakeRandomBytes),
-      group: group,
-      share: share.valueOrNull!,
-    );
+    final hello = _clientHello(share.valueOrNull!);
     final encoded = hello.encode();
     transcript.add(encoded);
     return Result.success(
@@ -111,11 +104,14 @@ final class PqTlsClient {
     }
     final sh = ServerHello.decode(rec.valueOrNull!.payload);
     if (sh.isFailure) return Result.failure(sh.errorOrNull!);
-    if (sh.valueOrNull!.group != group) return _fail('group mismatch');
+    if (sh.valueOrNull!.isHelloRetryRequest) {
+      return _ingestHelloRetry(sh.valueOrNull!, rec.valueOrNull!.payload);
+    }
+    if (sh.valueOrNull!.group != _activeGroup) return _fail('group mismatch');
     final driven = driveTls(machine, TlsEvent.receiveServerHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     transcript.add(rec.valueOrNull!.payload);
-    final decoded = decodeServerShare(group, sh.valueOrNull!.share);
+    final decoded = decodeServerShare(_activeGroup, sh.valueOrNull!.share);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final share = decoded.valueOrNull!;
     Uint8List? ssKem;
@@ -123,13 +119,13 @@ final class PqTlsClient {
     try {
       ssKem = crypto.decapsulate(_kemSecret!, share.kemCiphertext);
       ssClassical = await crypto.classicalAgree(
-        group,
+        _activeGroup,
         secretKey: _classicalSecret!,
         remotePublicKey: share.classicalShare,
       );
       if (isAllZeros(ssClassical)) return _fail('classical all-zero');
       final combined = combineSharedSecret(
-        group: group,
+        group: _activeGroup,
         kemSharedSecret: ssKem,
         classicalSharedSecret: ssClassical,
       );
@@ -238,6 +234,70 @@ final class PqTlsClient {
     return Result.success(
       finishedRecord == null ? const <Uint8List>[] : [finishedRecord],
     );
+  }
+
+  Future<Result<List<Uint8List>, PqTransportError>> _ingestHelloRetry(
+    ServerHello hrr,
+    Uint8List hrrBytes,
+  ) async {
+    final noted = noteHelloRetry();
+    if (noted.isFailure) return Result.failure(noted.errorOrNull!);
+    if (!_offersGroup(hrr.group)) {
+      return _fail('hrr group not offered');
+    }
+    final compatible = crypto.requireGroup(hrr.group);
+    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
+    final cookie = hrr.cookie;
+    if (cookie == null) return _fail('hrr missing cookie');
+    final ch1 = transcript.bytes;
+    rewriteTranscriptForHelloRetry(
+      transcript: transcript,
+      clientHello1: ch1,
+      helloRetryRequest: hrrBytes,
+      sha256: crypto.sha256,
+    );
+    zeroize(_kemSecret);
+    zeroize(_classicalSecret);
+    _kemSecret = null;
+    _classicalSecret = null;
+    _activeGroup = hrr.group;
+    final share = await _newClientShare(_activeGroup);
+    if (share.isFailure) return Result.failure(share.errorOrNull!);
+    final hello = _clientHello(share.valueOrNull!, cookie: cookie);
+    final encoded = hello.encode();
+    transcript.add(encoded);
+    return Result.success([
+      encodePlainRecord(TlsRecord(type: tlsContentHandshake, payload: encoded)),
+    ]);
+  }
+
+  ClientHello _clientHello(Uint8List share, {Uint8List? cookie}) => ClientHello(
+    random: _clientRandom!,
+    group: _activeGroup,
+    share: share,
+    supportedGroups: [for (final g in offeredGroups) g.codepoint],
+    cookie: cookie,
+  );
+
+  Future<Result<Uint8List, PqTransportError>> _newClientShare(
+    HybridGroup shareGroup,
+  ) async {
+    final kem = crypto.kemKeyGen();
+    final classical = await crypto.classicalKeyGen(shareGroup);
+    _kemSecret = kem.secretKey;
+    _classicalSecret = classical.secretKey;
+    return encodeClientShare(
+      HybridClientShare(
+        group: shareGroup,
+        kemEncapsulationKey: kem.publicKey,
+        classicalShare: classical.publicKey,
+      ),
+    );
+  }
+
+  bool _offersGroup(HybridGroup g) {
+    if (offeredGroups.contains(g)) return true;
+    return g == group;
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {

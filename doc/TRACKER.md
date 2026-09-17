@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 113 passed |
+| Tests | 126 passed |
 | Coverage | 90.5% of `lib/` (`1854/2049`) on the codec pass; NIST live tests added after |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | OpenSSL interop | Not started |
@@ -58,7 +58,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-08 | P-256 1249 / 1153, ECDHE first, leading `0x04` | Done |
 | GATE-09 | Happy path `handshakeCompleted` | Done |
 | GATE-10 | Illegal event → `failed` + `Result.failure` | Done |
-| GATE-11 | HRR once; second HRR fails | Partial — state-machine API, not a wire HRR (OPEN-05) |
+| GATE-11 | HRR once; second HRR fails | Done — wire HRR + cookie (OPEN-05) |
 | GATE-12 | Wrong-length ek → `illegal_parameter` | Done |
 | GATE-13 | Two IKMs → two application keys; exporter deterministic | Done |
 | GATE-14 | DNS RR round-trip; pointer cycle rejected | Done |
@@ -80,7 +80,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | ID | Sev | Owner | Blocks | Next action |
 |---|---|---|---|---|
 | OPEN-02 | P1 | pqtransport | IANA 0x1302 | SHA-384 Extract/Expand is in pqforge; **schedule** is still SHA-256. Never put 0x1302 on the wire until 0.3.5 |
-| OPEN-05 | P2 | pqtransport | HRR interop | Cookie + actual HRR flight |
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
 | OPEN-08 | P2 | pqtransport | Foreign DNS | Resolve rdata name pointers into the outer message |
@@ -102,6 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired; cipher `0xFF00` |
 | OPEN-04 | P1 | **Fixed** | RFC 7250 RawPublicKey negotiated; payload still raw ML-DSA-65 |
 | OPEN-11 | P3 | **Fixed** | `initiate`/`accept` no longer take `role` |
+| OPEN-05 | P2 | **Fixed** | Wire HRR + cookie + `message_hash` transcript; once-only kept |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,7 +120,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 / OPEN-11 **done** | OPEN-05 |
+| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 **done** | OPEN-12 |
 | 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |

@@ -21,7 +21,6 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 | ID | Sev | Component | Summary | Evidence / next step |
 |---|---|---|---|---|
 | OPEN-02 | P1 | TLS | Record cipher is AES-256-GCM with an HKDF-**SHA-256** schedule. That is not IANA `TLS_AES_256_GCM_SHA384` (0x1302) and not `TLS_CHACHA20_POLY1305_SHA256` (0x1303). Putting 0x1302 on the wire would be a lie. | `lib/src/tls/key_schedule.dart`. pqforge 0.4.4 exported SHA-384 Extract/Expand; the **schedule** is still SHA-256. Do not put 0x1302 on the wire until 0.3.5. |
-| OPEN-05 | P2 | TLS | HelloRetryRequest is a counter (`noteHelloRetry`) plus a machine edge. No HRR cookie, no actual HRR flight. | `test/tls/state_machine_test.dart` |
 | OPEN-06 | P2 | QUIC | No header protection, no ACK processing, no RFC 9001 TLS-in-QUIC. CRYPTO-frame test uses a 1216-byte **zero** share (size gate, not a live encapsulate). | `lib/src/quic/packet.dart`, `test/quic/quic_test.dart` |
 | OPEN-07 | P2 | HTTP | HTTP/2 not implemented. HTTP/3 is frames without QPACK or a QUIC stream mapping. | `lib/src/http/pq_http_client.dart` |
 | OPEN-08 | P2 | DNS | Rdata name compression that points into the **outer** message is not resolved (`_DnsReader` on rdata is a fresh buffer). Round-trips of our encoder are fine (we emit uncompressed names). | `lib/src/dns/wire.dart` |
@@ -40,7 +39,7 @@ records / 0x1303). Do not vendor either.
 
 | ID | Summary | Why |
 |---|---|---|
-| LIM-01 | OpenSSL / BoringSSL handshake | Needs OPEN-04 (cert) plus a recorded transcript. Hellos are RFC 8446-shaped. NIST live KEX is no longer the blocker. |
+| LIM-01 | OpenSSL / BoringSSL handshake | Needs a recorded transcript. Hellos, raw-pk, and HRR are on the wire. NIST live KEX is no longer the blocker. |
 | LIM-02 | CMVP / FIPS 140 | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). |
 | LIM-03 | Hard constant-time / hard erasure | VM / dart2js / dart2wasm cannot guarantee either. |
 | LIM-04 | Browser raw UDP / mDNS | Browsers do not expose generic UDP or multicast. |
@@ -70,3 +69,4 @@ records / 0x1303). Do not vendor either.
 | OPEN-01 | TLS | Compact private hellos. | RFC 8446 ClientHello/ServerHello + extensions. Compact body retired. Cipher `0xFF00`, not IANA `0x1302`. `test/tls/rfc8446_hello_test.dart`. |
 | OPEN-04 | TLS | Silent raw ML-DSA cert. | RFC 7250 `server_certificate_type = RawPublicKey` on CH + EncryptedExtensions. Payload still raw ML-DSA-65, not X.509. |
 | OPEN-11 | UDP | Unused `role` named args on `initiate`/`accept`. | Args removed. HKDF extra stays role-free (`udpSessionInfo('udp')`). |
+| OPEN-05 | TLS | HelloRetryRequest was a counter, not a wire HRR. | RFC 8446 HRR (`SHA-256("HelloRetryRequest")` random, cookie ext 44, `selected_group`). ClientHello2 echoes cookie. Transcript `message_hash`. Once-only. `test/tls/hrr_test.dart`. |

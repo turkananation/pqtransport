@@ -14,11 +14,10 @@ hygiene.
 
 | ID | Pri | Item | Why |
 |---|---|---|---|
-| IMP-04 | P2 | HelloRetryRequest flight + cookie | OPEN-05; machine edge already exists |
 | IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | OPEN-12 |
 
-IMP-04 is the remaining 0.2 load-bearing slice. Do not start IMP-06 as a
-dedicated "coverage sprint" until IMP-04 is designed.
+OPEN-05 is done. Do not start IMP-06 as a dedicated "coverage sprint"
+until directed.
 
 ## pqforge 0.4.4 consumption (done this turn)
 
@@ -31,6 +30,7 @@ dedicated "coverage sprint" until IMP-04 is designed.
 | IMP-02 | P1 | RFC 8446 ClientHello / ServerHello / extensions | **Done** (OPEN-01) |
 | IMP-03 | P1 | Certificate as X.509 or explicit raw-pk | **Done** (OPEN-04, RFC 7250 RawPublicKey) |
 | IMP-05 | P3 | Delete unused UDP `role` named args | **Done** (OPEN-11) |
+| IMP-04 | P2 | HelloRetryRequest flight + cookie | **Done** (OPEN-05) |
 
 ## Still this package (exports exist)
 
@@ -76,6 +76,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 ## Suggested first PR (when directed)
 
-OPEN-05 (HRR cookie). OPEN-01, OPEN-04, and OPEN-11 are done. OpenSSL
+OPEN-12 (coverage) while 0.1.0 is unpublished. OPEN-01, OPEN-04, OPEN-05,
+and OPEN-11 are done. OpenSSL
 interop (IMP-12) is still forbidden until a recorded fixture exists.
 Do not mix with QUIC work.

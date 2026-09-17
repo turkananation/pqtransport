@@ -51,6 +51,8 @@ final class PqTlsServer {
   late final TlsKeySchedule schedule = TlsKeySchedule(crypto);
   TlsRecordLayer? records;
   Uint8List? _hybridSs;
+  Uint8List? _hrrCookie;
+  var helloRetryCount = 0;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -82,11 +84,71 @@ final class PqTlsServer {
     }
     final ch = ClientHello.decode(rec.valueOrNull!.payload);
     if (ch.isFailure) return Result.failure(ch.errorOrNull!);
-    if (ch.valueOrNull!.group != group) return _fail('group mismatch');
+    final hello = ch.valueOrNull!;
+    if (_hrrCookie != null) {
+      return _onSecondClientHello(hello, rec.valueOrNull!.payload);
+    }
+    if (hello.group != group) {
+      return _emitHelloRetry(hello, rec.valueOrNull!.payload);
+    }
+    return _completeClientHello(hello, rec.valueOrNull!.payload);
+  }
+
+  Future<Result<List<Uint8List>, PqTransportError>> _onSecondClientHello(
+    ClientHello hello,
+    Uint8List helloBytes,
+  ) async {
+    final expected = _hrrCookie!;
+    final got = hello.cookie;
+    if (got == null ||
+        got.length != expected.length ||
+        !PqBytes.constantTimeEquals(got, expected)) {
+      return _fail('cookie mismatch');
+    }
+    if (hello.group != group) return _fail('second hello retry');
+    return _completeClientHello(hello, helloBytes);
+  }
+
+  Result<List<Uint8List>, PqTransportError> _emitHelloRetry(
+    ClientHello hello,
+    Uint8List helloBytes,
+  ) {
+    if (helloRetryCount >= tlsMaxHelloRetry) {
+      return _fail('second hello retry');
+    }
+    if (!hello.offeredGroupCodepoints.contains(group.codepoint)) {
+      return _fail('group mismatch');
+    }
+    final cookie = crypto.randomBytes(tlsCookieBytes);
+    _hrrCookie = cookie;
+    helloRetryCount++;
+    final hrr = ServerHello.helloRetryRequest(
+      selectedGroup: group,
+      cookie: cookie,
+      legacySessionId: hello.legacySessionId,
+    );
+    final hrrBytes = hrr.encode();
+    rewriteTranscriptForHelloRetry(
+      transcript: transcript,
+      clientHello1: helloBytes,
+      helloRetryRequest: hrrBytes,
+      sha256: crypto.sha256,
+    );
+    return Result.success([
+      encodePlainRecord(
+        TlsRecord(type: tlsContentHandshake, payload: hrrBytes),
+      ),
+    ]);
+  }
+
+  Future<Result<List<Uint8List>, PqTransportError>> _completeClientHello(
+    ClientHello hello,
+    Uint8List helloBytes,
+  ) async {
     final driven = driveTls(machine, TlsEvent.receiveClientHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
-    transcript.add(rec.valueOrNull!.payload);
-    final decoded = decodeClientShare(group, ch.valueOrNull!.share);
+    transcript.add(helloBytes);
+    final decoded = decodeClientShare(group, hello.share);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final clientShare = decoded.valueOrNull!;
     if (!crypto.checkEncapsulationKey(clientShare.kemEncapsulationKey)) {
@@ -128,7 +190,7 @@ final class PqTlsServer {
         random: crypto.randomBytes(handshakeRandomBytes),
         group: group,
         share: serverShare.valueOrNull!,
-        legacySessionId: ch.valueOrNull!.legacySessionId,
+        legacySessionId: hello.legacySessionId,
       );
       final shBytes = sh.encode();
       transcript.add(shBytes);

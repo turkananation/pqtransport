@@ -21,7 +21,12 @@ final class PqTlsSocket {
     PqTransportSocket inner, {
     PqTransportCrypto? crypto,
     HybridGroup group = HybridGroup.x25519MlKem768,
-  }) => PqTlsSocket._(inner, PqTlsClient(crypto: crypto, group: group), null);
+    List<HybridGroup>? offeredGroups,
+  }) => PqTlsSocket._(
+    inner,
+    PqTlsClient(crypto: crypto, group: group, offeredGroups: offeredGroups),
+    null,
+  );
 
   factory PqTlsSocket.server(
     PqTransportSocket inner, {
