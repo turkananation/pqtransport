@@ -25,6 +25,8 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## Automation
 
 [![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
+[![Publish](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/publish.yml?style=for-the-badge&label=pub.dev&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/publish.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/release.yml?style=for-the-badge&label=Release&logo=github&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/release.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/codeql.yml?branch=main&style=for-the-badge&label=CodeQL&logo=github)](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml)
 [![Pages workflow](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)
 [![Wiki sync](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/sync-wiki.yml?branch=main&style=for-the-badge&label=Wiki&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/sync-wiki.yml)
