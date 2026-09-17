@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload Pages artifact
         if: steps.pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
