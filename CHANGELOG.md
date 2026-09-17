@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Tag `vX.Y.Z` now publishes to pub.dev via GitHub Actions OIDC
+  (`.github/workflows/publish.yml`, environment `pub.dev`), matching pqforge.
+  The GitHub Release workflow no longer treats pub.dev as a manual step.
+  First package upload is still a one-time maintainer `dart pub publish`
+  because pub.dev only enables automated publishing after the package exists.
+
 ## 0.1.0
 
 ### Added

@@ -172,3 +172,10 @@ If you cannot fill that card, you are not ready to edit.
 | `example/mdns_discovery.dart` | Probe/announce/browse on the memory network |
 
 These are not OpenSSL peers.
+
+## Releasing
+
+Tag `v<version>` on `main`. That tag runs
+`.github/workflows/release.yml` (verify + GitHub Release) and
+`.github/workflows/publish.yml` (pub.dev via OIDC, environment `pub.dev`).
+Checklist: [ci/RELEASE_CHECKLIST.md](ci/RELEASE_CHECKLIST.md).

@@ -25,7 +25,7 @@ upgrade a claim this layer is not allowed to make. See
 
 | Area | Current state |
 |---|---|
-| Package version | `0.1.0` (unpublished until the owner cuts a pub.dev release) |
+| Package version | `0.1.0` (GitHub tag `vX.Y.Z` publishes via `.github/workflows/publish.yml` once pub.dev automated publishing is enabled; first upload is a one-time manual `dart pub publish`) |
 | SDK | `>=3.12.0 <4.0.0` |
 | Runtime dependencies | `pqforge ^0.4.3`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
@@ -69,6 +69,7 @@ upgrade a claim this layer is not allowed to make. See
 | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | Interop milestone status (not claimed). |
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |
+| [ci/RELEASE_CHECKLIST.md](ci/RELEASE_CHECKLIST.md) | Tag + GitHub Release + pub.dev OIDC publish loop. |
 
 ## Verification snapshot (this documentation pass)
 

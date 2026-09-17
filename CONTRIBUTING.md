@@ -66,3 +66,19 @@ Do **not** open a public issue. Follow [SECURITY.md](SECURITY.md).
 
 Canonical root: [doc/INDEX.md](doc/INDEX.md). Architecture, features, bugs,
 tracker, roadmap, and the claim boundary all live under `doc/`.
+
+## 7. Releasing
+
+Tag `v<version>` on `main` after the version bump. That tag drives both:
+
+- `.github/workflows/release.yml` — verify, then create the GitHub Release
+- `.github/workflows/publish.yml` — `dart pub publish` via GitHub Actions OIDC
+  (environment name `pub.dev`)
+
+Full checklist: [doc/ci/RELEASE_CHECKLIST.md](doc/ci/RELEASE_CHECKLIST.md).
+Do not run `dart pub publish` by hand for a tagged release once automated
+publishing is enabled on
+[pub.dev/packages/pqtransport/admin](https://pub.dev/packages/pqtransport/admin).
+
+The first version on pub.dev is a one-time manual publish; automated publishing
+cannot be enabled until the package exists.
