@@ -4,8 +4,8 @@ description: RFC 10024 hybrid key_share concatenation. ML-KEM-first for X25519ML
 ---
 
 The #1 interop bug in this stack is concatenating hybrid shares in the
-wrong order. pqtransport encodes and decodes three RFC 10024 groups.
-Live key exchange in 0.1.0 is **X25519MLKEM768 only**.
+wrong order. pqtransport encodes, decodes, and **live-handshakes** three
+RFC 10024 groups.
 
 ## Why the name lies
 
@@ -15,9 +15,9 @@ comes first; X25519 follows. NIST-curve groups (`SecP256r1MLKEM768`,
 `SecP384r1MLKEM1024`) **do** put the uncompressed ECDHE share first,
 including the `0x04` prefix.
 
-`package:pqforge`'s `PqForgeCombiner` is always `classical || PQ`. Using
-it for X25519MLKEM768 would reverse the RFC. TLS concat stays in
-pqtransport.
+`package:pqforge`'s `PqForgeCombiner.combine()` is always `classical || PQ`.
+Using it for X25519MLKEM768 would reverse the RFC. Concat uses
+`concatenateSharedSecrets` after length / all-zero checks.
 
 ## Wire sizes
 
@@ -37,23 +37,22 @@ X25519: 32. P-256 uncompressed: 65. P-384 uncompressed: 97.
 | --- | --- |
 | Encode / decode / combine all three groups | Done, byte-exact tests |
 | Live X25519 + ML-KEM-768 + ML-DSA-65 + AES-256-GCM | Done |
-| Live P-256 ECDH | Fail-closed until pqforge exports it |
-| Live P-384 ECDH | Fail-closed until pqforge exports it |
+| Live P-256 ECDH (`SecP256r1MLKEM768`, `balanced`) | Done (pqforge 0.4.4) |
+| Live P-384 ECDH (`SecP384r1MLKEM1024`, `maximum`) | Done (pqforge 0.4.4) |
+| Profile / group mismatch | Fail-closed (`requireGroup`) |
 
-Fail closed means the handshake refuses. It does **not** silently skip
-the classical share. See
+Fail closed means the handshake refuses a **profile/group mismatch**. It
+does **not** silently skip the classical share. See
 [`doc/PQFORGE_EXPORTS.md`](https://github.com/turkananation/pqtransport/blob/main/doc/PQFORGE_EXPORTS.md).
 
 ## Profile footgun
 
-`PqForgeProfile.maximum` selects ML-KEM-1024 + ML-DSA-87. The live TLS
-path is sized for ML-KEM-768 + ML-DSA-65. Constructing
+`PqForgeProfile.maximum` selects ML-KEM-1024 + ML-DSA-87. ML-KEM-768
+groups belong with `balanced` / `compact`. Constructing
 `PqTransportCrypto(profile: PqForgeProfile.maximum)` with the default
-X25519MLKEM768 group is inconsistent (OPEN-03). Refuse the mismatch;
-do not pad or truncate.
+X25519MLKEM768 group is refused (`requireGroup`; OPEN-03 closed).
 
-SecP384r1MLKEM1024 is the group that **belongs** with ML-KEM-1024, once
-P-384 ECDH exists.
+SecP384r1MLKEM1024 is the group that **belongs** with ML-KEM-1024.
 
 ## Tests that pin this
 
@@ -62,3 +61,5 @@ P-384 ECDH exists.
 - P-256 1249 / 1153, ECDHE first, leading `0x04`.
 - P-384 1665 / 1665 / 80.
 - Wrong-length encapsulation key is `illegal_parameter`.
+- Bad-modulus encapsulation key is `illegal_parameter` without catch.
+- `maximum` + ML-KEM-768 and `balanced` + P-384 are refused.

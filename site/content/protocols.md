@@ -11,10 +11,10 @@ Status vocabulary matches [`doc/FEATURES.md`](https://github.com/turkananation/p
 Versioned datagram envelope: `version || hdrLen || header || nonce || ct||tag`.
 AES-256-GCM with AAD-bound sequence. Replay peeks the sequence **before**
 AEAD open. Send path uses swissarmyknife `Throttler`. Encrypted session
-is X25519MLKEM768 with identical HKDF extra on both roles.
+is X25519MLKEM768, SecP256r1MLKEM768, or SecP384r1MLKEM1024 with
+identical HKDF extra on both roles.
 
 Reliability states exist; they are not a full ACK/retransmit protocol.
-P-256 encrypted UDP is fail-closed (same ECDH gap).
 
 ## TLS 1.3
 

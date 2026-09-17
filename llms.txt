@@ -7,12 +7,12 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - Wiki: https://github.com/turkananation/pqtransport/wiki
 - Docs: https://github.com/turkananation/pqtransport/blob/main/doc/INDEX.md
 - Claim boundary: https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md
-- Crypto: package:pqforge (ML-KEM, ML-DSA, AES-256-GCM, X25519)
+- Crypto: package:pqforge ^0.4.4 (ML-KEM, ML-DSA, AES-256-GCM, X25519, P-256/P-384 ECDH, RFC 5869 HKDF)
 - Infra: package:swissarmyknife (Result, StateMachine, CircuitBreaker, Cache)
 - No dart:ffi. No platform TLS on the PQ path.
-- Live handshake in 0.1.0: X25519MLKEM768 only. NIST-curve groups fail closed (no P-256/P-384 ECDH in pqforge 0.4.3).
-- TLS encoding is compact / private, not RFC 8446 ClientHello. Not OpenSSL-interop.
-- Record schedule is HKDF-SHA-256, not IANA TLS_AES_256_GCM_SHA384 (0x1302).
+- Live handshake in 0.1.0: all three RFC 10024 groups (X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024). P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup).
+- TLS encoding is compact / private, not RFC 8446 ClientHello. Not OpenSSL-interop (OPEN-01).
+- Record schedule is HKDF-SHA-256, not IANA TLS_AES_256_GCM_SHA384 (0x1302). SHA-384 Extract/Expand is exported; schedule not wired (OPEN-02).
 - Not a FIPS 140 module.
 
 Start at doc/INDEX.md. Do not invent FIPS/CMVP, constant-time, or erasure claims.

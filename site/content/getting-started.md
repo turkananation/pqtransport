@@ -8,7 +8,7 @@ description: Add pqtransport to a Dart or Flutter project and run the in-memory 
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.3
+  pqforge: ^0.4.4
   swissarmyknife: ^0.1.0
 ```
 
@@ -61,8 +61,9 @@ final a = PqEncryptedUdpSocket(
 - Length-filter every share with `requireLength` before crypto.
 - Treat `Result<T, PqTransportError>` as the parse/handshake contract.
   Do not `throw` on a truncated record or a bad Finished MAC.
-- Fail closed if a NIST-curve group is requested — pqforge 0.4.3 has no
-  P-256 / P-384 ECDH.
+- NIST-curve groups are live via pqforge 0.4.4. SecP384r1MLKEM1024
+  requires `PqForgeProfile.maximum`. Profile/group mismatches fail closed
+  (`requireGroup`) — they do not silently drop the classical share.
 - Do not put IANA `0x1302` on the wire. The schedule is SHA-256.
 - Import `pqtransport_io.dart` only where you need a real NIC.
 

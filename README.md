@@ -18,11 +18,11 @@ Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
 
 [![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge&logoColor=0b1220)](doc/ARCHITECTURE.md)
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](doc/FEATURES.md)
-[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-fail_closed-bf8700?style=for-the-badge)](doc/PQFORGE_EXPORTS.md)
+[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](doc/FEATURES.md)
 [![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM-7c3aed?style=for-the-badge)](doc/API.md)
 [![schedule](https://img.shields.io/badge/HKDF-SHA--256_(not_0x1302)-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-93_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-104_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -67,22 +67,23 @@ How the site is built: [`doc/SITE.md`](doc/SITE.md).
 | SecP256r1MLKEM768 | 0x11EB | 1249 | 1153 | 64 | ECDHE then ML-KEM |
 | SecP384r1MLKEM1024 | 0x11ED | 1665 | 1665 | 80 | ECDHE then ML-KEM |
 
-Live handshake (KEM + X25519 + ML-DSA-65 + AES-256-GCM records) is implemented
-for **X25519MLKEM768**. The NIST-curve groups have byte-exact share codecs;
-pqforge does not yet export P-256/P-384 ECDH, so those handshakes fail closed
-rather than silently dropping to classical.
+Live handshake (KEM + classical ECDH + ML-DSA + AES-256-GCM records) is
+implemented for **all three RFC 10024 groups**. SecP384r1MLKEM1024 requires
+`PqForgeProfile.maximum`. Profile/group mismatches are refused (`requireGroup`)
+rather than silently dropping the classical share.
 
 TLS record protection uses AES-256-GCM via pqforge and an HKDF-SHA-256
-schedule (pqforge does not export HKDF-SHA-384, so IANA `TLS_AES_256_GCM_SHA384`
-is not claimed). Concatenation is RFC 10024-aligned and unit-tested — this
-release does **not** claim OpenSSL interop.
+schedule (SHA-384 Extract/Expand is exported but the **schedule** is still
+SHA-256, so IANA `TLS_AES_256_GCM_SHA384` is not claimed). Concatenation is
+RFC 10024-aligned and unit-tested — this release does **not** claim OpenSSL
+interop.
 
 ## Install
 
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.3
+  pqforge: ^0.4.4
   swissarmyknife: ^0.1.0
 ```
 
@@ -129,11 +130,13 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **93 tests**, **90.5% line coverage** of `lib/`.
-Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
-TLS state machines, live X25519MLKEM768 handshake, HTTP/1.1 GET over
-`PqTlsSocket`, DNS circuit-breaker + TTL cache, mDNS probe/announce/browse,
-ML-DSA-65 TXT, QUIC CRYPTO frames carrying the 1216-byte share, `dart:io` UDP.
+`dart analyze` is clean. **104 tests**, **90.5% line coverage** of `lib/`
+(codec pass; NIST live tests added after). Gates: hybrid concat (all three
+groups), AEAD round-trip, replay-before-open, TLS state machines, live
+RFC 10024 handshakes (X25519, P-256, P-384), `requireGroup` refuse,
+`checkEncapsulationKey` on a bad modulus, HTTP/1.1 GET over `PqTlsSocket`,
+DNS circuit-breaker + TTL cache, mDNS probe/announce/browse, ML-DSA-65 TXT,
+QUIC CRYPTO frames carrying the 1216-byte share, `dart:io` UDP.
 
 ## Documentation
 
@@ -148,7 +151,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 | [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
 | [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
 | [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | APIs pqforge must grow |
+| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs |
 | [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages

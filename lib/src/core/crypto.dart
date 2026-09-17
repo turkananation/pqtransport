@@ -1,8 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:pqforge/pqforge.dart';
+import 'package:swissarmyknife/swissarmyknife.dart';
 
-import 'bytes.dart';
+import 'errors.dart';
 import 'hybrid.dart';
 import 'lengths.dart';
 import 'zeroize.dart';
@@ -16,8 +17,33 @@ final class PqTransportCrypto {
   PqKemAlgorithm get kem => profile.kem;
   PqSignatureAlgorithm get signature => profile.signature;
 
+  /// KEM required by [group]. Compact (ML-KEM-512) matches no RFC 10024 group.
+  static PqKemAlgorithm requiredKem(HybridGroup group) => switch (group) {
+    HybridGroup.x25519MlKem768 => PqKemAlgorithm.mlKem768,
+    HybridGroup.secP256r1MlKem768 => PqKemAlgorithm.mlKem768,
+    HybridGroup.secP384r1MlKem1024 => PqKemAlgorithm.mlKem1024,
+  };
+
+  /// OPEN-03: refuse a profile whose KEM is not the group's ML-KEM.
+  Result<void, PqTransportError> requireGroup(HybridGroup group) {
+    final need = requiredKem(group);
+    if (kem != need) {
+      return Result.failure(
+        PqTransportError.unsupported(
+          'profile ${profile.name} (${kem.name}) is incompatible with '
+          '${group.name} (needs ${need.name})',
+        ),
+      );
+    }
+    return const Result.success(null);
+  }
+
   PqKeyPair kemKeyGen({Uint8List? seed}) =>
       PqKemPrimitives.generateKeyPair(kem, seed: seed);
+
+  /// FIPS 203 §7.2 check **before** encapsulate (BLK-05). Never throws.
+  bool checkEncapsulationKey(Uint8List publicKey) =>
+      PqKemPrimitives.checkEncapsulationKey(kem, publicKey);
 
   PqKemEncapsulation encapsulate(Uint8List publicKey) =>
       PqKemPrimitives.encapsulate(kem, publicKey);
@@ -38,6 +64,61 @@ final class PqTransportCrypto {
     secretKey: secretKey,
     remotePublicKey: remotePublicKey,
   );
+
+  Future<({Uint8List publicKey, Uint8List secretKey})> p256KeyGen({
+    Uint8List? seed,
+  }) => PqForgeHybridKeyAgreement.generateP256KeyPairBytes(seed: seed);
+
+  Future<Uint8List> p256Agree({
+    required Uint8List secretKey,
+    required Uint8List remotePublicKey,
+  }) => PqForgeHybridKeyAgreement.p256SharedSecret(
+    secretKey: secretKey,
+    remotePublicKey: remotePublicKey,
+  );
+
+  Future<({Uint8List publicKey, Uint8List secretKey})> p384KeyGen({
+    Uint8List? seed,
+  }) => PqForgeHybridKeyAgreement.generateP384KeyPairBytes(seed: seed);
+
+  Future<Uint8List> p384Agree({
+    required Uint8List secretKey,
+    required Uint8List remotePublicKey,
+  }) => PqForgeHybridKeyAgreement.p384SharedSecret(
+    secretKey: secretKey,
+    remotePublicKey: remotePublicKey,
+  );
+
+  /// Group-dispatched classical keygen (X25519 / P-256 / P-384).
+  Future<({Uint8List publicKey, Uint8List secretKey})> classicalKeyGen(
+    HybridGroup group, {
+    Uint8List? seed,
+  }) => switch (group) {
+    HybridGroup.x25519MlKem768 => x25519KeyGen(seed: seed),
+    HybridGroup.secP256r1MlKem768 => p256KeyGen(seed: seed),
+    HybridGroup.secP384r1MlKem1024 => p384KeyGen(seed: seed),
+  };
+
+  /// Group-dispatched classical ECDH. Shared secret is the raw coordinate
+  /// (X25519 output / NIST x-coordinate). Caller concatenates per RFC 10024.
+  Future<Uint8List> classicalAgree(
+    HybridGroup group, {
+    required Uint8List secretKey,
+    required Uint8List remotePublicKey,
+  }) => switch (group) {
+    HybridGroup.x25519MlKem768 => x25519Agree(
+      secretKey: secretKey,
+      remotePublicKey: remotePublicKey,
+    ),
+    HybridGroup.secP256r1MlKem768 => p256Agree(
+      secretKey: secretKey,
+      remotePublicKey: remotePublicKey,
+    ),
+    HybridGroup.secP384r1MlKem1024 => p384Agree(
+      secretKey: secretKey,
+      remotePublicKey: remotePublicKey,
+    ),
+  };
 
   PqKeyPair mlDsaKeyGen() => PqSignaturePrimitives.generateKeyPair(signature);
 
@@ -72,33 +153,17 @@ final class PqTransportCrypto {
 
   Uint8List randomBytes(int length) => PqBytes.randomBytes(length);
 
-  /// RFC 5869 Extract using pqforge HMAC-SHA-256.
+  /// RFC 5869 Extract (SHA-256) via pqforge.
   Uint8List hkdfExtract(Uint8List salt, Uint8List ikm) =>
-      PqBytes.hmacSha256(key: salt, data: ikm);
+      PqSymmetricPrimitives.hkdfExtractSha256(ikm: ikm, salt: salt);
 
-  /// RFC 5869 Expand composed from pqforge HMAC-SHA-256.
-  ///
-  /// pqforge exports combined HKDF but not Expand-Label. This is protocol
-  /// framing over the HMAC primitive, tested against RFC 5869 Appendix A.1.
-  Uint8List hkdfExpand(Uint8List prk, Uint8List info, int length) {
-    const hashLen = transcriptHashBytes;
-    final n = (length + hashLen - 1) ~/ hashLen;
-    final out = BytesBuilder(copy: false);
-    var previous = Uint8List(0);
-    for (var i = 1; i <= n; i++) {
-      final block = hmac(
-        prk,
-        concatBytes([
-          previous,
-          info,
-          Uint8List.fromList([i]),
-        ]),
+  /// RFC 5869 Expand (SHA-256) via pqforge. Expand-Label stays in TLS.
+  Uint8List hkdfExpand(Uint8List prk, Uint8List info, int length) =>
+      PqSymmetricPrimitives.hkdfExpandSha256(
+        prk: prk,
+        info: info,
+        outputBytes: length,
       );
-      out.add(block);
-      previous = block;
-    }
-    return Uint8List.fromList(out.takeBytes().sublist(0, length));
-  }
 
   Uint8List hkdf({
     required Uint8List ikm,

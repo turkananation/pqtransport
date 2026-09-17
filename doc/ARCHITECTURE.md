@@ -189,7 +189,7 @@ secret bytes. Codes: `illegalParameter`, `decodeFailure`, `unexpectedMessage`,
 ## Profile footgun
 
 `PqTransportCrypto` defaults to `PqForgeProfile.balanced` (ML-KEM-768 +
-ML-DSA-65). `PqForgeProfile.maximum` is ML-KEM-1024 + ML-DSA-87. The live
-TLS path is written for 768/65 sizes. Mixing `maximum` with
-`HybridGroup.x25519MlKem768` is inconsistent; the P-384 group fail-closes
-on ECDH. Tracked as [BUGS.md](BUGS.md) `OPEN-03`.
+ML-DSA-65). `PqForgeProfile.maximum` is ML-KEM-1024 + ML-DSA-87.
+`requireGroup` refuses a mismatch: `maximum` only with
+SecP384r1MLKEM1024; `balanced` with X25519MLKEM768 or SecP256r1MLKEM768.
+Was OPEN-03; now fixed.

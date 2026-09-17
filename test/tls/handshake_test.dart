@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:pqforge/pqforge.dart';
 import 'package:pqtransport/pqtransport.dart';
 import 'package:test/test.dart';
 
@@ -122,17 +123,24 @@ void main() {
     expect(r.errorOrNull!.alert, tlsAlertIllegalParameter);
   });
 
-  test('SecP256r1MLKEM768 live handshake fails closed', () async {
-    final client = PqTlsClient(
-      crypto: crypto,
-      group: HybridGroup.secP256r1MlKem768,
-    );
+  test('SecP256r1MLKEM768 live handshake + exporters match', () async {
+    await _liveHandshake(crypto, HybridGroup.secP256r1MlKem768);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  test('SecP384r1MLKEM1024 live handshake needs profile.maximum', () async {
+    final max = PqTransportCrypto(profile: PqForgeProfile.maximum);
+    await _liveHandshake(max, HybridGroup.secP384r1MlKem1024);
+  }, timeout: const Timeout(Duration(seconds: 90)));
+
+  test('OPEN-03: profile.maximum with ML-KEM-768 group is refused', () async {
+    final max = PqTransportCrypto(profile: PqForgeProfile.maximum);
+    final client = PqTlsClient(crypto: max, group: HybridGroup.x25519MlKem768);
     final r = await client.startHandshake();
     expect(r.isFailure, isTrue);
     expect(r.errorOrNull!.code, PqTransportErrorCode.unsupported);
   });
 
-  test('SecP384r1MLKEM1024 live handshake fails closed', () async {
+  test('OPEN-03: balanced profile with P-384 group is refused', () async {
     final client = PqTlsClient(
       crypto: crypto,
       group: HybridGroup.secP384r1MlKem1024,
@@ -148,4 +156,32 @@ void main() {
     expect(r.isFailure, isTrue);
     expect(client.state, TlsState.failed);
   });
+}
+
+Future<void> _liveHandshake(PqTransportCrypto crypto, HybridGroup group) async {
+  final identity = PqTlsServerIdentity.generate(crypto);
+  final client = PqTlsClient(crypto: crypto, group: group);
+  final server = PqTlsServer(crypto: crypto, identity: identity, group: group);
+
+  final ch = await client.startHandshake();
+  expect(ch.isSuccess, isTrue, reason: '${ch.errorOrNull}');
+
+  final serverFlight = await server.ingest(ch.valueOrNull!);
+  expect(serverFlight.isSuccess, isTrue, reason: '${serverFlight.errorOrNull}');
+  expect(serverFlight.valueOrNull!, hasLength(2));
+
+  final afterSh = await client.ingest(serverFlight.valueOrNull![0]);
+  expect(afterSh.isSuccess, isTrue, reason: '${afterSh.errorOrNull}');
+
+  final afterHs = await client.ingest(serverFlight.valueOrNull![1]);
+  expect(afterHs.isSuccess, isTrue, reason: '${afterHs.errorOrNull}');
+  expect(afterHs.valueOrNull!, hasLength(1));
+  expect(client.isComplete, isTrue);
+
+  final done = await server.ingest(afterHs.valueOrNull![0]);
+  expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
+  expect(server.isComplete, isTrue);
+
+  final ctx = Uint8List.fromList([1, 2, 3]);
+  expect(client.exporter('test', ctx, 32), server.exporter('test', ctx, 32));
 }

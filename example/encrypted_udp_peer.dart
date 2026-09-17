@@ -26,6 +26,6 @@ Future<void> main() async {
     initiatorFlight: flight,
     deploymentSalt: salt,
   )).valueOrNull!;
-  await a.completeInitiate(responderX25519Public: reply);
+  await a.completeInitiate(responderClassicalPublic: reply);
   await a.send(Uint8List.fromList('hello'.codeUnits), bEp);
 }

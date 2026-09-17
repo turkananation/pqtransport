@@ -15,7 +15,9 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Length filter before crypto | Done |
 | All-zero classical shared secret rejected | Done |
 | Live X25519MLKEM768 KEX | Done |
-| Live P-256 / P-384 ECDH | Fail-closed |
+| Live SecP256r1MLKEM768 KEX | Done |
+| Live SecP384r1MLKEM1024 KEX (`maximum`) | Done |
+| Profile / group refuse (`requireGroup`) | Done |
 
 ## TLS 1.3
 
@@ -38,6 +40,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | --- | --- |
 | Datagram AEAD + replay-before-open | Done |
 | Encrypted UDP session (X25519MLKEM768) | Done |
+| Encrypted UDP session (P-256 / P-384) | Done |
 | DNS RR round-trip including PTR/NS | Done |
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |

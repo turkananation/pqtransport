@@ -30,16 +30,19 @@ Pure Dart. No native bindings. No `dart:ffi`.
 ## 2. Core principles
 
 - **Crypto stays in pqforge.** Do not reimplement ML-KEM, ML-DSA, AES-GCM,
-  HMAC, or X25519 here. If a primitive is missing, open BLK- against pqforge
-  ([doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md)) rather than vendoring it.
+  HMAC, X25519, or P-256/P-384 ECDH here. If a primitive is missing, open
+  an ID against pqforge ([doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md))
+  rather than vendoring it. pqforge 0.4.4 already exports NIST ECDH, RFC
+  5869 SHA-256/SHA-384 HKDF, concat-order helper, and sync ChaCha.
 - **Infrastructure stays in swissarmyknife.** `Result`, `StateMachine`,
   `CircuitBreaker`, `Cache`, `Throttler`, `EventBus`.
 - **RFC 10024 concatenation is group-dependent.** X25519MLKEM768 is
   ML-KEM then X25519. NIST-curve groups are ECDHE then ML-KEM.
-  `PqForgeCombiner` is always classical then PQ — do not use it as the TLS
-  combiner.
-- **Fail closed.** Missing P-256/P-384 ECDH must not silently drop to
-  classical. Parses return `Result`.
+  `PqForgeCombiner.combine()` is always classical then PQ — do not use it
+  as the TLS combiner. Concat uses `concatenateSharedSecrets`.
+- **Fail closed.** Profile/group mismatches (`requireGroup`) must not
+  silently drop the classical share. Parses return `Result`. All three
+  RFC 10024 groups are live; do not re-introduce fail-closed ECDH.
 - **Claim boundary.** This is not a FIPS 140 module, not OpenSSL-interop
   in 0.1.0, and not IANA `0x1302` on a SHA-256 schedule.
 

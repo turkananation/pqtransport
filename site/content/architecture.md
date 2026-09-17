@@ -78,8 +78,9 @@ Implemented in `lib/src/core/hybrid.dart`. See [Hybrid Groups](hybrid).
 Compact private encoding, **not** RFC 8446 ClientHello/ServerHello.
 Handshake vs application epochs reset the record sequence. Finished is
 HMAC-SHA-256 over the transcript. Certificate is a raw ML-DSA-65 public
-key. HKDF-SHA-256 schedule — pqforge has no SHA-384 HKDF, so IANA
-`0x1302` is not claimed.
+key. HKDF-SHA-256 schedule — SHA-384 Extract/Expand is exported by
+pqforge 0.4.4 but the **schedule** is still SHA-256, so IANA
+`0x1302` is not claimed (OPEN-02).
 
 Roadmap 0.2 puts real RFC 8446 hellos on the wire. Until then, wording
 is "RFC 10024-aligned hybrid share encoding with unit-tested

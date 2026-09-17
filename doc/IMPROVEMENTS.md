@@ -10,30 +10,34 @@ Priority: **P0** stop-ship for a *future* claim we are about to make,
 **P1** correctness / fail-closed, **P2** protocol completeness, **P3**
 hygiene.
 
-## Do next (this package, no pqforge wait)
+## Do next (this package)
 
 | ID | Pri | Item | Why |
 |---|---|---|---|
-| IMP-01 | P1 | Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups | OPEN-03; one constructor guard, fail-closed |
 | IMP-02 | P1 | RFC 8446 ClientHello / ServerHello / extensions | OPEN-01; unblocks every interop claim |
 | IMP-03 | P1 | Certificate as X.509 or explicit raw-pk | OPEN-04; auth story is currently a raw key |
 | IMP-04 | P2 | HelloRetryRequest flight + cookie | OPEN-05; machine edge already exists |
 | IMP-05 | P3 | Delete unused UDP `role` named args | OPEN-11 |
-| IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | OPEN-12; 90.5% → closer to 95% of `lib/` |
+| IMP-06 | P3 | Cover leftover DNS/UDP/TLS error paths | OPEN-12 |
 
-IMP-01 is the smallest fail-closed win. IMP-02 is the load-bearing
-one. Do not start IMP-06 as a dedicated "coverage sprint" until IMP-01
-and IMP-02 are designed.
+IMP-02 is the load-bearing next slice. Do not start IMP-06 as a dedicated
+"coverage sprint" until IMP-02 is designed.
 
-## Do when pqforge exports land
+## pqforge 0.4.4 consumption (done this turn)
 
-| ID | Pri | Item | Blocked on |
+| ID | Pri | Item | Status |
 |---|---|---|---|
-| IMP-07 | P0 for NIST groups | Live SecP256r1MLKEM768 + SecP384r1MLKEM1024 | BLK-01 |
-| IMP-08 | P1 | Replace local `hkdfExpand` with pqforge Expand | BLK-02 |
-| IMP-09 | P1 | SHA-384 schedule, then and only then IANA 0x1302 | BLK-02 |
-| IMP-10 | P2 | Sync ChaCha records (IANA 0x1303) | BLK-03 |
-| IMP-11 | P3 | `checkEncapsulationKey` without catch | BLK-05 |
+| IMP-01 | P1 | Refuse profile/group mismatch | **Done** (OPEN-03 / `requireGroup`) |
+| IMP-07 | P0 | Live SecP256r1MLKEM768 + SecP384r1MLKEM1024 | **Done** (BLK-01) |
+| IMP-08 | P1 | Replace local `hkdfExpand` with pqforge Expand | **Done** (BLK-02 SHA-256) |
+| IMP-11 | P3 | `checkEncapsulationKey` without catch | **Done** (BLK-05) |
+
+## Still this package (exports exist)
+
+| ID | Pri | Item | Tracks |
+|---|---|---|---|
+| IMP-09 | P1 | SHA-384 schedule, then and only then IANA 0x1302 | OPEN-02 |
+| IMP-10 | P2 | Sync ChaCha records (IANA 0x1303) | OPEN-13 |
 
 Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -63,7 +67,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Idea | Why not |
 |---|---|
 | Lower SDK to `>=3.8.0` | Both foundations are `^3.12.0` (FIX-01) |
-| Use `PqForgeCombiner` as the TLS combiner | Reverses X25519MLKEM768 (FIX-02, BLK-04) |
+| Use `PqForgeCombiner.combine()` as the TLS combiner | Reverses X25519MLKEM768 (FIX-02, BLK-04) |
 | `SecureSocket` "just for HTTP" | Abandons the package |
 | Direct `pqcrypto` / `pointycastle` dependency | Splits the crypto story |
 | QUIC 0-RTT | LIM-05 |
@@ -72,10 +76,6 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 ## Suggested first PR (when directed)
 
-Single-purpose: IMP-01 (profile/group refuse) + a test that
-`PqTlsClient(crypto: PqTransportCrypto(profile: PqForgeProfile.maximum))`
-with `HybridGroup.x25519MlKem768` returns `unsupported` (or a dedicated
-error) **before** keygen.
-
-Second PR: IMP-02 design note (byte layout of a real ClientHello) before
-code. Do not mix IMP-02 with QUIC work.
+IMP-02 design note (byte layout of a real ClientHello) before coding
+the encoder. OpenSSL interop (IMP-12) is forbidden until that hello
+parses. Do not mix IMP-02 with QUIC work.

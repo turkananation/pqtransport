@@ -15,7 +15,9 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Length filter before crypto | Done | `requireLength` + `PqLengthLabel` |
 | All-zero classical shared secret rejected | Done | |
 | Live X25519MLKEM768 KEX | Done | pqforge X25519 + ML-KEM-768 |
-| Live P-256 / P-384 ECDH | Fail-closed | pqforge gap. [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) |
+| Live SecP256r1MLKEM768 KEX | Done | pqforge P-256 ECDH + ML-KEM-768 (`balanced`) |
+| Live SecP384r1MLKEM1024 KEX | Done | pqforge P-384 ECDH + ML-KEM-1024 (`maximum`) |
+| Profile / group refuse | Done | `requireGroup` (OPEN-03) |
 
 ## TLS 1.3
 
@@ -32,7 +34,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | HelloRetryRequest on the wire | Partial | Counter + machine edge only |
 | SNI, ALPN, supported_versions, key_share extensions | Not started | |
 | X.509 / certificate chains | Not started | |
-| ChaCha20-Poly1305 records | Not started | Need pqforge sync ChaCha primitive |
+| ChaCha20-Poly1305 records | Not started | pqforge 0.4.4 exported sync ChaCha; not wired (OPEN-13) |
 | OpenSSL interop | Not started | |
 
 ## UDP
@@ -44,8 +46,9 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Replay window | Done | Peek sequence **before** AEAD open |
 | Send throttling | Done | `Throttler`; `Duration.zero` skips |
 | Encrypted session (X25519MLKEM768) | Done | Identical HKDF extra both roles |
+| Encrypted session (SecP256r1MLKEM768) | Done | Same session install; P-256 ECDH |
+| Encrypted session (SecP384r1MLKEM1024) | Done | Requires `PqForgeProfile.maximum` |
 | Reliability machine | Partial | States exist; not a full ACK/retransmit protocol |
-| P-256 encrypted UDP | Fail-closed | Same ECDH gap |
 
 ## DNS / DoH / DoT
 

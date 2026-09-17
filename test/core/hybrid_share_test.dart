@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:pqforge/pqforge.dart' hide requireLength;
 import 'package:pqtransport/src/core/hybrid.dart';
 import 'package:pqtransport/src/core/lengths.dart';
 import 'package:test/test.dart';
@@ -224,6 +225,44 @@ void main() {
         classicalSharedSecret: Uint8List(32),
       );
       expect(r.isFailure, isTrue);
+    });
+  });
+
+  group('pqforge concat pin (BLK-04)', () {
+    test('X25519 order matches PqHybridConcatOrder.pqThenClassical', () {
+      final kem = _filled(32, 0x11);
+      final x = _filled(32, 0x22);
+      final ours = combineSharedSecret(
+        group: HybridGroup.x25519MlKem768,
+        kemSharedSecret: kem,
+        classicalSharedSecret: x,
+      ).valueOrNull!;
+      final theirs = PqForgeCombiner.concatenateSharedSecrets(
+        classicalSharedSecret: x,
+        postQuantumSharedSecret: kem,
+        order: PqHybridConcatOrder.pqThenClassical,
+      );
+      expect(ours, theirs);
+      expect(ours.sublist(0, 32), kem);
+      expect(ours.sublist(32), x);
+    });
+
+    test('P-256 order matches PqHybridConcatOrder.classicalThenPq', () {
+      final kem = _filled(32, 0x11);
+      final p256 = _filled(32, 0x33);
+      final ours = combineSharedSecret(
+        group: HybridGroup.secP256r1MlKem768,
+        kemSharedSecret: kem,
+        classicalSharedSecret: p256,
+      ).valueOrNull!;
+      final theirs = PqForgeCombiner.concatenateSharedSecrets(
+        classicalSharedSecret: p256,
+        postQuantumSharedSecret: kem,
+        order: PqHybridConcatOrder.classicalThenPq,
+      );
+      expect(ours, theirs);
+      expect(ours.sublist(0, 32), p256);
+      expect(ours.sublist(32), kem);
     });
   });
 }
