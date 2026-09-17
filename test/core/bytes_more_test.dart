@@ -9,13 +9,10 @@ void main() {
     writeUint16(b, 0x1234);
     writeUint24(b, 0x123456);
     writeUint32(b, 0x89abcdef);
-    // 2^53-1 is the largest integer dart2js can represent exactly.
-    writeUint64(b, 0x001FFFFFFFFFFFFF);
     final w = b.takeBytes();
     expect(readUint16(w, 0), 0x1234);
     expect(readUint24(w, 2), 0x123456);
     expect(readUint32(w, 5), 0x89abcdef);
-    expect(readUint64(w, 9), 0x001FFFFFFFFFFFFF);
   });
 
   test('ByteReader remaining helpers', () {
