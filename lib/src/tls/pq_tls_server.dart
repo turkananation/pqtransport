@@ -94,20 +94,8 @@ final class PqTlsServer {
       }
       return _onSecondClientHello(hello, rec.valueOrNull!.payload);
     }
-    final selected = TlsCipherSuite.select(
-      hello.cipherSuites,
-      chachaOk: crypto.supportsChaCha20Poly1305,
-    );
+    final selected = TlsCipherSuite.select(hello.cipherSuites);
     if (selected == null) {
-      final offeredChaCha = hello.cipherSuites.contains(
-        tlsCipherChaCha20Poly1305Sha256,
-      );
-      if (offeredChaCha && !crypto.supportsChaCha20Poly1305) {
-        driveTls(machine, TlsEvent.fatal);
-        return Result.failure(
-          PqTransportError.unsupported(chachaUnavailableMessage),
-        );
-      }
       return _fail('no mutually supported cipher');
     }
     _bindSuite(selected);

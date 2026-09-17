@@ -19,6 +19,12 @@ hygiene.
 OPEN-05 is done. Do not start IMP-06 as a dedicated "coverage sprint"
 until directed.
 
+## pqforge 0.4.5 consumption (ChaCha on dart2js)
+
+| ID | Pri | Item | Status |
+|---|---|---|---|
+| OPEN-13 dart2js | P1 | Drive ChaCha from pqforge Dart engine; delete 2^53 guard | **Done** |
+
 ## pqforge 0.4.4 consumption (done this turn)
 
 | ID | Pri | Item | Status |
@@ -78,5 +84,5 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
 OPEN-04, OPEN-05, OPEN-12, OPEN-13 are done. Do not mix with QUIC work.
-ChaCha on dart2js is a **pqforge** engine slice
-([CHACHA_DART2JS.md](CHACHA_DART2JS.md)) — do not vendor it here.
+ChaCha on dart2js is **done** in pqforge 0.4.5 (Dart engine), consumed
+here. Do not vendor ChaCha. See [CHACHA_DART2JS.md](CHACHA_DART2JS.md).

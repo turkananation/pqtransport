@@ -10,7 +10,7 @@ imports only `package:pqtransport/pqtransport.dart`.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 
@@ -30,7 +30,7 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `combineSharedSecret` | Group-order concatenation of component secrets |
 | `requireLength` / `requireMinLength` | Length filter |
 | `PqTransportError` / `PqTransportErrorCode` | Failures without secret bytes |
-| `PqTransportCrypto` | Facade over pqforge (KEM, X25519, ML-DSA, HKDF, AES-GCM) |
+| `PqTransportCrypto` | Facade over pqforge (KEM, ECDH, ML-DSA, HKDF, AES-GCM, dart2js-safe ChaCha) |
 | `Transcript` | Running SHA-256 or SHA-384 handshake transcript |
 | `zeroize` / `withSecrets` | Best-effort wipe |
 | Length constants | `x25519MlKem768ClientShareBytes` (1216), etc. |

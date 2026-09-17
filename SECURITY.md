@@ -65,7 +65,7 @@ In particular:
 - **Best-effort zeroization.** Secret buffers are overwritten where the
   code can see them, but Dart's garbage collector may have already copied
   or retained values.
-- **P-256 / P-384 ECDH is live** via pqforge 0.4.4 for all three RFC 10024
+- **P-256 / P-384 ECDH is live** via pqforge (floor 0.4.5) for all three RFC 10024
   groups. Profile/group mismatches still fail closed (`requireGroup`). Do
   not vendor ECDH here.
 

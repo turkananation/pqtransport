@@ -35,7 +35,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
 | SNI, ALPN, supported_versions, key_share extensions | Done | On ClientHello. ServerHello has supported_versions + key_share. |
 | X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). X.509 chains are a later interop extra. |
-| ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM / dart2wasm. dart2js fail-closed (PointyCastle Poly1305 needs 64-bit integers). |
+| ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
 | OpenSSL interop | Not started | |
 
 ## UDP

@@ -11,7 +11,7 @@ that imports only `package:pqtransport/pqtransport.dart`.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 

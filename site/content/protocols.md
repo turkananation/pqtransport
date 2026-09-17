@@ -31,7 +31,7 @@ for IANA `0x1303`. Private-use `0xFF00` is retired.
 HelloRetryRequest is on the wire with cookie extension 44 and
 `selected_group` (OPEN-05). Once-only; a second HRR fails closed. X.509
 chains and OpenSSL interop are not started. ChaCha records are Done
-(`0x1303`) on VM / dart2wasm; dart2js fail-closes (64-bit integers).
+(`0x1303`) on VM, dart2wasm, and dart2js (pqforge 0.4.5 Dart engine).
 
 ## DNS / DoH / DoT
 

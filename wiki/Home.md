@@ -51,7 +51,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## 0.1.0 snapshot
 
 - Live handshake: **all three RFC 10024 groups** (X25519, P-256, P-384)
-- RFC 8446-shaped TLS hellos (IANA `0x1302` SHA-384 default, `0x1303` ChaCha) — OPEN-01 / OPEN-02 / OPEN-13 done
+- RFC 8446-shaped TLS hellos (IANA `0x1302` SHA-384 default, `0x1303` ChaCha on VM / dart2js) — OPEN-01 / OPEN-02 / OPEN-13 done
 - Private-use `0xFF00` retired. Certificate payload is still raw ML-DSA-65
 - Not a FIPS 140 module
 - No `dart:ffi`, no platform TLS on the PQ path

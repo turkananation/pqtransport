@@ -32,8 +32,9 @@ Pure Dart. No native bindings. No `dart:ffi`.
 - **Crypto stays in pqforge.** Do not reimplement ML-KEM, ML-DSA, AES-GCM,
   HMAC, X25519, or P-256/P-384 ECDH here. If a primitive is missing, open
   an ID against pqforge ([doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md))
-  rather than vendoring it. pqforge 0.4.4 already exports NIST ECDH, RFC
-  5869 SHA-256/SHA-384 HKDF, concat-order helper, and sync ChaCha.
+  rather than vendoring it. pqforge 0.4.5 already exports NIST ECDH, RFC
+  5869 SHA-256/SHA-384 HKDF, concat-order helper, and dart2js-safe sync
+  ChaCha (`DartChacha20.poly1305Aead`).
 - **Infrastructure stays in swissarmyknife.** `Result`, `StateMachine`,
   `CircuitBreaker`, `Cache`, `Throttler`, `EventBus`.
 - **RFC 10024 concatenation is group-dependent.** X25519MLKEM768 is

@@ -74,7 +74,8 @@ rather than silently dropping the classical share.
 
 TLS record protection defaults to AES-256-GCM with HKDF-SHA-384
 (IANA `TLS_AES_256_GCM_SHA384`, `0x1302`). The client also offers
-`TLS_CHACHA20_POLY1305_SHA256` (`0x1303`). Private-use `0xFF00` is retired.
+`TLS_CHACHA20_POLY1305_SHA256` (`0x1303`), which completes on VM,
+dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
 Concatenation is RFC 10024-aligned and unit-tested — this release does **not**
 claim OpenSSL interop.
 
@@ -83,7 +84,7 @@ claim OpenSSL interop.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 
@@ -151,7 +152,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 | [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
 | [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
 | [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs |
+| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.5 APIs |
 | [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages

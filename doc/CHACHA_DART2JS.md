@@ -2,25 +2,29 @@
 
 Last updated: 2026-09-17
 
-**Status:** protocol guard in this tree. Crypto fix is **not** in this
-package.
+**Status:** resolved. pqforge **0.4.5** ships a dart2js-safe sync helper.
+This tree consumes it (`pqforge: ^0.4.5`). Chrome CI must complete the
+ChaCha-only live handshake and the AEAD round-trip **without** a
+platform branch.
 
 **Audience:** review of [PR #32](https://github.com/turkananation/pqtransport/pull/32).
-**Scope:** Chrome CI failure on OPEN-13, what landed, what a professional
-fix actually is. Not a FIPS 140 / CMVP document.
+**Scope:** Chrome CI failure on OPEN-13, the protocol guard that followed,
+and the pqforge engine fix that retired the guard. Not a FIPS 140 / CMVP
+document.
 
 ## 1. Incident
 
-Chrome job `Web-portable tests (Chrome)` on PR #32:
+Chrome job `Web-portable tests (Chrome)` on PR #32 originally:
+
 `133 tests passed, 2 failed.`
 
 | Test | Failure |
 |---|---|
 | `ChaCha-only offer selects 0x1303 and exporters match` | `PqTransportError(handshakeFailure: handshake_failure: kex PlatformException)` at `pq_tls_server.dart` server ingest of ClientHello |
-| `ChaCha AEAD round-trip; bit-flip fails (OPEN-13)` | `full width integer not supported on this platform` from `pointycastle` `Platform.assertFullWidthInteger` → `Poly1305()` → `PqSymmetricPrimitives._chacha20Poly1305` |
+| `ChaCha AEAD round-trip; bit-flip fails (OPEN-13)` | `full width integer not supported on this platform` from `pointycastle` `Platform.assertFullWidthInteger` → `Poly1305()` → pqforge 0.4.4 `PqSymmetricPrimitives._chacha20Poly1305` |
 
 Default IANA `0x1302` (AES-256-GCM, SHA-384) was already green on
-dart2js. VM `dart test` was 138/138 before the follow-up.
+dart2js.
 
 ## 2. Root cause
 
@@ -29,9 +33,9 @@ OPEN-13 wired TLS records to pqforge's **sync** helper:
 `PqSymmetricPrimitives.chacha20Poly1305Encrypt` /
 `chacha20Poly1305Decrypt`
 
-That helper constructs PointyCastle `ChaCha20Poly1305(ChaCha7539Engine(),
-Poly1305())`. `Poly1305()` calls
-`Platform.instance.assertFullWidthInteger()`. The check is:
+In **0.4.4** that helper constructed PointyCastle
+`ChaCha20Poly1305(ChaCha7539Engine(), Poly1305())`. `Poly1305()` calls
+`Platform.instance.assertFullWidthInteger()`:
 
 ```text
 9007199254740992 + 1 != 9007199254740992   // 2^53 + 1 ≠ 2^53
@@ -41,124 +45,62 @@ On dart2js integers are IEEE-754 doubles. `2^53 + 1 == 2^53`. PointyCastle
 throws `PlatformException`. pqtransport's handshake `catch (e)` then
 returned `handshake_failure: kex ${e.runtimeType}`.
 
-That is two defects:
+That was two defects:
 
-1. **Primitive:** sync ChaCha cannot run on dart2js.
+1. **Primitive:** sync ChaCha could not run on dart2js.
 2. **Protocol:** a record-AEAD platform limit was mislabeled as a KEX
-   failure. That is fail-open in meaning even though the handshake
-   stopped.
+   failure.
 
 AES-GCM on the same path does not hit this check. UDP stays AES-GCM.
-dart2wasm and the VM have 64-bit integers; ChaCha works there.
 
-## 3. What this tree implemented (protocol guard)
+## 3. What this tree did first (protocol guard)
 
-Commit `6638cbd` on `slice-0.2.6-0.3.5-0.3.6`. Not a test skip.
+A copied `2^53` check, `supportsChaCha20Poly1305` driven from it, dart2js
+ClientHello offering `[0x1302]` only, and `unsupported` (not `kex`) on a
+ChaCha-only offer. Tests were not skipped.
 
-| Change | Why |
-|---|---|
-| `transportHasFullWidthInteger` (runtime, same 2^53 expression as PointyCastle) | Detect the runtime that cannot run Poly1305 |
-| `PqTransportCrypto.supportsChaCha20Poly1305` | Facade, not a protocol file |
-| `aeadSeal` / `aeadOpen` throw `PqTransportError.unsupported` **before** calling pqforge | Do not leak `PlatformException` |
-| Server `TlsCipherSuite.select(..., chachaOk:)` | Do not select `0x1303` then blow up mid-flight |
-| ChaCha-only ClientHello on dart2js → `unsupported` (not `kex`) | Fail closed, honest code |
-| Default `PqTlsClient` offer on dart2js is `[0x1302]` only | RFC 8446: do not advertise a suite you cannot finish |
-| Client `_bindSuite` refuses a peer-selected `0x1303` it cannot run | Mixed VM-server / dart2js-client |
-| `on PqTransportError` is not rewritten as `kex` | Stop the mislabel |
-| Tests branch on `supportsChaCha20Poly1305` | VM still live-handshakes ChaCha. dart2js asserts `unsupported` and `64-bit`, and asserts the message is **not** `kex` / `PlatformException`. No `@TestOn('vm')`. |
+That was the correct **protocol** response while the primitive was
+broken. It was **not** the crypto fix. Crypto stays in pqforge.
 
-140 tests pass on the VM. AES-GCM `0x1302` remains the web suite.
+## 4. Professional fix (landed)
 
-This is the correct **protocol** response: do not offer, select, or
-complete IANA `0x1303` on a runtime that cannot run the AEAD, and do not
-lie about why.
-
-## 4. What this is not
-
-It is **not** the professional **crypto** fix.
-
-OPEN-13's job was "wire pqforge sync ChaCha." That export exists and is
-wired. The export's engine is PointyCastle. Making ChaCha work on dart2js
-is a primitive-engine change. This package does not vendor ChaCha,
-Poly1305, or a second AEAD. Law: crypto stays in pqforge.
-
-A copied `2^53` check is PointyCastle leaking into pqtransport. If pqforge
-later ships a dart2js-safe **sync** helper, this tree would still refuse
-`0x1303` on dart2js until the check is deleted. That coupling is
-technical debt, recorded here on purpose.
-
-Rejected as "fixes":
-
-| Move | Why not |
-|---|---|
-| `@TestOn('vm')` / skip Chrome | Hides a real limit |
-| Catch `PlatformException` and keep going | Fail-open |
-| Vendor ChaCha / Poly1305 here | Splits the crypto story; forbidden |
-| Depend on `pointycastle` or `cryptography` directly | Same split. Call pqforge only |
-| Drop `0x1303` from the IANA list | VM/dart2wasm can run it. OPEN-13 stays Fixed |
-
-## 5. Proper professional fix (pqforge)
-
-pqforge 0.4.4 already has **two** ChaCha engines.
-
-| Engine | API | dart2js |
+| Step | Where | What |
 |---|---|---|
-| PointyCastle, **sync** | `PqSymmetricPrimitives.chacha20Poly1305Encrypt` | **No** (this incident) |
-| `package:cryptography`, async session | `PqForgeAeadEngine` / `pq_cryptography_aead_engine.dart` | **Yes** — Dart Poly1305 is 32-bit; browsers can also use Web Crypto |
+| 1 | pqforge 0.4.5 | Sync helper uses `package:cryptography`'s Dart engine (`DartChacha20.poly1305Aead`, 32-bit Poly1305). Same signatures, same RFC 8439 `ciphertext \|\| tag` layout, caller nonce. Chrome pin in pqforge. |
+| 2 | pqforge 0.4.5 | `PqSymmetricPrimitives.supportsChaCha20Poly1305` — always `true`. |
+| 3 | this package | Floor `pqforge: ^0.4.5`. Drive `PqTransportCrypto.supportsChaCha20Poly1305` from that export. Delete `transportHasFullWidthInteger`, `chachaUnavailableMessage`, `select(chachaOk:)`, `tlsOfferedCipherSuitesForRuntime`. Default offer `[0x1302, 0x1303]` on every runtime. |
+| 4 | this package | Chrome CI: ChaCha-only live handshake + AEAD round-trip + RFC 8439 §2.8.2 through the facade. No platform branch. |
 
-`package:cryptography` is already a pqforge dependency. The TLS record
-path needs a **sync, caller-supplied-nonce** helper (`ciphertext \|\|
-tag`, 12-byte nonce). The session object generates its own nonce and is
-async — it is not a TLS record primitive (already noted in
-[PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md)).
+pqforge session ChaCha (`PqForgeSecureSession`) is still not a TLS record
+primitive (async, nonce-prepended). Do not use it here.
 
-Professional sequence, in order:
-
-1. **pqforge** — make the **sync** ChaCha helper dart2js-safe. Use the
-   cryptography Dart engine (or a 32-bit Poly1305) under the same
-   `chacha20Poly1305Encrypt` / `Decrypt` signatures. Do not change the
-   wire layout. Pin a dart2js round-trip + bit-flip test in pqforge.
-2. **pqforge** — export a capability (`supportsSyncChaCha` or equivalent)
-   so callers do not copy PointyCastle's mantissa check.
-3. **pqtransport** — consume the bumped pqforge. Drive
-   `supportsChaCha20Poly1305` from that export (delete
-   `transportHasFullWidthInteger`). Restore default offer
-   `[0x1302, 0x1303]` on dart2js. Keep fail-closed for a true
-   `unsupported` from the helper.
-4. **Evidence here** — Chrome CI green on the existing ChaCha-only live
-   handshake and AEAD tests, without a platform branch.
-
-Until (1) lands, dart2js TLS is IANA `0x1302` only. That is honest. It
-is not "ChaCha on the web."
-
-## 6. Claim boundary
+## 5. Claim boundary
 
 Allowed:
 
-- "IANA `0x1303` is wired on VM / dart2wasm via pqforge sync ChaCha."
-- "dart2js refuses `0x1303` with `unsupported` (PointyCastle Poly1305
-  needs 64-bit integers)."
-- "AES-GCM `0x1302` is the dart2js suite."
+- "IANA `0x1303` is wired on VM, dart2wasm, **and dart2js** via pqforge
+  0.4.5 sync ChaCha (Dart engine)."
+- "Default ClientHello offers `0x1302` then `0x1303`. Server prefers
+  `0x1302`."
+- "UDP stays AES-256-GCM."
 
 Forbidden:
 
-- "ChaCha works on web" / "works on dart2js."
 - Relabeling a Poly1305 platform throw as a KEX failure.
-- Claiming this report, or this package, is a FIPS 140 / CMVP module.
+- Claiming this package, or pqforge, is a FIPS 140 / CMVP module.
+- Vendoring ChaCha / Poly1305 / `package:cryptography` in this tree.
 
-## 7. Verdict
+## 6. Verdict
 
 | Question | Answer |
 |---|---|
 | Was Chrome CI a flake? | No |
-| Is the protocol guard correct? | Yes. Fail closed, honest code, tests not skipped |
-| Is OPEN-13 still Fixed? | Yes — wired on runtimes that can run the export |
-| Is ChaCha-on-dart2js done? | No. That is a pqforge engine slice |
-| Next coding in **this** package? | No. Wait for the pqforge export. Do not vendor |
-| Next coding in **pqforge**? | Sync ChaCha dart2js-safe + capability flag |
+| Was the protocol guard correct at the time? | Yes. Fail closed, honest, tests not skipped |
+| Is OPEN-13 still Fixed? | Yes — now on every runtime this package targets |
+| Is ChaCha-on-dart2js done? | Yes, in **pqforge 0.4.5**, consumed here |
+| Next coding in **this** package for ChaCha? | No. Do not vendor |
 
 Evidence: `lib/src/core/crypto.dart`, `lib/src/tls/cipher_suite.dart`,
 `lib/src/tls/pq_tls_client.dart`, `lib/src/tls/pq_tls_server.dart`,
 `test/tls/cipher_suite_test.dart`, `test/core/crypto_facade_test.dart`.
-pqforge engines: `pq_primitives.dart` (`_chacha20Poly1305`),
-`pq_cryptography_aead_engine.dart`.
+pqforge: `pq_primitives.dart` (`DartChacha20.poly1305Aead`).

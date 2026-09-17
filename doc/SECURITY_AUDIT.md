@@ -131,7 +131,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | DNS cache poisoning from compressed rdata names | OPEN-08 (our encoder emits uncompressed names) |
 | mDNS spoofing on a real LAN | OPEN-09 (no multicast join); TXT sig helps when used |
 | QUIC injection via unprotected headers | OPEN-06 |
-| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.4` / transitive 0.4.1 |
+| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.5` / transitive 0.4.2 |
 
 ## Audit extras that are **not** claimed
 

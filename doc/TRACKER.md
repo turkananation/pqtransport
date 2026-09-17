@@ -19,13 +19,13 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 |---|---|
 | Package | `pqtransport 0.1.0` (unpublished on pub.dev until the owner cuts a release) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Crypto | `pqforge ^0.4.4` |
+| Crypto | `pqforge ^0.4.5` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
 | Tests | 140 passed |
 | Coverage | 90.7% of `lib/` (`2404/2650`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
-| TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered |
+| TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
 | OpenSSL interop | Not started |
 | CMVP / FIPS 140 | Not claimed |
 
@@ -86,7 +86,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
-### pqforge exports (0.4.4 — consumed)
+### pqforge exports (0.4.5 — consumed)
 
 | ID | Sev | Status | Evidence |
 |---|---|---|---|
@@ -101,7 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-11 | P3 | **Fixed** | `initiate`/`accept` no longer take `role` |
 | OPEN-05 | P2 | **Fixed** | Wire HRR + cookie + `message_hash` transcript |
 | OPEN-02 | P1 | **Fixed** | IANA `0x1302` + HKDF-SHA-384 |
-| OPEN-13 | P2 | **Fixed** | IANA `0x1303` + ChaCha records |
+| OPEN-13 | P2 | **Fixed** | IANA `0x1303` + ChaCha records on VM / dart2wasm / dart2js (pqforge 0.4.5) |
 | OPEN-12 | P3 | **Fixed** | Leftover DNS/UDP/TLS error paths |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).

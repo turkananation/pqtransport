@@ -27,7 +27,7 @@ upgrade a claim this layer is not allowed to make. See
 |---|---|
 | Package version | `0.1.0` (unpublished on pub.dev; GitHub tag `vX.Y.Z` publishes via `publish.yml` once automated publishing is enabled) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Runtime dependencies | `pqforge ^0.4.4`, `swissarmyknife ^0.1.0` |
+| Runtime dependencies | `pqforge ^0.4.5`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
 | Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
 | Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
@@ -45,9 +45,9 @@ upgrade a claim this layer is not allowed to make. See
 | Public API and barrels | [API.md](API.md) | [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
 | Known defects | [BUGS.md](BUGS.md) | [SECURITY_AUDIT.md](SECURITY_AUDIT.md) |
 | Open work | [TRACKER.md](TRACKER.md) | [ROADMAP.md](ROADMAP.md) |
-| What pqforge 0.4.4 exports | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | [IMPROVEMENTS.md](IMPROVEMENTS.md) |
+| What pqforge 0.4.5 exports | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | [IMPROVEMENTS.md](IMPROVEMENTS.md) |
 | Claim language | [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
-| dart2js ChaCha | [CHACHA_DART2JS.md](CHACHA_DART2JS.md) | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) |
+| dart2js ChaCha | [CHACHA_DART2JS.md](CHACHA_DART2JS.md) — **done** (pqforge 0.4.5) | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) |
 | Contributor loop | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | [TRACKER.md](TRACKER.md) |
 
 ## Documents
@@ -66,8 +66,8 @@ upgrade a claim this layer is not allowed to make. See
 | [PROGRESS_TRACKER.md](PROGRESS_TRACKER.md) | Pointer to [TRACKER.md](TRACKER.md) (sister-package name). |
 | [ROADMAP.md](ROADMAP.md) | 0.2 → 0.5 direction. Order is not optional. |
 | [IMPROVEMENTS.md](IMPROVEMENTS.md) | Prioritized engineering improvements. |
-| [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.4 APIs. Do not vendor crypto. |
-| [CHACHA_DART2JS.md](CHACHA_DART2JS.md) | Report: dart2js ChaCha guard vs pqforge engine fix. |
+| [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.5 APIs. Do not vendor crypto. |
+| [CHACHA_DART2JS.md](CHACHA_DART2JS.md) | dart2js ChaCha: protocol guard retired; pqforge 0.4.5 Dart engine. |
 | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | Interop milestone status (not claimed). |
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |

@@ -118,7 +118,7 @@ This layer may not invent a stronger claim than pqcrypto / pqforge.
   **not** "interoperable with OpenSSL."
 - Live KEX in 0.1.0 is all three RFC 10024 groups.
 - TLS default suite is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, SHA-384).
-  `0x1303` (ChaCha + SHA-256) is offered. Private-use `0xFF00` is retired.
+  `0x1303` (ChaCha + SHA-256) is offered and completes on dart2js. Private-use `0xFF00` is retired.
 
 Full wording: [Claim Boundary](claim-boundary).
 
@@ -127,7 +127,7 @@ Full wording: [Claim Boundary](claim-boundary).
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.4
+  pqforge: ^0.4.5
   swissarmyknife: ^0.1.0
 ```
 

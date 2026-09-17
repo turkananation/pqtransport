@@ -517,18 +517,18 @@ packages:
     dependency: transitive
     description:
       name: pqcrypto
-      sha256: bfcbc0c455e97418ef15e8b8d351c143c39c2000f449062d631d59dd731b74f2
+      sha256: e9a420fe70b03a862b71ea8a1e70976d1d64ca647bfba58bf1acc3e727cb24fe
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.1"
+    version: "0.4.2"
   pqforge:
     dependency: "direct main"
     description:
       name: pqforge
-      sha256: "4a2afab1423d4a73ab3d6c3d70f904d1ef5b6b5127feb6bf6c1f7b6b291534b9"
+      sha256: ae29b22fda9b97b7279a3ddd39e7e0ccd098f93c70d71fa0d8d8570be2b5826e
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.4"
+    version: "0.4.5"
   protobuf:
     dependency: transitive
     description:

@@ -19,7 +19,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | Capability | VM | Flutter | Web |
 | --- | --- | --- | --- |
 | In-memory TLS | Yes | Yes | Yes |
-| ChaCha20-Poly1305 (`0x1303`) | Yes | Yes | **No** on dart2js (64-bit integers). AES-GCM `0x1302` works. |
+| ChaCha20-Poly1305 (`0x1303`) | Yes | Yes | Yes (pqforge 0.4.5 Dart engine). AES-GCM `0x1302` is the default. |
 | HTTP/1.1 over that TLS | Yes | Yes | Yes |
 | DNS codec / cache / breaker | Yes | Yes | Yes |
 | Encrypted UDP (memory) | Yes | Yes | Yes |

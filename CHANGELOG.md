@@ -38,13 +38,16 @@
 
 ### Changed
 
-- dart2js fail-closes IANA `0x1303` with `unsupported` (PointyCastle
-  Poly1305 needs 64-bit integers). Default ClientHello on that runtime
-  offers `0x1302` only. Do not wrap the PointyCastle `PlatformException`
-  as `kex`. VM and dart2wasm still complete ChaCha.
+- Floor is **pqforge ^0.4.5**. Sync ChaCha20-Poly1305 uses that package's
+  Dart engine (`DartChacha20.poly1305Aead`), so IANA `0x1303` completes
+  on dart2js as well as the VM and dart2wasm. Default ClientHello always
+  offers `[0x1302, 0x1303]`. The dart2js protocol guard
+  (`transportHasFullWidthInteger`, `chachaUnavailableMessage`,
+  `TlsCipherSuite.select(chachaOk:)`, `tlsOfferedCipherSuitesForRuntime`)
+  is deleted — capability is `PqSymmetricPrimitives.supportsChaCha20Poly1305`
+  (always `true`). Do not wrap a PointyCastle `PlatformException` as `kex`.
 - TLS default Hash is SHA-384. SHA-256 remains for UDP HKDF and for the
   ChaCha suite (`0x1303`).
-- Floor is **pqforge ^0.4.4**.
 - `hkdfExtract` / `hkdfExpand` now call pqforge RFC 5869 SHA-256 helpers
   (local HMAC loop deleted). Expand-Label stays in TLS. RFC 5869 A.1 pin
   unchanged (BLK-02 SHA-256 half).
@@ -67,8 +70,9 @@
   tests, modulus-corrupted ek → `illegal_parameter`, concat pins against
   pqforge `concatenateSharedSecrets`. RFC 8446 hello structural tests.
   HelloRetryRequest flight, cookie echo, second-HRR fail-closed, live
-  X25519→P-256 redirect with matching exporters. Live `0x1302` and
-  `0x1303` handshakes. Leftover DNS/UDP/TLS error paths (OPEN-12).
+- Live `0x1302` and `0x1303` handshakes on VM **and dart2js** (no
+  platform branch). RFC 8439 §2.8.2 pin through `PqTransportCrypto`.
+  Leftover DNS/UDP/TLS error paths (OPEN-12).
 
 ## 0.1.0
 

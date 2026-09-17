@@ -6,14 +6,16 @@ pqtransport must not vendor a second Kyber, a second X25519, or a second
 AES-GCM. When a primitive is missing, the correct move is a pqforge
 export, then a thin call here.
 
-Floor today: **pqforge 0.4.4** (SDK `^3.12.0`, depends on pqcrypto ^0.4.1,
+Floor today: **pqforge 0.4.5** (SDK `^3.12.0`, depends on pqcrypto ^0.4.2,
 pointycastle ^4.0.0, cryptography ^2.9.0). Web-safe barrel
 `package:pqforge/pqforge.dart`. No `dart:ffi` in that barrel.
 
-BLK-01 … BLK-05 all **landed in 0.4.4**. This file records what we consume
-and what is still not wired. IDs: [BUGS.md](BUGS.md).
+BLK-01 … BLK-05 landed in 0.4.4. **0.4.5** makes the sync ChaCha helper
+dart2js-safe and ships Cookbook markdown so `dart doc` no longer crashes.
+This file records what we consume and what is still not wired. IDs:
+[BUGS.md](BUGS.md).
 
-## What 0.4.4 already gives us (do not re-export)
+## What 0.4.5 already gives us (do not re-export)
 
 | Job | API we call |
 |---|---|
@@ -29,7 +31,7 @@ and what is still not wired. IDs: [BUGS.md](BUGS.md).
 | **RFC 5869 SHA-256 (BLK-02)** | `hkdfExtractSha256` / `hkdfExpandSha256` |
 | RFC 5869 SHA-384 | `hkdfExtractSha384` / `hkdfExpandSha384` / `hmacSha384` — **wired** (OPEN-02) |
 | AES-256-GCM (sync) | `PqSymmetricPrimitives.aesGcmEncrypt` / `aesGcmDecrypt` |
-| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js fail-closes (Poly1305 needs 64-bit integers). Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
+| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js-safe (Dart engine, 0.4.5). `supportsChaCha20Poly1305` is always `true`. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |
@@ -39,7 +41,7 @@ and what is still not wired. IDs: [BUGS.md](BUGS.md).
 
 ## Consumed in this tree
 
-1. Bump `pqforge` to `^0.4.4`.
+1. Bump `pqforge` to `^0.4.5`.
 2. Call new helpers **only** from `PqTransportCrypto`.
 3. Live handshake tests for all three RFC 10024 groups.
 4. Local HMAC Expand loop deleted.

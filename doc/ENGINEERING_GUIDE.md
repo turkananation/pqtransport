@@ -34,7 +34,7 @@ cd pqtransport
 dart pub get
 ```
 
-Dependencies: `pqforge ^0.4.4`, `swissarmyknife ^0.1.0`. Do not add
+Dependencies: `pqforge ^0.4.5`, `swissarmyknife ^0.1.0`. Do not add
 `pqcrypto`, `pointycastle`, or `cryptography` as direct dependencies
 to grab a missing helper — that splits the crypto story. Report the
 gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead.

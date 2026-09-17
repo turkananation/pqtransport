@@ -6,12 +6,7 @@
 library;
 
 export 'src/core/bytes.dart';
-export 'src/core/crypto.dart'
-    show
-        PqTransportCrypto,
-        TransportAead,
-        transportHasFullWidthInteger,
-        chachaUnavailableMessage;
+export 'src/core/crypto.dart' show PqTransportCrypto, TransportAead;
 export 'src/core/errors.dart';
 export 'src/core/hybrid.dart';
 export 'src/core/lengths.dart';

@@ -33,14 +33,6 @@ void main() {
     final ch = await client.startHandshake();
     expect(ch.isSuccess, isTrue, reason: '${ch.errorOrNull}');
     final flight = await server.ingest(ch.valueOrNull!);
-    if (!crypto.supportsChaCha20Poly1305) {
-      expect(flight.isFailure, isTrue);
-      expect(flight.errorOrNull!.code, PqTransportErrorCode.unsupported);
-      expect(flight.errorOrNull!.message, contains('64-bit'));
-      expect(flight.errorOrNull!.message, isNot(contains('kex')));
-      expect(flight.errorOrNull!.message, isNot(contains('PlatformException')));
-      return;
-    }
     expect(flight.isSuccess, isTrue, reason: '${flight.errorOrNull}');
     await client.ingest(flight.valueOrNull![0]);
     final fin = await client.ingest(flight.valueOrNull![1]);
@@ -77,22 +69,6 @@ void main() {
     final key = crypto.randomBytes(aeadKeyBytes);
     final nonce = crypto.randomBytes(aeadNonceBytes);
     final pt = Uint8List.fromList([1, 2, 3, 4]);
-    if (!crypto.supportsChaCha20Poly1305) {
-      expect(
-        () => crypto.aeadSeal(
-          key: key,
-          nonce: nonce,
-          plaintext: pt,
-          aead: TransportAead.chacha20Poly1305,
-        ),
-        throwsA(
-          isA<PqTransportError>()
-              .having((e) => e.code, 'code', PqTransportErrorCode.unsupported)
-              .having((e) => e.message, 'message', contains('64-bit')),
-        ),
-      );
-      return;
-    }
     final ct = crypto.aeadSeal(
       key: key,
       nonce: nonce,
@@ -136,26 +112,20 @@ void main() {
     );
   });
 
-  test('dart2js does not offer or select ChaCha it cannot run', () {
-    expect(crypto.supportsChaCha20Poly1305, transportHasFullWidthInteger);
-    final offered = tlsOfferedCipherSuitesForRuntime(
-      chachaOk: crypto.supportsChaCha20Poly1305,
-    );
-    expect(offered.contains(tlsCipherAes256GcmSha384), isTrue);
+  test('default ClientHello offers 0x1302 then 0x1303 on every runtime', () {
+    expect(crypto.supportsChaCha20Poly1305, isTrue);
     expect(
-      offered.contains(tlsCipherChaCha20Poly1305Sha256),
-      crypto.supportsChaCha20Poly1305,
-    );
-    expect(PqTlsClient(crypto: crypto).offeredCipherSuites, offered);
-    expect(
-      TlsCipherSuite.select(const [
-        tlsCipherChaCha20Poly1305Sha256,
-      ], chachaOk: false),
-      isNull,
+      PqTlsClient(crypto: crypto).offeredCipherSuites,
+      tlsDefaultOfferedCipherSuites,
     );
     expect(
-      TlsCipherSuite.select(tlsDefaultOfferedCipherSuites, chachaOk: false),
+      TlsCipherSuite.select(const [tlsCipherChaCha20Poly1305Sha256]),
+      TlsCipherSuite.chacha20Poly1305Sha256,
+    );
+    expect(
+      TlsCipherSuite.select(tlsDefaultOfferedCipherSuites),
       TlsCipherSuite.aes256GcmSha384,
     );
+    expect(TlsCipherSuite.select(const [0xFF00]), isNull);
   });
 }

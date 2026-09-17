@@ -28,11 +28,7 @@ final class PqTlsClient {
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
-           offeredCipherSuites ??
-           tlsOfferedCipherSuitesForRuntime(
-             chachaOk:
-                 (crypto ?? const PqTransportCrypto()).supportsChaCha20Poly1305,
-           );
+           offeredCipherSuites ?? tlsDefaultOfferedCipherSuites;
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
@@ -335,11 +331,6 @@ final class PqTlsClient {
     if (!offeredCipherSuites.contains(selected.codepoint)) {
       return Result.failure(
         PqTransportError.handshakeFailure('cipher not offered'),
-      );
-    }
-    if (selected.usesChaCha && !crypto.supportsChaCha20Poly1305) {
-      return Result.failure(
-        PqTransportError.unsupported(chachaUnavailableMessage),
       );
     }
     _suite = selected;

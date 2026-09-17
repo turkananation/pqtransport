@@ -11,7 +11,7 @@ file. If a row cannot be cited, it does not belong here.
 |---|---|---|
 | Version | `0.1.0` | `pubspec.yaml` |
 | SDK | `>=3.12.0 <4.0.0` | `pubspec.yaml` (blueprint's `>=3.8.0` was stale) |
-| Crypto | `pqforge ^0.4.4` | `pubspec.yaml` |
+| Crypto | `pqforge ^0.4.5` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
 | Tests | 140 passed | `dart test` |

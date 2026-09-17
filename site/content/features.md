@@ -32,7 +32,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | HelloRetryRequest on the wire | Done (cookie + selected_group, OPEN-05) |
 | SNI, ALPN, key_share extensions | Done |
 | X.509 / certificate chains | Not started (raw-pk negotiated, OPEN-04) |
-| ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js fail-closed) |
+| ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js via pqforge 0.4.5) |
 | OpenSSL interop | Not started |
 
 ## UDP / DNS / mDNS / QUIC / HTTP
