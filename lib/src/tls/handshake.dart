@@ -7,6 +7,7 @@ import '../core/bytes.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
+import '../core/transcript.dart';
 import 'record.dart';
 
 /// RFC 8446 ClientHello. Compact 0.1 body (random || group || share) is retired.
@@ -19,6 +20,8 @@ final class ClientHello {
     this.cipherSuites = const [tlsCipherAes256GcmSha256Private],
     this.serverName = 'localhost',
     this.alpnProtocols = const ['http/1.1'],
+    this.supportedGroups,
+    this.cookie,
   });
 
   final Uint8List random;
@@ -28,6 +31,12 @@ final class ClientHello {
   final List<int> cipherSuites;
   final String serverName;
   final List<String> alpnProtocols;
+
+  /// Named-group codepoints in `supported_groups`. Null means `[group]`.
+  final List<int>? supportedGroups;
+  final Uint8List? cookie;
+
+  List<int> get offeredGroupCodepoints => supportedGroups ?? [group.codepoint];
 
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
@@ -50,12 +59,16 @@ final class ClientHello {
     if (serverName.isNotEmpty) {
       b.add(_extServerName(serverName));
     }
-    b.add(_extSupportedGroups(group));
+    b.add(_extSupportedGroups(offeredGroupCodepoints));
     b.add(_extSignatureAlgorithms());
     if (alpnProtocols.isNotEmpty) {
       b.add(_extAlpn(alpnProtocols));
     }
     b.add(_extCertificateTypeOffer(tlsExtServerCertificateType));
+    final c = cookie;
+    if (c != null) {
+      b.add(_extCookie(c));
+    }
     b.add(_extKeyShareClient(group, share));
     return b.takeBytes();
   }
@@ -152,6 +165,8 @@ final class ClientHello {
     if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
     final rawPk = _parseCertificateTypeOffer(map, tlsExtServerCertificateType);
     if (rawPk.isFailure) return Result.failure(rawPk.errorOrNull!);
+    final cookie = _parseCookie(map);
+    if (cookie.isFailure) return Result.failure(cookie.errorOrNull!);
     return Result.success(
       ClientHello(
         random: random.valueOrNull!,
@@ -161,12 +176,18 @@ final class ClientHello {
         cipherSuites: suites.valueOrNull!,
         serverName: sni.valueOrNull ?? '',
         alpnProtocols: alpn.valueOrNull ?? const [],
+        supportedGroups: groups.valueOrNull!,
+        cookie: cookie.valueOrNull,
       ),
     );
   }
 }
 
 /// RFC 8446 ServerHello. Compact 0.1 body is retired.
+///
+/// A HelloRetryRequest is a ServerHello whose [random] is
+/// [tlsHelloRetryRequestRandom] (OPEN-05). HRR [share] is empty; [group] is
+/// the selected_group and [cookie] is required.
 final class ServerHello {
   const ServerHello({
     required this.random,
@@ -174,13 +195,31 @@ final class ServerHello {
     required this.share,
     this.legacySessionId = const [],
     this.cipherSuite = tlsCipherAes256GcmSha256Private,
+    this.cookie,
   });
+
+  factory ServerHello.helloRetryRequest({
+    required HybridGroup selectedGroup,
+    required Uint8List cookie,
+    List<int> legacySessionId = const [],
+    int cipherSuite = tlsCipherAes256GcmSha256Private,
+  }) => ServerHello(
+    random: Uint8List.fromList(tlsHelloRetryRequestRandom),
+    group: selectedGroup,
+    share: Uint8List(0),
+    legacySessionId: legacySessionId,
+    cipherSuite: cipherSuite,
+    cookie: cookie,
+  );
 
   final Uint8List random;
   final HybridGroup group;
   final Uint8List share;
   final List<int> legacySessionId;
   final int cipherSuite;
+  final Uint8List? cookie;
+
+  bool get isHelloRetryRequest => isHelloRetryRequestRandom(random);
 
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
@@ -191,7 +230,15 @@ final class ServerHello {
     b.addByte(tlsCompressionNull);
     final exts = BytesBuilder(copy: false);
     exts.add(_extSupportedVersionsServer());
-    exts.add(_extKeyShareServer(group, share));
+    if (isHelloRetryRequest) {
+      exts.add(_extKeyShareHelloRetry(group));
+      final c = cookie;
+      if (c != null) {
+        exts.add(_extCookie(c));
+      }
+    } else {
+      exts.add(_extKeyShareServer(group, share));
+    }
     writeOpaque16(b, exts.takeBytes());
     return encodeHandshake(tlsHsServerHello, b.takeBytes());
   }
@@ -255,6 +302,35 @@ final class ServerHello {
     if (selected.valueOrNull! != tls13Version) {
       return Result.failure(
         PqTransportError.unsupported('ServerHello is not TLS 1.3'),
+      );
+    }
+    final hrr = isHelloRetryRequestRandom(random.valueOrNull!);
+    if (hrr) {
+      final selectedGroup = _parseKeyShareHelloRetry(map);
+      if (selectedGroup.isFailure) {
+        return Result.failure(selectedGroup.errorOrNull!);
+      }
+      final cookie = _parseCookie(map);
+      if (cookie.isFailure) return Result.failure(cookie.errorOrNull!);
+      if (cookie.valueOrNull == null) {
+        return Result.failure(
+          PqTransportError.decodeFailure('HRR missing cookie (OPEN-05)'),
+        );
+      }
+      return Result.success(
+        ServerHello(
+          random: random.valueOrNull!,
+          group: selectedGroup.valueOrNull!,
+          share: Uint8List(0),
+          legacySessionId: sid.valueOrNull!,
+          cipherSuite: suite.valueOrNull!,
+          cookie: cookie.valueOrNull,
+        ),
+      );
+    }
+    if (map.containsKey(tlsExtCookie)) {
+      return Result.failure(
+        PqTransportError.decodeFailure('cookie in ServerHello'),
       );
     }
     final share = _parseKeyShareServer(map);
@@ -380,6 +456,28 @@ Result<int, PqTransportError> decodeEncryptedExtensions(Uint8List handshake) {
   return Result.success(data[0]);
 }
 
+/// RFC 8446 §4.1.3: HelloRetryRequest.random is SHA-256("HelloRetryRequest").
+bool isHelloRetryRequestRandom(Uint8List random) {
+  if (random.length != handshakeRandomBytes) return false;
+  var diff = 0;
+  for (var i = 0; i < handshakeRandomBytes; i++) {
+    diff |= random[i] ^ tlsHelloRetryRequestRandom[i];
+  }
+  return diff == 0;
+}
+
+/// RFC 8446 §4.4.1: replace ClientHello1 with a `message_hash` wrapper.
+void rewriteTranscriptForHelloRetry({
+  required Transcript transcript,
+  required Uint8List clientHello1,
+  required Uint8List helloRetryRequest,
+  required Uint8List Function(Uint8List) sha256,
+}) {
+  transcript.clear();
+  transcript.add(encodeHandshake(tlsHsMessageHash, sha256(clientHello1)));
+  transcript.add(helloRetryRequest);
+}
+
 Uint8List _ext(int type, Uint8List data) {
   final b = BytesBuilder(copy: false);
   writeUint16(b, type);
@@ -403,9 +501,11 @@ Uint8List _extSupportedVersionsServer() {
   return _ext(tlsExtSupportedVersions, body.takeBytes());
 }
 
-Uint8List _extSupportedGroups(HybridGroup group) {
+Uint8List _extSupportedGroups(List<int> codepoints) {
   final list = BytesBuilder(copy: false);
-  writeUint16(list, group.codepoint);
+  for (final cp in codepoints) {
+    writeUint16(list, cp);
+  }
   return _ext(tlsExtSupportedGroups, _u16Vector(list.takeBytes()));
 }
 
@@ -428,6 +528,15 @@ Uint8List _extKeyShareServer(HybridGroup group, Uint8List share) {
   writeOpaque16(body, share);
   return _ext(tlsExtKeyShare, body.takeBytes());
 }
+
+Uint8List _extKeyShareHelloRetry(HybridGroup group) {
+  final body = BytesBuilder(copy: false);
+  writeUint16(body, group.codepoint);
+  return _ext(tlsExtKeyShare, body.takeBytes());
+}
+
+Uint8List _extCookie(Uint8List cookie) =>
+    _ext(tlsExtCookie, _u16Vector(cookie));
 
 Uint8List _extServerName(String host) {
   final hostBytes = Uint8List.fromList(ascii.encode(host));
@@ -647,6 +756,41 @@ Result<(HybridGroup, Uint8List), PqTransportError> _parseKeyShareServer(
     return Result.failure(PqTransportError.decodeFailure('key_share trailing'));
   }
   return Result.success((group, share.valueOrNull!));
+}
+
+Result<HybridGroup, PqTransportError> _parseKeyShareHelloRetry(
+  Map<int, Uint8List> exts,
+) {
+  final data = exts[tlsExtKeyShare];
+  if (data == null) {
+    return Result.failure(PqTransportError.decodeFailure('missing key_share'));
+  }
+  if (data.length != 2) {
+    return Result.failure(
+      PqTransportError.decodeFailure('HRR key_share must be NamedGroup only'),
+    );
+  }
+  final cp = readUint16(data, 0);
+  final group = HybridGroupContract.byCodepoint(cp);
+  if (group == null) {
+    return Result.failure(PqTransportError.unsupported('named group $cp'));
+  }
+  return Result.success(group);
+}
+
+Result<Uint8List?, PqTransportError> _parseCookie(Map<int, Uint8List> exts) {
+  final data = exts[tlsExtCookie];
+  if (data == null) return const Result.success(null);
+  final r = ByteReader(data);
+  final cookie = r.opaque16(PqLengthLabel.tlsCookie);
+  if (cookie.isFailure) return Result.failure(cookie.errorOrNull!);
+  if (cookie.valueOrNull!.isEmpty) {
+    return Result.failure(PqTransportError.decodeFailure('empty cookie'));
+  }
+  if (!r.isDone) {
+    return Result.failure(PqTransportError.decodeFailure('cookie trailing'));
+  }
+  return Result.success(cookie.valueOrNull);
 }
 
 Result<String?, PqTransportError> _parseServerName(Map<int, Uint8List> exts) {

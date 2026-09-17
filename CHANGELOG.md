@@ -21,6 +21,11 @@
   `server_certificate_type = RawPublicKey` (OPEN-04). Certificate payload
   is still raw ML-DSA-65, but the raw-pk path is **negotiated**, not silent.
   ClientHello offers the same type. Not X.509.
+- HelloRetryRequest on the wire (OPEN-05): `random` is
+  SHA-256("HelloRetryRequest"), `key_share` is `selected_group` only,
+  cookie extension 44 is required. Client echoes the cookie on ClientHello2
+  and the transcript uses the RFC 8446 §4.4.1 `message_hash` wrapper.
+  Once-only machine edge kept. Same-group handshakes do not emit HRR.
 
 ### Changed
 
@@ -46,6 +51,8 @@
 - Live P-256 / P-384 TLS and encrypted-UDP handshakes, `requireGroup` refuse
   tests, modulus-corrupted ek → `illegal_parameter`, concat pins against
   pqforge `concatenateSharedSecrets`. RFC 8446 hello structural tests.
+  HelloRetryRequest flight, cookie echo, second-HRR fail-closed, live
+  X25519→P-256 redirect with matching exporters.
 
 ## 0.1.0
 

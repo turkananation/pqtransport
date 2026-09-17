@@ -155,6 +155,10 @@ const int tlsHsCertificate = 11;
 const int tlsHsCertificateVerify = 15;
 const int tlsHsFinished = 20;
 const int tlsHsKeyUpdate = 24;
+
+/// RFC 8446 §4.4.1 synthetic handshake wrapping Hash(ClientHello1) in an HRR
+/// transcript. Not sent on the wire.
+const int tlsHsMessageHash = 254;
 const int tlsExtSupportedVersions = 43;
 const int tlsExtKeyShare = 51;
 const int tlsExtSignatureAlgorithms = 13;
@@ -163,17 +167,55 @@ const int tlsExtServerName = 0;
 const int tlsExtAlpn = 16;
 const int tlsExtClientCertificateType = 19;
 const int tlsExtServerCertificateType = 20;
+const int tlsExtCookie = 44;
 const int tlsServerNameTypeHostName = 0;
 const int tlsSignatureMldsa65 = 0x0905;
 const int tlsCertTypeRawPublicKey = 2;
 const int tlsCompressionNull = 0;
 const int tlsLegacySessionIdMaxBytes = 32;
+const int tlsCookieBytes = 32;
 const int tlsAlertIllegalParameter = 47;
 const int tlsAlertUnexpectedMessage = 10;
 const int tlsAlertDecryptError = 51;
 const int tlsAlertHandshakeFailure = 40;
 const int tlsAlertInternalError = 80;
 const int tlsMaxHelloRetry = 1;
+
+/// RFC 8446 §4.1.3 HelloRetryRequest.random = SHA-256("HelloRetryRequest").
+const List<int> tlsHelloRetryRequestRandom = <int>[
+  0xCF,
+  0x21,
+  0xAD,
+  0x74,
+  0xE5,
+  0x9A,
+  0x61,
+  0x11,
+  0xBE,
+  0x1D,
+  0x8C,
+  0x02,
+  0x1E,
+  0x65,
+  0xB8,
+  0x91,
+  0xC2,
+  0xA2,
+  0x11,
+  0x16,
+  0x7A,
+  0xBB,
+  0x8C,
+  0x5E,
+  0x07,
+  0x9E,
+  0x09,
+  0xE2,
+  0xC8,
+  0xA8,
+  0x33,
+  0x9C,
+];
 
 const String tlsHkdfLabelPrefix = 'tls13 ';
 const String tlsLabelDerived = 'derived';

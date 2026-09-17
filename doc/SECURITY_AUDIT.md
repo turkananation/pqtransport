@@ -16,7 +16,7 @@ production hardening.
 |---|---|---|
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
 | P1 wrong-on-the-wire or fail-open | 1 | OPEN-02 |
-| P2 incomplete protocol | 7 | OPEN-05 … OPEN-10, OPEN-13 |
+| P2 incomplete protocol | 6 | OPEN-06 … OPEN-10, OPEN-13 |
 | P3 hygiene | 1 | OPEN-12 |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |
@@ -132,7 +132,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 |---|---|
 | Cross-implementation TLS interop confusion | Accepted until 0.4 |
 | Downgrade to TLS 1.2 / classical-only | Compact encoding has no 1.2 path; still add `supported_versions` in 0.2 |
-| HRR cookie binding | OPEN-05 |
+| HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |
 | DNS cache poisoning from compressed rdata names | OPEN-08 (our encoder emits uncompressed names) |
 | mDNS spoofing on a real LAN | OPEN-09 (no multicast join); TXT sig helps when used |
 | QUIC injection via unprotected headers | OPEN-06 |
