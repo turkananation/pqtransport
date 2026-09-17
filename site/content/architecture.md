@@ -75,13 +75,12 @@ Implemented in `lib/src/core/hybrid.dart`. See [Hybrid Groups](hybrid).
 
 ## TLS 1.3 (0.1.0 shape)
 
-Compact private encoding, **not** RFC 8446 ClientHello/ServerHello.
+RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
+`supported_versions`, `key_share`, SNI, ALPN). Cipher suite is
+private-use `0xFF00` (AES-256-GCM + HKDF-SHA-256), **not** IANA `0x1302`.
 Handshake vs application epochs reset the record sequence. Finished is
 HMAC-SHA-256 over the transcript. Certificate is a raw ML-DSA-65 public
-key. HKDF-SHA-256 schedule — SHA-384 Extract/Expand is exported by
-pqforge 0.4.4 but the **schedule** is still SHA-256, so IANA
-`0x1302` is not claimed (OPEN-02).
+key (OPEN-04).
 
-Roadmap 0.2 puts real RFC 8446 hellos on the wire. Until then, wording
-is "RFC 10024-aligned hybrid share encoding with unit-tested
+Wording stays "RFC 10024-aligned hybrid share encoding with unit-tested
 concatenation," not "OpenSSL interop."

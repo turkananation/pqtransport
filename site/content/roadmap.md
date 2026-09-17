@@ -20,15 +20,15 @@ PQ path.
 
 ## 0.2 — RFC 8446-shaped wire
 
-Real ClientHello / ServerHello (`legacy_version`, `cipher_suites`,
-`supported_versions`, `supported_groups`, `key_share`, SNI, ALPN).
-EncryptedExtensions as a real message. Certificate as X.509 or an
-explicit raw-public-key extension. HelloRetryRequest on the wire with
-cookie. `requireGroup` (OPEN-03) is already done.
+ClientHello / ServerHello are RFC 8446-shaped (OPEN-01 **done**). Cipher
+on the wire is private-use `0xFF00`, not IANA `0x1302`. Remaining in 0.2:
+EncryptedExtensions as a real message + Certificate as X.509 or explicit
+raw-pk (OPEN-04); HelloRetryRequest on the wire with cookie (OPEN-05);
+drop unused UDP `role` args (OPEN-11, parallel).
 
-Still SHA-256. Still do not put IANA `0x1302` on the wire. Unblocks
-OpenSSL **parsing**. Live NIST KEX is already in tree — OpenSSL still
-needs hellos, not ECDH.
+Still SHA-256. Still do not put IANA `0x1302` on the wire. OpenSSL
+**parsing** of hellos is unblocked; handshake completion still needs
+cert + an IANA suite.
 
 ## 0.3 remaining — honest cipher suite
 

@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 104 passed |
+| Tests | 111 passed |
 | Coverage | 90.5% of `lib/` (`1854/2049`) on the codec pass; NIST live tests added after |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | OpenSSL interop | Not started |
@@ -35,7 +35,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Core lengths + hybrid concat (3 groups) | Done | `test/core/` |
 | Socket abstraction + in-memory drivers | Done | `test/io/`, `test/extra_coverage_test.dart` |
 | Encrypted UDP (all three groups) | Done | `test/udp/datagram_test.dart` |
-| TLS machines + compact handshake + records | Done | `test/tls/` |
+| TLS machines + RFC 8446 hellos + records | Done | `test/tls/` |
 | Live NIST groups (P-256 / P-384) | Done | `handshake_test.dart`, `crypto_facade_test.dart` |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
@@ -79,7 +79,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Owner | Blocks | Next action |
 |---|---|---|---|---|
-| OPEN-01 | P1 | pqtransport | 0.2 OpenSSL hello | RFC 8446 ClientHello / ServerHello / extensions |
 | OPEN-02 | P1 | pqtransport | IANA 0x1302 | SHA-384 Extract/Expand is in pqforge; **schedule** is still SHA-256. Never put 0x1302 on the wire until 0.3.5 |
 | OPEN-04 | P1 | pqtransport | Cert interop | X.509 `Certificate` (or an explicit raw-pk flag) |
 | OPEN-05 | P2 | pqtransport | HRR interop | Cookie + actual HRR flight |
@@ -102,6 +101,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | BLK-04 | P2 | **Fixed** | `concatenateSharedSecrets` pin; no `combine()` |
 | BLK-05 | P3 | **Fixed** | `checkEncapsulationKey` → `illegalKemKey` |
 | OPEN-03 | P1 | **Fixed** | `requireGroup` |
+| OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired; cipher `0xFF00` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,7 +120,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | none of BLK-* | OPEN-01, OPEN-04, OPEN-05, OPEN-11 |
+| 0.2 | RFC 8446-shaped hellos | OPEN-01 **done** | OPEN-04, OPEN-05, OPEN-11 |
 | 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |

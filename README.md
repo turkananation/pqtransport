@@ -39,7 +39,7 @@ Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
 
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
-[![encoding](https://img.shields.io/badge/TLS_wire-compact_0.1_(not_RFC_8446_hello)-bf8700?style=for-the-badge)](doc/ROADMAP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446_hellos_(not_OpenSSL)-bf8700?style=for-the-badge)](doc/ROADMAP.md)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
 [![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)

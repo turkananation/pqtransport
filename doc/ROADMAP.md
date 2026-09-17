@@ -31,7 +31,7 @@ Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 
 | # | Work | Closes |
 |---|---|---|
-| 0.2.1 | Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN | OPEN-01 |
+| 0.2.1 | ~~Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN~~ | **Done** (OPEN-01). Cipher is private-use `0xFF00`, not IANA `0x1302`. Compact 0.1 body retired. |
 | 0.2.2 | EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension (not a silent raw key) | OPEN-04 |
 | 0.2.3 | HelloRetryRequest on the wire with cookie; keep the existing once-only machine edge | OPEN-05 |
 | 0.2.4 | ~~Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups~~ | **Done** (OPEN-03 / `requireGroup`) |
@@ -39,13 +39,10 @@ Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 | 0.2.6 | Coverage of leftover DNS/UDP/TLS error paths | OPEN-12 |
 
 Still SHA-256 schedule. Still **do not** put IANA `0x1302` on the wire.
-Self-interop must keep working: add a compatibility test that the compact
-0.1 encoding is either still accepted behind a flag or is deliberately
-retired in the same PR.
-
-Exit gate: a recorded ClientHello from this package is structurally an
-RFC 8446 handshake message (legacy_version `0x0303`, extensions present).
-OpenSSL still may reject cipher/group until 0.3.
+Compact 0.1 hello body is **retired** (OPEN-01). Exit gate for 0.2.1 is
+met: a recorded ClientHello is structurally RFC 8446 (`legacy_version`
+`0x0303`, extensions present). OpenSSL still may reject cipher/group/cert
+until 0.3 / OPEN-04.
 
 ## Slice 0.3 — live NIST groups + honest cipher suite
 
@@ -110,15 +107,15 @@ Safe after 0.1 constants exist:
 
 Never parallelize:
 
-- OpenSSL fixture with compact 0.1 hellos still the only encoder
+- OpenSSL fixture before OPEN-04 cert and a recorded transcript
 - HTTP/3 with QUIC still a packet sketch
 - Live P-256 handshake with a local ECDH vendor
 - Two changes both editing `lengths.dart` / `hybrid.dart`
 
 ## Suggested next coding turn (when directed)
 
-1. OPEN-01 (RFC 8446 hello) — load-bearing for every later interop claim.
-2. Then 0.2.2–0.2.6 (Certificate, HRR cookie, unused `role`).
+1. OPEN-04 (explicit raw-pk / X.509) then OPEN-05 (HRR cookie). OPEN-01 done.
+2. OPEN-11 while 0.1.0 is unpublished (parallel, UDP-only).
 3. OPEN-02 / OPEN-13 only after the SHA-256 schedule is an explicit choice
    on the 0.2 wire, not a silent `0x1302`.
 

@@ -72,7 +72,7 @@ Also forbidden in meaning, even if the substring differs:
 
 | Need | Cite | 0.1.0 honesty |
 |---|---|---|
-| TLS 1.3 record + handshake + key schedule | RFC 8446 | Schedule structure yes; hello encoding compact; hash SHA-256 |
+| TLS 1.3 record + handshake + key schedule | RFC 8446 | Schedule structure yes; hellos RFC 8446-shaped; hash SHA-256; cipher `0xFF00` not IANA 0x1302 |
 | Hybrid KEX framework in TLS 1.3 | RFC 9954 | Concat is group-dependent; X25519 name order is **not** followed |
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs for all three; live KEX for 0x11EC only |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |

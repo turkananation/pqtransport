@@ -16,17 +16,19 @@ Tracked as LIM-01. Slice 0.4 in [ROADMAP.md](ROADMAP.md).
 | Layer | What we send | What OpenSSL 3.5+ expects |
 |---|---|---|
 | Record | Compact length-prefixed handshake bytes inside AES-256-GCM | RFC 8446 TLSPlaintext / TLSCiphertext |
-| ClientHello | `HS(1) \|\| random(32) \|\| group(u16) \|\| share_len(u16) \|\| share` | `legacy_version`, `random`, `legacy_session_id`, `cipher_suites`, `legacy_compression`, extensions (`supported_versions`, `supported_groups`, `key_share`, SNI, ALPN, signature_algorithms) |
-| ServerHello | Same compact shape | RFC 8446 ServerHello + `key_share` |
+| ClientHello | RFC 8446-shaped (`legacy_version` 0x0303, extensions, `key_share`). Cipher private-use `0xFF00` | Same shape; typically `TLS_AES_256_GCM_SHA384` (0x1302) |
+| ServerHello | RFC 8446-shaped + `key_share` + `supported_versions` | RFC 8446 ServerHello + `key_share` |
 | Certificate | Raw ML-DSA-65 public key | X.509 `Certificate` message (or raw-pk extension, negotiated) |
 | Cipher suite | AES-256-GCM keys from HKDF-**SHA-256** | Typically `TLS_AES_256_GCM_SHA384` (0x1302) for this AEAD |
-| Groups | All three RFC 10024 groups **live** (self-interop). Compact hello still will not parse | OpenSSL 3.5+ implements RFC 10024 groups when built with the hybrid KEM |
+| Groups | All three RFC 10024 groups **live** | OpenSSL 3.5+ implements RFC 10024 groups when built with the hybrid KEM |
 
 Self-interop (client and server both `package:pqtransport`) is tested and
 green for X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
 (`maximum` profile). That is a different claim.
 
-Live NIST KEX is **not** the OpenSSL blocker. OPEN-01 hellos are.
+Live NIST KEX is **not** the OpenSSL blocker. Remaining: OPEN-04 (raw cert),
+OPEN-02 (SHA-256 vs 0x1302), EncryptedExtensions still empty, no recorded
+fixture (LIM-01). Hellos are RFC 8446-shaped (OPEN-01 **done**).
 
 ## Concatenation is already the RFC join
 

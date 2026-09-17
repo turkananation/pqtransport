@@ -128,6 +128,7 @@ final class PqTlsServer {
         random: crypto.randomBytes(handshakeRandomBytes),
         group: group,
         share: serverShare.valueOrNull!,
+        legacySessionId: ch.valueOrNull!.legacySessionId,
       );
       final shBytes = sh.encode();
       transcript.add(shBytes);

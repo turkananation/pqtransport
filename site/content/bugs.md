@@ -17,7 +17,6 @@ Canonical tracker:
 
 | ID | Sev | Summary |
 | --- | --- | --- |
-| OPEN-01 | P1 | Compact private TLS encoding, not RFC 8446 hellos |
 | OPEN-02 | P1 | AES-256-GCM with SHA-256 schedule — not IANA 0x1302 |
 | OPEN-04 | P1 | Certificate is a raw ML-DSA-65 key, not X.509 |
 | OPEN-05 | P2 | HelloRetryRequest is a counter, not a wire HRR |
@@ -47,5 +46,5 @@ Replay-before-AEAD, epoch record sequences, `MemoryByteSocket` buffering,
 multicast flood, NS codec, combiner-order tests, SDK pin `>=3.12.0`,
 handshake `late` application secrets. OPEN-03 (`requireGroup`), BLK-01
 (live NIST ECDH), BLK-02 (SHA-256 HKDF helpers), BLK-04
-(`concatenateSharedSecrets`), BLK-05 (`checkEncapsulationKey`). Twelve
-FIX-* rows plus those five in the canonical file.
+(`concatenateSharedSecrets`), BLK-05 (`checkEncapsulationKey`), OPEN-01
+(RFC 8446 hellos). Twelve FIX-* rows plus those in the canonical file.

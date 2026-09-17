@@ -111,17 +111,26 @@ exporter_master  = DeriveSecret(master, "exp master", Hash(full transcript))
 application secret that `deriveApplication` overwrites). Traffic keys are
 32-byte AES-256-GCM keys. IANA `TLS_AES_256_GCM_SHA384` is **not** offered.
 
-Handshake messages on the wire in 0.1.0 are **compact**:
+Handshake messages on the wire are RFC 8446-shaped hellos (OPEN-01):
 
 ```text
-ClientHello  = HS(1) || random(32) || group(u16) || share_len(u16) || share
-ServerHello  = HS(2) || random(32) || group(u16) || share_len(u16) || share
-Certificate  = HS(11) || pk_len(u16) || ml-dsa-65 public key
+ClientHello  = HS(1) || legacy_version(0x0303) || random(32) ||
+               session_id<0..32> || cipher_suites || compression ||
+               extensions (supported_versions, SNI, supported_groups,
+               signature_algorithms, ALPN, key_share)
+ServerHello  = HS(2) || legacy_version(0x0303) || random(32) ||
+               session_id echo || cipher_suite || compression_null ||
+               extensions (supported_versions, key_share)
+Certificate  = HS(11) || pk_len(u16) || ml-dsa-65 public key   // OPEN-04
 CertVerify   = HS(15) || sig_len(u16) || ml-dsa-65 signature
 Finished     = HS(20) || verify_data(32)
 ```
 
-This is enough for self-interop. It is not enough for OpenSSL.
+Cipher suite on the wire is private-use `0xFF00` (AES-256-GCM + HKDF-SHA-256).
+IANA `0x1302` is refused. Compact 0.1 hello body is retired.
+
+This is enough for self-interop. It is not enough for OpenSSL (raw cert,
+non-IANA suite, empty EncryptedExtensions).
 
 Record protection: `TLSInnerPlaintext` = `payload || content_type`, sealed
 with AES-256-GCM, outer type application_data. Handshake and application

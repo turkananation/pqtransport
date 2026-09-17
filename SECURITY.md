@@ -51,8 +51,10 @@ In particular:
 - **No FIPS 140 / CMVP module status.** Do not deploy this library where a
   validated module is contractually or legally required without your own
   validation.
-- **TLS 0.1.0 uses a compact private encoding**, not RFC 8446 ClientHello.
-  Self-interop works; OpenSSL will not parse us. See
+- **TLS hellos are RFC 8446-shaped** (`legacy_version`, `key_share`,
+  `supported_versions`, SNI, ALPN). Certificate is still a raw ML-DSA-65
+  public key. Cipher suite is private-use `0xFF00`, not IANA `0x1302`.
+  OpenSSL will not complete a handshake. See
   [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md).
 - **Record protection is AES-256-GCM with HKDF-SHA-256.** That is not IANA
   `TLS_AES_256_GCM_SHA384` (0x1302). SHA-384 Extract/Expand is exported by
