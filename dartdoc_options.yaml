@@ -1,0 +1,5 @@
+dartdoc:
+  showUndocumentedCategories: true
+  ignore:
+    - broken-link
+    - missing-from-search-index

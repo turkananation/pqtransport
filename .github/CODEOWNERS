@@ -1,0 +1,14 @@
+# Default owner for the whole tree.
+* @turkananation
+
+# Cryptographic and wire-format paths always need maintainer review.
+/lib/src/core/ @turkananation
+/lib/src/tls/ @turkananation
+/lib/src/udp/ @turkananation
+/lib/src/dns/ @turkananation
+/lib/src/mdns/ @turkananation
+/lib/src/quic/ @turkananation
+/lib/src/http/ @turkananation
+/doc/CLAIM_BOUNDARY.md @turkananation
+/tool/check_invariants.sh @turkananation
+/.github/ @turkananation

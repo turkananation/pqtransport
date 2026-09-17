@@ -1,0 +1,138 @@
+name: CI
+
+# Pull requests run before merge. Pushes to main/develop re-run after merge so
+# the default branch always has a fresh green (or red) status. Feature branches
+# that open a PR do not also fire a duplicate `push` job.
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Format, analyze, invariants, tests, dry-run publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Print Dart version
+        run: dart --version
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze source
+        run: dart analyze --fatal-infos
+
+      - name: Check claim-boundary and FFI invariants
+        run: bash tool/check_invariants.sh .
+
+      - name: Run tests with coverage
+        run: dart test --coverage=coverage
+
+      - name: Format coverage as LCOV
+        run: |
+          dart pub global activate coverage
+          dart pub global run coverage:format_coverage \
+            --lcov \
+            --in=coverage \
+            --out=coverage/lcov.info \
+            --report-on=lib
+
+      - name: Coverage summary
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          hits = total = 0
+          for line in Path("coverage/lcov.info").read_text().splitlines():
+              if line.startswith("DA:"):
+                  total += 1
+                  if int(line.split(",")[1]) > 0:
+                      hits += 1
+          pct = (100.0 * hits / total) if total else 0.0
+          print(f"lib/ line coverage: {hits}/{total} ({pct:.1f}%)")
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              Path(summary).open("a").write(
+                  f"## Coverage\n\n`lib/` line coverage: **{hits}/{total} ({pct:.1f}%)**\n"
+              )
+          PY
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+      - name: Publish dry run
+        run: dart pub publish --dry-run
+
+  examples:
+    name: Run in-memory examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run examples
+        run: |
+          set -euo pipefail
+          dart run example/pq_tls_client.dart
+          dart run example/encrypted_udp_peer.dart
+          dart run example/mdns_discovery.dart
+
+  web:
+    name: Web-portable tests (Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run portable tests under dart2js
+        run: dart test -p chrome

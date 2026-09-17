@@ -1,0 +1,12 @@
+.dart_tool/
+.packages
+build/
+coverage/
+doc/api/
+*.lcov
+.pub-cache/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+pub-credentials.json

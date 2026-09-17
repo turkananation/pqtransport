@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: pqtransport
+message: If you use this software, please cite it using these metadata.
+type: software
+authors:
+  - name: Turkana Nation
+    email: turkananation@gmail.com
+    website: https://github.com/turkananation
+repository-code: https://github.com/turkananation/pqtransport
+url: https://turkananation.github.io/pqtransport/
+abstract: >-
+  Pure-Dart post-quantum transport for Dart and Flutter: hybrid TLS 1.3
+  (RFC 10024), encrypted UDP, DNS/DoH/DoT, mDNS, QUIC, and HTTP/1.1–3.
+  Cryptography is package:pqforge; infrastructure is package:swissarmyknife.
+keywords:
+  - post-quantum cryptography
+  - TLS 1.3
+  - ML-KEM
+  - Dart
+license: MIT
+version: 0.1.0
+date-released: "2026-09-17"

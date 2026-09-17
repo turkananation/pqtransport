@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pqtransport — pure-Dart post-quantum transport</title>
+  <meta name="description" content="Pure-Dart post-quantum transport: hybrid TLS 1.3 (RFC 10024), encrypted UDP, DNS/DoH/DoT, mDNS, QUIC, HTTP/1.1–3. Crypto is pqforge. No dart:ffi.">
+  <link rel="canonical" href="https://turkananation.github.io/pqtransport/">
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #141a2e;
+      --ink: #e8edf7;
+      --muted: #9aa7c2;
+      --accent: #7cf0c3;
+      --line: #2a3554;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1b2a4a 0%, var(--bg) 55%);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    main { max-width: 880px; margin: 0 auto; padding: 48px 20px 80px; }
+    h1 { font-size: 2.1rem; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .tag { color: var(--accent); font-weight: 600; font-size: 0.85rem; }
+    p { color: var(--muted); }
+    a { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 28px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 1rem; }
+    .card p { margin: 0; font-size: 0.92rem; }
+    code { color: var(--ink); }
+    footer { margin-top: 40px; color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="tag">package:pqtransport 0.1.0</div>
+    <h1>Pure-Dart post-quantum transport</h1>
+    <p>
+      Hybrid TLS 1.3 (RFC 10024), encrypted UDP, DNS/DoH/DoT, mDNS, QUIC, and
+      HTTP/1.1–3. Cryptography is exclusively
+      <a href="https://github.com/turkananation/pqforge">pqforge</a>.
+      Infrastructure is exclusively
+      <a href="https://github.com/turkananation/swissarmyknife">swissarmyknife</a>.
+      No <code>dart:ffi</code>. No platform TLS on the PQ path.
+    </p>
+    <div class="grid">
+      <article class="card">
+        <h2>Repository</h2>
+        <p><a href="https://github.com/turkananation/pqtransport">github.com/turkananation/pqtransport</a></p>
+      </article>
+      <article class="card">
+        <h2>Documentation</h2>
+        <p><a href="doc/INDEX.md">doc/INDEX.md</a> — architecture, bugs, tracker, roadmap, claim boundary.</p>
+      </article>
+      <article class="card">
+        <h2>API reference</h2>
+        <p><a href="api/index.html">dartdoc</a> generated from <code>lib/</code>.</p>
+      </article>
+      <article class="card">
+        <h2>Claim boundary</h2>
+        <p>Not a FIPS 140 module. Compact TLS in 0.1.0. Live KEX is X25519MLKEM768 only.</p>
+      </article>
+    </div>
+    <footer>
+      MIT License · TurkanaNation ·
+      <a href="https://github.com/turkananation/pqcrypto">pqcrypto</a> ·
+      <a href="CHANGELOG.md">changelog</a>
+    </footer>
+  </main>
+</body>
+</html>
