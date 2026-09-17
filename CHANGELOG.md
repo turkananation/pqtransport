@@ -19,6 +19,10 @@
   `signature_algorithms`, SNI, ALPN (OPEN-01). Compact 0.1 hello body is
   retired (0.1.0 unpublished). Cipher on the wire is private-use `0xFF00`
   (AES-256-GCM + HKDF-SHA-256). **Not** IANA `0x1302`.
+- EncryptedExtensions is a real extensions vector carrying RFC 7250
+  `server_certificate_type = RawPublicKey` (OPEN-04). Certificate payload
+  is still raw ML-DSA-65, but the raw-pk path is **negotiated**, not silent.
+  ClientHello offers the same type. Not X.509.
 
 ### Changed
 

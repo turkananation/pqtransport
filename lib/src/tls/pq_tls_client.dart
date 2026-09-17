@@ -177,6 +177,8 @@ final class PqTlsClient {
       final msg = slice(payload, offset, end);
       final type = msg[0];
       if (type == tlsHsEncryptedExtensions) {
+        final ee = decodeEncryptedExtensions(msg);
+        if (ee.isFailure) return Result.failure(ee.errorOrNull!);
         final d = driveTls(machine, TlsEvent.receiveEncryptedExtensions);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         transcript.add(msg);

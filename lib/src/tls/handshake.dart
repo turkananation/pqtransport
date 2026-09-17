@@ -55,6 +55,7 @@ final class ClientHello {
     if (alpnProtocols.isNotEmpty) {
       b.add(_extAlpn(alpnProtocols));
     }
+    b.add(_extCertificateTypeOffer(tlsExtServerCertificateType));
     b.add(_extKeyShareClient(group, share));
     return b.takeBytes();
   }
@@ -149,6 +150,8 @@ final class ClientHello {
     if (sni.isFailure) return Result.failure(sni.errorOrNull!);
     final alpn = _parseAlpn(map);
     if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
+    final rawPk = _parseCertificateTypeOffer(map, tlsExtServerCertificateType);
+    if (rawPk.isFailure) return Result.failure(rawPk.errorOrNull!);
     return Result.success(
       ClientHello(
         random: random.valueOrNull!,
@@ -330,8 +333,52 @@ Result<Uint8List, PqTransportError> decodeFinished(Uint8List handshake) {
   return requireLength(body, verifyDataBytes, PqLengthLabel.verifyData);
 }
 
-Uint8List encodeEncryptedExtensions() =>
-    encodeHandshake(tlsHsEncryptedExtensions, Uint8List(0));
+Uint8List encodeEncryptedExtensions({
+  int serverCertificateType = tlsCertTypeRawPublicKey,
+}) {
+  final ext = _ext(
+    tlsExtServerCertificateType,
+    Uint8List.fromList([serverCertificateType]),
+  );
+  final b = BytesBuilder(copy: false);
+  writeOpaque16(b, ext);
+  return encodeHandshake(tlsHsEncryptedExtensions, b.takeBytes());
+}
+
+Result<int, PqTransportError> decodeEncryptedExtensions(Uint8List handshake) {
+  final hs = decodeHandshake(handshake);
+  if (hs.isFailure) return Result.failure(hs.errorOrNull!);
+  final (type, body) = hs.valueOrNull!;
+  if (type != tlsHsEncryptedExtensions) {
+    return Result.failure(
+      PqTransportError.unexpectedMessage('expected encrypted extensions'),
+    );
+  }
+  final r = ByteReader(body);
+  final extBlock = r.opaque16(PqLengthLabel.tlsExtension);
+  if (extBlock.isFailure) return Result.failure(extBlock.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('trailing EncryptedExtensions'),
+    );
+  }
+  final exts = _parseExtensions(extBlock.valueOrNull!);
+  if (exts.isFailure) return Result.failure(exts.errorOrNull!);
+  final data = exts.valueOrNull![tlsExtServerCertificateType];
+  if (data == null || data.length != 1) {
+    return Result.failure(
+      PqTransportError.decodeFailure(
+        'EncryptedExtensions missing server_certificate_type (OPEN-04)',
+      ),
+    );
+  }
+  if (data[0] != tlsCertTypeRawPublicKey) {
+    return Result.failure(
+      PqTransportError.unsupported('server_certificate_type ${data[0]}'),
+    );
+  }
+  return Result.success(data[0]);
+}
 
 Uint8List _ext(int type, Uint8List data) {
   final b = BytesBuilder(copy: false);
@@ -396,6 +443,12 @@ Uint8List _extAlpn(List<String> protos) {
     writeOpaque8(list, Uint8List.fromList(ascii.encode(p)));
   }
   return _ext(tlsExtAlpn, _u16Vector(list.takeBytes()));
+}
+
+Uint8List _extCertificateTypeOffer(int extType) {
+  final body = BytesBuilder(copy: false);
+  writeOpaque8(body, Uint8List.fromList([tlsCertTypeRawPublicKey]));
+  return _ext(extType, body.takeBytes());
 }
 
 Uint8List _u16Vector(Uint8List inner) {
@@ -615,6 +668,29 @@ Result<String?, PqTransportError> _parseServerName(Map<int, Uint8List> exts) {
   } on FormatException {
     return Result.failure(PqTransportError.decodeFailure('SNI not ASCII'));
   }
+}
+
+Result<void, PqTransportError> _parseCertificateTypeOffer(
+  Map<int, Uint8List> exts,
+  int extType,
+) {
+  final data = exts[extType];
+  if (data == null) {
+    return Result.failure(
+      PqTransportError.decodeFailure(
+        'missing certificate_type (raw-pk must be explicit, OPEN-04)',
+      ),
+    );
+  }
+  final r = ByteReader(data);
+  final list = r.opaque8(PqLengthLabel.tlsHello);
+  if (list.isFailure) return Result.failure(list.errorOrNull!);
+  if (!list.valueOrNull!.contains(tlsCertTypeRawPublicKey)) {
+    return Result.failure(
+      PqTransportError.unsupported('certificate_type missing RawPublicKey'),
+    );
+  }
+  return const Result.success(null);
 }
 
 Result<List<String>?, PqTransportError> _parseAlpn(Map<int, Uint8List> exts) {
