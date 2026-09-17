@@ -1,13 +1,46 @@
 # pqtransport
 
-[![CI](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml/badge.svg)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml/badge.svg)](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Dart SDK](https://img.shields.io/badge/SDK-%3E%3D3.12.0-0175C2.svg)](https://dart.dev)
-[![pub package](https://img.shields.io/pub/v/pqtransport.svg)](https://pub.dev/packages/pqtransport)
-
 Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
 (RFC 10024), DNS/DoH/DoT, mDNS, QUIC, and HTTP/1.1–3.
+
+## Project signals
+
+[![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
+[![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
+[![API](https://img.shields.io/badge/API-doc%2FAPI.md-0ea5e9?style=for-the-badge&logo=dart&logoColor=white)](doc/API.md)
+[![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
+[![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
+[![license](https://img.shields.io/github/license/turkananation/pqtransport?style=for-the-badge&label=license&color=2ea043)](LICENSE)
+[![Dart SDK](https://img.shields.io/badge/Dart-%3E%3D3.12.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
+[![stars](https://img.shields.io/github/stars/turkananation/pqtransport?style=for-the-badge&logo=github&label=stars&color=181717)](https://github.com/turkananation/pqtransport/stargazers)
+
+## Protocol surface
+
+[![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge&logoColor=0b1220)](doc/ARCHITECTURE.md)
+[![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](doc/FEATURES.md)
+[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-fail_closed-bf8700?style=for-the-badge)](doc/PQFORGE_EXPORTS.md)
+[![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM-7c3aed?style=for-the-badge)](doc/API.md)
+[![schedule](https://img.shields.io/badge/HKDF-SHA--256_(not_0x1302)-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
+[![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
+[![tests](https://img.shields.io/badge/tests-93_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+
+## Automation and discovery
+
+[![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/codeql.yml?branch=main&style=for-the-badge&label=CodeQL&logo=github&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml)
+[![Pages workflow](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)
+[![Wiki sync](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/sync-wiki.yml?branch=main&style=for-the-badge&label=Wiki&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/sync-wiki.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/turkananation/pqtransport?style=for-the-badge&label=Scorecard)](https://github.com/turkananation/pqtransport/actions/workflows/scorecard.yml)
+[![llms.txt](https://img.shields.io/badge/AI-llms.txt-7c3aed?style=for-the-badge)](llms.txt)
+
+## Claim boundary
+
+[![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-compact_0.1_(not_RFC_8446_hello)-bf8700?style=for-the-badge)](doc/ROADMAP.md)
+[![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
+[![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
+[![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
 
 Cryptography is exclusively [`package:pqforge`](https://pub.dev/packages/pqforge).
 Infrastructure is exclusively [`package:swissarmyknife`](https://pub.dev/packages/swissarmyknife).
@@ -21,6 +54,7 @@ Documentation (architecture, features, bugs, tracker, roadmap):
 [`doc/INDEX.md`](doc/INDEX.md).
 Site (Jaspr, same engine as swissarmyknife):
 [turkananation.github.io/pqtransport](https://turkananation.github.io/pqtransport/).
+Wiki: [github.com/turkananation/pqtransport/wiki](https://github.com/turkananation/pqtransport/wiki).
 How the site is built: [`doc/SITE.md`](doc/SITE.md).
 
 ## Hybrid groups (RFC 10024)

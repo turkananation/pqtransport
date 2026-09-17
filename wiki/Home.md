@@ -5,6 +5,40 @@ under [`doc/INDEX.md`](https://github.com/turkananation/pqtransport/blob/main/do
 
 This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 
+## Project signals
+
+[![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
+[![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
+[![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
+[![Wiki](https://img.shields.io/badge/Wiki-this_page-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
+[![license](https://img.shields.io/github/license/turkananation/pqtransport?style=for-the-badge&label=license&color=2ea043)](https://github.com/turkananation/pqtransport/blob/main/LICENSE)
+[![Dart SDK](https://img.shields.io/badge/Dart-%3E%3D3.12.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
+
+## Protocol surface
+
+[![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ARCHITECTURE.md)
+[![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
+[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-fail_closed-bf8700?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/PQFORGE_EXPORTS.md)
+[![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/doc/PLATFORM_SUPPORT.md)
+[![tests](https://img.shields.io/badge/tests-93_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
+
+## Automation
+
+[![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/codeql.yml?branch=main&style=for-the-badge&label=CodeQL&logo=github)](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml)
+[![Pages workflow](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)
+[![Wiki sync](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/sync-wiki.yml?branch=main&style=for-the-badge&label=Wiki&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/sync-wiki.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/turkananation/pqtransport?style=for-the-badge&label=Scorecard)](https://github.com/turkananation/pqtransport/actions/workflows/scorecard.yml)
+
+## Claim boundary
+
+[![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](Claim-Boundary)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/OPENSSL_INTEROP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-compact_0.1-bf8700?style=for-the-badge)](Roadmap)
+[![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
+[![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
+[![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
+
 | Page | Source |
 |---|---|
 | [Claim boundary](Claim-Boundary) | `doc/CLAIM_BOUNDARY.md` |

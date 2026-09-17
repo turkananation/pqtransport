@@ -6,6 +6,11 @@ This is the canonical documentation root for `package:pqtransport` **0.1.0**.
 Use `doc/` links for project documentation. The README is the install
 entry; this folder is the evidence, architecture, and planning surface.
 
+Surfaces: [GitHub Pages](https://turkananation.github.io/pqtransport/) ·
+[Wiki](https://github.com/turkananation/pqtransport/wiki) ·
+[Repository](https://github.com/turkananation/pqtransport) ·
+[pub.dev](https://pub.dev/packages/pqtransport)
+
 Sister packages:
 
 - [`pqcrypto`](https://github.com/turkananation/pqcrypto) — FIPS 203/204/205 primitives

@@ -7,6 +7,11 @@ The TurkanaNation post-quantum Dart family is four packages with a
 strict evidence floor. Do not upgrade a claim this layer is not allowed
 to make.
 
+[![pqcrypto](https://img.shields.io/badge/pqcrypto-primitives-2f855a?style=for-the-badge)](https://turkananation.github.io/pqcrypto/)
+[![pqforge](https://img.shields.io/badge/pqforge-recipes-4ee0d4?style=for-the-badge)](https://turkananation.github.io/pqforge/)
+[![swissarmyknife](https://img.shields.io/badge/swissarmyknife-utilities-b6f25c?style=for-the-badge)](https://turkananation.github.io/swissarmyknife/)
+[![pqtransport](https://img.shields.io/badge/pqtransport-this_site-f5c35b?style=for-the-badge)](./)
+
 | Package | Site | Role |
 | --- | --- | --- |
 | [pqcrypto](https://turkananation.github.io/pqcrypto/) | primitives | FIPS 203/204/205 + KAT / ACVP evidence. Zero runtime deps. |

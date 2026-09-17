@@ -3,6 +3,8 @@
 Pure-Dart post-quantum transport for Dart and Flutter.
 
 - Package: https://github.com/turkananation/pqtransport
+- Site: https://turkananation.github.io/pqtransport/
+- Wiki: https://github.com/turkananation/pqtransport/wiki
 - Docs: https://github.com/turkananation/pqtransport/blob/main/doc/INDEX.md
 - Claim boundary: https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md
 - Crypto: package:pqforge (ML-KEM, ML-DSA, AES-256-GCM, X25519)

@@ -26,6 +26,20 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   Not a FIPS 140 module.
 </Info>
 
+[![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
+[![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport)
+[![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
+[![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
+[![Pages](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/codeql.yml?branch=main&style=for-the-badge&label=CodeQL)](https://github.com/turkananation/pqtransport/actions/workflows/codeql.yml)
+
+[![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge)](hybrid)
+[![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](features)
+[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-fail_closed-bf8700?style=for-the-badge)](roadmap)
+[![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](claim-boundary)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](claim-boundary)
+[![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](platform)
+
 ```dart
 import 'package:pqtransport/pqtransport.dart';
 
