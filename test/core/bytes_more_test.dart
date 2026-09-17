@@ -9,13 +9,20 @@ void main() {
     writeUint16(b, 0x1234);
     writeUint24(b, 0x123456);
     writeUint32(b, 0x89abcdef);
-    writeUint64(b, 0x0102030405060708);
+    // 2^53-1 is the largest integer dart2js can represent exactly.
+    writeUint64(b, 0x001FFFFFFFFFFFFF);
     final w = b.takeBytes();
     expect(readUint16(w, 0), 0x1234);
     expect(readUint24(w, 2), 0x123456);
     expect(readUint32(w, 5), 0x89abcdef);
-    expect(readUint64(w, 9), 0x0102030405060708);
+    expect(readUint64(w, 9), 0x001FFFFFFFFFFFFF);
   });
+
+  test('uint64 round trip above 2^53', () {
+    final b = BytesBuilder(copy: false);
+    writeUint64(b, 0x0102030405060708);
+    expect(readUint64(b.takeBytes(), 0), 0x0102030405060708);
+  }, testOn: 'vm');
 
   test('ByteReader remaining helpers', () {
     final r = ByteReader(Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]));

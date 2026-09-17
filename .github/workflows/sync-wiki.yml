@@ -35,17 +35,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo || {
-            echo "Wiki clone failed — create the wiki once from the GitHub UI, then re-run."
-            exit 1
-          }
+          if git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo; then
+            echo "WIKI_READY=1" >> "$GITHUB_ENV"
+          else
+            echo "Wiki git remote does not exist yet."
+            echo "Create the first wiki page once in the GitHub UI, then re-run."
+            echo "WIKI_READY=0" >> "$GITHUB_ENV"
+          fi
 
       - name: Sync wiki content
+        if: env.WIKI_READY == '1'
         run: |
           find wiki-repo -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -R wiki/. wiki-repo/
 
       - name: Commit and push wiki changes
+        if: env.WIKI_READY == '1'
         working-directory: wiki-repo
         run: |
           if [[ -z "$(git status --porcelain)" ]]; then

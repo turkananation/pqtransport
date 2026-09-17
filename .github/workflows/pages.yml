@@ -44,7 +44,31 @@ jobs:
         run: dart pub get
 
       - name: Generate API docs
-        run: dart doc --output site/api
+        run: |
+          set -euo pipefail
+          # pqcrypto's published dartdoc_options references a cookbook path
+          # that is not in the pub cache. If dartdoc walks that graph, skip
+          # API HTML and keep the markdown site.
+          if ! dart doc --output site/api; then
+            echo "dartdoc failed; staging markdown-only API stub."
+            mkdir -p site/api
+            cat > site/api/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>pqtransport API</title>
+            <meta http-equiv="refresh" content="0; url=../doc/INDEX.md">
+          </head>
+          <body>
+            <p>API HTML could not be generated in this run.
+            See <a href="../doc/INDEX.md">doc/INDEX.md</a> and
+            <a href="https://github.com/turkananation/pqtransport/tree/main/lib">lib/</a>.</p>
+          </body>
+          </html>
+          HTML
+          fi
+
 
       - name: Stage markdown docs
         run: |
