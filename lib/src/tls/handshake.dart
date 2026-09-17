@@ -8,6 +8,7 @@ import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
 import '../core/transcript.dart';
+import 'cipher_suite.dart';
 import 'record.dart';
 
 /// RFC 8446 ClientHello. Compact 0.1 body (random || group || share) is retired.
@@ -17,7 +18,7 @@ final class ClientHello {
     required this.group,
     required this.share,
     this.legacySessionId = const [],
-    this.cipherSuites = const [tlsCipherAes256GcmSha256Private],
+    this.cipherSuites = tlsDefaultOfferedCipherSuites,
     this.serverName = 'localhost',
     this.alpnProtocols = const ['http/1.1'],
     this.supportedGroups,
@@ -109,18 +110,8 @@ final class ClientHello {
     if (suiteBytes.isFailure) return Result.failure(suiteBytes.errorOrNull!);
     final suites = _parseCipherSuites(suiteBytes.valueOrNull!);
     if (suites.isFailure) return Result.failure(suites.errorOrNull!);
-    if (suites.valueOrNull!.contains(tlsCipherAes256GcmSha384)) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          'IANA 0x1302 on a SHA-256 schedule is a lie (OPEN-02)',
-        ),
-      );
-    }
-    if (!suites.valueOrNull!.contains(tlsCipherAes256GcmSha256Private)) {
-      return Result.failure(
-        PqTransportError.handshakeFailure('peer did not offer 0xFF00'),
-      );
-    }
+    final usable = _requireUsableCiphers(suites.valueOrNull!);
+    if (usable.isFailure) return Result.failure(usable.errorOrNull!);
     final comp = r.opaque8(PqLengthLabel.tlsHello);
     if (comp.isFailure) return Result.failure(comp.errorOrNull!);
     if (!comp.valueOrNull!.contains(tlsCompressionNull)) {
@@ -194,7 +185,7 @@ final class ServerHello {
     required this.group,
     required this.share,
     this.legacySessionId = const [],
-    this.cipherSuite = tlsCipherAes256GcmSha256Private,
+    this.cipherSuite = tlsCipherAes256GcmSha384,
     this.cookie,
   });
 
@@ -202,7 +193,7 @@ final class ServerHello {
     required HybridGroup selectedGroup,
     required Uint8List cookie,
     List<int> legacySessionId = const [],
-    int cipherSuite = tlsCipherAes256GcmSha256Private,
+    int cipherSuite = tlsCipherAes256GcmSha384,
   }) => ServerHello(
     random: Uint8List.fromList(tlsHelloRetryRequestRandom),
     group: selectedGroup,
@@ -268,14 +259,15 @@ final class ServerHello {
     if (sid.isFailure) return Result.failure(sid.errorOrNull!);
     final suite = r.u16();
     if (suite.isFailure) return Result.failure(suite.errorOrNull!);
-    if (suite.valueOrNull! == tlsCipherAes256GcmSha384) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          'IANA 0x1302 on a SHA-256 schedule is a lie (OPEN-02)',
-        ),
-      );
-    }
-    if (suite.valueOrNull! != tlsCipherAes256GcmSha256Private) {
+    final selectedSuite = TlsCipherSuite.byCodepoint(suite.valueOrNull!);
+    if (selectedSuite == null) {
+      if (suite.valueOrNull! == tlsCipherAes256GcmSha256Private) {
+        return Result.failure(
+          PqTransportError.unsupported(
+            'retired private-use 0xFF00; IANA 0x1302 or 0x1303 required',
+          ),
+        );
+      }
       return Result.failure(
         PqTransportError.handshakeFailure('unexpected cipher suite'),
       );
@@ -397,7 +389,10 @@ Result<Uint8List, PqTransportError> decodeCertVerify(Uint8List handshake) {
 Uint8List encodeFinished(Uint8List verifyData) =>
     encodeHandshake(tlsHsFinished, verifyData);
 
-Result<Uint8List, PqTransportError> decodeFinished(Uint8List handshake) {
+Result<Uint8List, PqTransportError> decodeFinished(
+  Uint8List handshake, {
+  int verifyDataLength = sha384HashBytes,
+}) {
   final hs = decodeHandshake(handshake);
   if (hs.isFailure) return Result.failure(hs.errorOrNull!);
   final (type, body) = hs.valueOrNull!;
@@ -406,7 +401,7 @@ Result<Uint8List, PqTransportError> decodeFinished(Uint8List handshake) {
       PqTransportError.unexpectedMessage('expected finished'),
     );
   }
-  return requireLength(body, verifyDataBytes, PqLengthLabel.verifyData);
+  return requireLength(body, verifyDataLength, PqLengthLabel.verifyData);
 }
 
 Uint8List encodeEncryptedExtensions({
@@ -471,10 +466,10 @@ void rewriteTranscriptForHelloRetry({
   required Transcript transcript,
   required Uint8List clientHello1,
   required Uint8List helloRetryRequest,
-  required Uint8List Function(Uint8List) sha256,
+  required Uint8List Function(Uint8List) hash,
 }) {
   transcript.clear();
-  transcript.add(encodeHandshake(tlsHsMessageHash, sha256(clientHello1)));
+  transcript.add(encodeHandshake(tlsHsMessageHash, hash(clientHello1)));
   transcript.add(helloRetryRequest);
 }
 
@@ -577,6 +572,22 @@ Result<List<int>, PqTransportError> _parseCipherSuites(Uint8List raw) {
     out.add(readUint16(raw, i));
   }
   return Result.success(out);
+}
+
+Result<void, PqTransportError> _requireUsableCiphers(List<int> suites) {
+  if (TlsCipherSuite.select(suites) != null) {
+    return const Result.success(null);
+  }
+  if (suites.contains(tlsCipherAes256GcmSha256Private)) {
+    return Result.failure(
+      PqTransportError.unsupported(
+        'retired private-use 0xFF00; offer IANA 0x1302 or 0x1303',
+      ),
+    );
+  }
+  return Result.failure(
+    PqTransportError.handshakeFailure('peer did not offer 0x1302 or 0x1303'),
+  );
 }
 
 Result<Map<int, Uint8List>, PqTransportError> _parseExtensions(Uint8List raw) {

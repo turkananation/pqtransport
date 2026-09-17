@@ -8,6 +8,9 @@ import 'hybrid.dart';
 import 'lengths.dart';
 import 'zeroize.dart';
 
+/// AEAD primitive. Protocol files pick one; they do not vendor ChaCha or AES.
+enum TransportAead { aes256Gcm, chacha20Poly1305 }
+
 /// Thin facade over `package:pqforge`. Protocol files must not invent primitives.
 final class PqTransportCrypto {
   const PqTransportCrypto({this.profile = PqForgeProfile.balanced});
@@ -149,17 +152,34 @@ final class PqTransportCrypto {
   Uint8List hmac(Uint8List key, Uint8List data) =>
       PqBytes.hmacSha256(key: key, data: data);
 
+  Uint8List hmacSha384(Uint8List key, Uint8List data) =>
+      PqBytes.hmacSha384(key: key, data: data);
+
   Uint8List sha256(Uint8List data) => PqBytes.sha256(data);
+
+  Uint8List sha384(Uint8List data) => PqBytes.sha384(data);
 
   Uint8List randomBytes(int length) => PqBytes.randomBytes(length);
 
-  /// RFC 5869 Extract (SHA-256) via pqforge.
+  /// RFC 5869 Extract (SHA-256) via pqforge. UDP and the ChaCha suite.
   Uint8List hkdfExtract(Uint8List salt, Uint8List ikm) =>
       PqSymmetricPrimitives.hkdfExtractSha256(ikm: ikm, salt: salt);
 
   /// RFC 5869 Expand (SHA-256) via pqforge. Expand-Label stays in TLS.
   Uint8List hkdfExpand(Uint8List prk, Uint8List info, int length) =>
       PqSymmetricPrimitives.hkdfExpandSha256(
+        prk: prk,
+        info: info,
+        outputBytes: length,
+      );
+
+  /// RFC 5869 Extract (SHA-384) via pqforge. TLS `0x1302` schedule (OPEN-02).
+  Uint8List hkdfExtractSha384(Uint8List salt, Uint8List ikm) =>
+      PqSymmetricPrimitives.hkdfExtractSha384(ikm: ikm, salt: salt);
+
+  /// RFC 5869 Expand (SHA-384) via pqforge. Expand-Label stays in TLS.
+  Uint8List hkdfExpandSha384(Uint8List prk, Uint8List info, int length) =>
+      PqSymmetricPrimitives.hkdfExpandSha384(
         prk: prk,
         info: info,
         outputBytes: length,
@@ -177,30 +197,63 @@ final class PqTransportCrypto {
     outputBytes: length,
   );
 
-  /// AES-256-GCM via pqforge (sync). Nonce uniqueness is the caller's duty.
+  Uint8List hkdfSha384({
+    required Uint8List ikm,
+    required Uint8List salt,
+    required Uint8List info,
+    int length = sha384HashBytes,
+  }) => PqSymmetricPrimitives.hkdfSha384(
+    ikm: ikm,
+    salt: salt,
+    info: info,
+    outputBytes: length,
+  );
+
+  /// AEAD via pqforge (sync). Nonce uniqueness is the caller's duty.
+  /// Default is AES-256-GCM (UDP, TLS `0x1302`). ChaCha is TLS `0x1303`.
   Uint8List aeadSeal({
     required Uint8List key,
     required Uint8List nonce,
     required Uint8List plaintext,
     Uint8List? aad,
-  }) => PqSymmetricPrimitives.aesGcmEncrypt(
-    key: key,
-    nonce: nonce,
-    plaintext: plaintext,
-    aad: aad,
-  );
+    TransportAead aead = TransportAead.aes256Gcm,
+  }) => switch (aead) {
+    TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmEncrypt(
+      key: key,
+      nonce: nonce,
+      plaintext: plaintext,
+      aad: aad,
+    ),
+    TransportAead.chacha20Poly1305 =>
+      PqSymmetricPrimitives.chacha20Poly1305Encrypt(
+        key: key,
+        nonce: nonce,
+        plaintext: plaintext,
+        aad: aad,
+      ),
+  };
 
   Uint8List aeadOpen({
     required Uint8List key,
     required Uint8List nonce,
     required Uint8List ciphertextWithTag,
     Uint8List? aad,
-  }) => PqSymmetricPrimitives.aesGcmDecrypt(
-    key: key,
-    nonce: nonce,
-    ciphertext: ciphertextWithTag,
-    aad: aad,
-  );
+    TransportAead aead = TransportAead.aes256Gcm,
+  }) => switch (aead) {
+    TransportAead.aes256Gcm => PqSymmetricPrimitives.aesGcmDecrypt(
+      key: key,
+      nonce: nonce,
+      ciphertext: ciphertextWithTag,
+      aad: aad,
+    ),
+    TransportAead.chacha20Poly1305 =>
+      PqSymmetricPrimitives.chacha20Poly1305Decrypt(
+        key: key,
+        nonce: nonce,
+        ciphertext: ciphertextWithTag,
+        aad: aad,
+      ),
+  };
 
   HybridGroup get defaultGroup => switch (kem) {
     PqKemAlgorithm.mlKem1024 => HybridGroup.secP384r1MlKem1024,

@@ -160,7 +160,7 @@ void main() {
       final cv = encodeCertVerify(Uint8List(mlDsa65SignatureBytes)..[0] = 4);
       expect(decodeCertVerify(cv).isSuccess, isTrue);
 
-      final fin = encodeFinished(Uint8List(verifyDataBytes)..[0] = 5);
+      final fin = encodeFinished(Uint8List(sha384HashBytes)..[0] = 5);
       expect(decodeFinished(fin).isSuccess, isTrue);
       expect(decodeHandshake(Uint8List(2)).isFailure, isTrue);
     });
@@ -246,6 +246,196 @@ void main() {
       final r = await a.send(Uint8List(1));
       expect(r.isFailure, isTrue);
       await b.close();
+    });
+  });
+
+  group('OPEN-12 leftover error paths', () {
+    test('DNS short header, unknown qtype, A rdata, authority NS', () {
+      expect(decodeDnsMessage(Uint8List(4)).isFailure, isTrue);
+      final unknown = BytesBuilder(copy: false)
+        ..add(Uint8List(12))
+        ..addByte(0) // root
+        ..addByte(0)
+        ..addByte(99) // qtype
+        ..addByte(0)
+        ..addByte(1);
+      // qdcount = 1
+      final w = unknown.takeBytes();
+      w[4] = 0;
+      w[5] = 1;
+      expect(decodeDnsMessage(w).isFailure, isTrue);
+
+      expect(
+        encodeDnsMessage(
+          DnsMessage(
+            id: 1,
+            answers: [
+              DnsA(name: 'x.', address: Uint8List.fromList([1, 2, 3])),
+            ],
+          ),
+        ).isFailure,
+        isTrue,
+      );
+
+      final withNs = encodeDnsMessage(
+        DnsMessage(
+          id: 2,
+          questions: [const DnsQuestion(name: 'x.', type: DnsType.a)],
+          authority: [DnsNs(name: 'x.', nameserver: 'ns.x.')],
+        ),
+      );
+      expect(withNs.isSuccess, isTrue, reason: '${withNs.errorOrNull}');
+      final decoded = decodeDnsMessage(withNs.valueOrNull!);
+      expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
+      expect(decoded.valueOrNull!.authority, hasLength(1));
+    });
+
+    test('TXT too long and empty name encode', () {
+      expect(
+        encodeDnsMessage(
+          DnsMessage(
+            id: 3,
+            answers: [
+              DnsTxt(name: 'x.', strings: ['a' * 256]),
+            ],
+          ),
+        ).isFailure,
+        isTrue,
+      );
+      final root = encodeDnsMessage(
+        DnsMessage(
+          id: 4,
+          questions: [const DnsQuestion(name: '.', type: DnsType.a)],
+        ),
+      );
+      expect(root.isSuccess, isTrue);
+    });
+
+    test('UDP datagram version and truncated header', () {
+      expect(
+        peekDatagramSequence(Uint8List.fromList([2, 8])).isFailure,
+        isTrue,
+      );
+      expect(
+        peekDatagramSequence(
+          Uint8List.fromList([datagramVersion, 4, 0, 0]),
+        ).isFailure,
+        isTrue,
+      );
+      expect(
+        peekDatagramSequence(
+          Uint8List.fromList([datagramVersion, 8, 0, 0, 0]),
+        ).isFailure,
+        isTrue,
+      );
+    });
+
+    test('ByteReader take short, hashTranscript, internalError', () {
+      final r = ByteReader(Uint8List(1));
+      expect(r.take(4, PqLengthLabel.nonce).isFailure, isTrue);
+      expect(r.u24().isFailure, isTrue);
+      expect(
+        hashTranscript([
+          Uint8List.fromList([1]),
+        ]).length,
+        sha384HashBytes,
+      );
+      expect(
+        hashTranscript([
+          Uint8List.fromList([1]),
+        ], hashKind: TranscriptHashKind.sha256).length,
+        sha256HashBytes,
+      );
+      expect(
+        PqTransportError.internalError('x').code,
+        PqTransportErrorCode.internalError,
+      );
+    });
+
+    test('TLS decode: short handshake, duplicate extension, empty ALPN', () {
+      expect(decodeHandshake(Uint8List(2)).isFailure, isTrue);
+      expect(
+        decodeHandshake(
+          encodeHandshake(tlsHsFinished, Uint8List(1)).sublist(0, 4),
+        ).isFailure,
+        isTrue,
+      );
+      expect(
+        decodeFinished(
+          encodeHandshake(tlsHsClientHello, Uint8List(4)),
+        ).isFailure,
+        isTrue,
+      );
+      expect(
+        decodeCertificate(
+          encodeHandshake(tlsHsFinished, Uint8List(4)),
+        ).isFailure,
+        isTrue,
+      );
+      expect(
+        decodeCertVerify(
+          encodeHandshake(tlsHsFinished, Uint8List(4)),
+        ).isFailure,
+        isTrue,
+      );
+      expect(
+        decodeEncryptedExtensions(
+          encodeHandshake(tlsHsFinished, Uint8List(4)),
+        ).isFailure,
+        isTrue,
+      );
+
+      final g = HybridGroup.x25519MlKem768;
+      expect(
+        ClientHello.decode(
+          ClientHello(
+            random: Uint8List(handshakeRandomBytes),
+            group: g,
+            share: Uint8List(g.clientShareBytes)..[0] = 1,
+            cipherSuites: const [0x1301],
+          ).encode(),
+        ).isFailure,
+        isTrue,
+      );
+    });
+
+    test('P-256 share missing 0x04 prefix fails', () {
+      final g = HybridGroup.secP256r1MlKem768;
+      final share = HybridClientShare(
+        group: g,
+        kemEncapsulationKey: Uint8List(g.kemPublicKeyBytes),
+        classicalShare: Uint8List(g.classicalShareBytes), // [0] is 0, not 0x04
+      );
+      expect(encodeClientShare(share).isFailure, isTrue);
+      expect(
+        decodeClientShare(g, Uint8List(g.clientShareBytes)).isFailure,
+        isTrue,
+      );
+      expect(
+        encodeServerShare(
+          HybridServerShare(
+            group: g,
+            kemCiphertext: Uint8List(g.kemCiphertextBytes),
+            classicalShare: Uint8List(g.classicalShareBytes),
+          ),
+        ).isFailure,
+        isTrue,
+      );
+    });
+
+    test('record length mismatch and EncryptedExtensions type refuse', () {
+      expect(decodePlainRecord(Uint8List(3)).isFailure, isTrue);
+      final rec = encodePlainRecord(
+        TlsRecord(type: tlsContentHandshake, payload: Uint8List(4)),
+      );
+      rec[3] = 0xff;
+      expect(decodePlainRecord(rec).isFailure, isTrue);
+      expect(
+        decodeEncryptedExtensions(
+          encodeEncryptedExtensions(serverCertificateType: 0),
+        ).isFailure,
+        isTrue,
+      );
     });
   });
 }

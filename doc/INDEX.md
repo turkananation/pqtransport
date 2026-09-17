@@ -31,8 +31,8 @@ upgrade a claim this layer is not allowed to make. See
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
 | Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
 | Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
-| TLS wire | RFC 8446 ClientHello/ServerHello (OPEN-01). Raw-pk negotiated (OPEN-04). HRR + cookie (OPEN-05). Cipher `0xFF00`, not IANA `0x1302`. |
-| Tests | `dart analyze` clean; **104** tests pass |
+| TLS wire | RFC 8446 ClientHello/ServerHello (OPEN-01). Raw-pk negotiated (OPEN-04). HRR + cookie (OPEN-05). IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered. `0xFF00` retired. |
+| Tests | `dart analyze` clean; **138** tests pass; **90.7%** line coverage of `lib/` |
 | OpenSSL interop | Not started. Do not claim it. [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | CMVP / FIPS 140 | Not claimed. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 
@@ -74,14 +74,14 @@ upgrade a claim this layer is not allowed to make. See
 ## Verification snapshot (this documentation pass)
 
 - `dart analyze` — no issues.
-- `dart test` — 126 passed.
-- Line coverage of `lib/` — 90.5% (`1854/2049`) on the codec pass; NIST
-  live tests added after.
+- `dart test` — 138 passed.
+- Line coverage of `lib/` — 90.7% (`2404/2650`).
 - Invariant script: no `import 'dart:ffi'`, no stray `1184|1216|1120|1249|1153|0x11EC|0x11EB` outside `lengths.dart`, claim language clean.
 - Live X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 handshake
   tests green. RFC 8446-shaped hellos (OPEN-01). Raw-pk negotiated
-  (OPEN-04). HelloRetryRequest on the wire (OPEN-05). Profile/group
-  mismatch refused (`requireGroup`).
+  (OPEN-04). HelloRetryRequest on the wire (OPEN-05). IANA `0x1302` /
+  `0x1303` (OPEN-02, OPEN-13). Leftover error-path coverage (OPEN-12).
+  Profile/group mismatch refused (`requireGroup`).
 - HTTP/1.1 GET over `PqTlsSocket` green.
 - `doc/` set complete: achievements, architecture, features, API, platform,
   claim boundary, security audit, bugs, tracker, progress-tracker alias,

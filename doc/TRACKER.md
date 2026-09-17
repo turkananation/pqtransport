@@ -22,9 +22,10 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.4` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 126 passed |
-| Coverage | 90.5% of `lib/` (`1854/2049`) on the codec pass; NIST live tests added after |
+| Tests | 138 passed |
+| Coverage | 90.7% of `lib/` (`2404/2650`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
+| TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered |
 | OpenSSL interop | Not started |
 | CMVP / FIPS 140 | Not claimed |
 
@@ -35,7 +36,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Core lengths + hybrid concat (3 groups) | Done | `test/core/` |
 | Socket abstraction + in-memory drivers | Done | `test/io/`, `test/extra_coverage_test.dart` |
 | Encrypted UDP (all three groups) | Done | `test/udp/datagram_test.dart` |
-| TLS machines + RFC 8446 hellos + records | Done | `test/tls/` |
+| TLS machines + RFC 8446 hellos + IANA cipher suites | Done | `test/tls/` |
 | Live NIST groups (P-256 / P-384) | Done | `handshake_test.dart`, `crypto_facade_test.dart` |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
@@ -79,29 +80,29 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Owner | Blocks | Next action |
 |---|---|---|---|---|
-| OPEN-02 | P1 | pqtransport | IANA 0x1302 | SHA-384 Extract/Expand is in pqforge; **schedule** is still SHA-256. Never put 0x1302 on the wire until 0.3.5 |
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
 | OPEN-08 | P2 | pqtransport | Foreign DNS | Resolve rdata name pointers into the outer message |
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
-| OPEN-12 | P3 | pqtransport | Coverage | Hit leftover DNS/UDP/TLS error paths |
-| OPEN-13 | P2 | pqtransport | IANA 0x1303 | Wire pqforge sync ChaCha into `aeadSeal` (export exists) |
 
 ### pqforge exports (0.4.4 — consumed)
 
 | ID | Sev | Status | Evidence |
 |---|---|---|---|
 | BLK-01 | P0 | **Fixed** | Live SecP256r1MLKEM768 / SecP384r1MLKEM1024 |
-| BLK-02 | P1 | **Fixed** (SHA-256). SHA-384 schedule is OPEN-02 | `hkdfExtract`/`hkdfExpand` + RFC 5869 A.1 |
-| BLK-03 | P2 | Export landed; **not wired** → OPEN-13 | pqforge `chacha20Poly1305Encrypt` |
+| BLK-02 | P1 | **Fixed** | SHA-256 UDP + SHA-384 TLS schedule (OPEN-02) |
+| BLK-03 | P2 | **Fixed** | Wired as OPEN-13 / IANA `0x1303` |
 | BLK-04 | P2 | **Fixed** | `concatenateSharedSecrets` pin; no `combine()` |
 | BLK-05 | P3 | **Fixed** | `checkEncapsulationKey` → `illegalKemKey` |
 | OPEN-03 | P1 | **Fixed** | `requireGroup` |
-| OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired; cipher `0xFF00` |
-| OPEN-04 | P1 | **Fixed** | RFC 7250 RawPublicKey negotiated; payload still raw ML-DSA-65 |
+| OPEN-01 | P1 | **Fixed** | RFC 8446 hellos; compact body retired |
+| OPEN-04 | P1 | **Fixed** | RFC 7250 RawPublicKey negotiated |
 | OPEN-11 | P3 | **Fixed** | `initiate`/`accept` no longer take `role` |
-| OPEN-05 | P2 | **Fixed** | Wire HRR + cookie + `message_hash` transcript; once-only kept |
+| OPEN-05 | P2 | **Fixed** | Wire HRR + cookie + `message_hash` transcript |
+| OPEN-02 | P1 | **Fixed** | IANA `0x1302` + HKDF-SHA-384 |
+| OPEN-13 | P2 | **Fixed** | IANA `0x1303` + ChaCha records |
+| OPEN-12 | P3 | **Fixed** | Leftover DNS/UDP/TLS error paths |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -120,13 +121,14 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Slice | Theme | Depends on | Primary IDs |
 |---|---|---|---|
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
-| 0.2 | RFC 8446-shaped hellos | OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 **done** | OPEN-12 |
-| 0.3 remaining | IANA cipher suites | this package | OPEN-02, OPEN-13 |
-| 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
+| 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
+| 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |
 
-Do not start 0.4 before 0.2 hellos parse. Do not start 0.5 HTTP/3 before
-OPEN-06. Do not vendor P-256 ECDH (pqforge 0.4.4 already exports it).
+Do not start 0.5 HTTP/3 before OPEN-06. Do not vendor P-256 ECDH. Next coding
+turn: LIM-01 OpenSSL fixture, **or** slice 0.5 items that do not need QUIC
+(OPEN-08, OPEN-09).
 
 ## Verification commands
 

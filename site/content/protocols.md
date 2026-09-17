@@ -22,14 +22,16 @@ Client and server `StateMachine`s from swissarmyknife. Illegal event →
 `failed` + `Result.failure`. RFC 8446-shaped ClientHello / ServerHello
 (OPEN-01). EncryptedExtensions + Certificate + CertificateVerify +
 Finished. RFC 7250 RawPublicKey is negotiated; certificate payload is
-still a raw ML-DSA-65 public key. AES-256-GCM records, handshake vs
-application epochs reset sequence. TLS exporter is deterministic on a
-fixture. HKDF-SHA-256 schedule. Cipher on the wire is private-use
-`0xFF00`, not IANA `0x1302`.
+still a raw ML-DSA-65 public key. AES-256-GCM (`0x1302`) or
+ChaCha20-Poly1305 (`0x1303`) records; handshake vs application epochs
+reset sequence. TLS exporter is deterministic on a fixture. Schedule
+follows the suite: HKDF-SHA-384 for IANA `0x1302` (default), HKDF-SHA-256
+for IANA `0x1303`. Private-use `0xFF00` is retired.
 
 HelloRetryRequest is on the wire with cookie extension 44 and
 `selected_group` (OPEN-05). Once-only; a second HRR fails closed. X.509
-chains, ChaCha records, and OpenSSL interop are not started.
+chains and OpenSSL interop are not started. ChaCha records are Done
+(`0x1303`).
 
 ## DNS / DoH / DoT
 

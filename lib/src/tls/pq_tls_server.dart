@@ -15,6 +15,7 @@ import 'key_schedule.dart';
 import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
+import 'cipher_suite.dart';
 
 final class PqTlsServerIdentity {
   PqTlsServerIdentity({required this.publicKey, required this.secretKey});
@@ -52,10 +53,12 @@ final class PqTlsServer {
   TlsRecordLayer? records;
   Uint8List? _hybridSs;
   Uint8List? _hrrCookie;
+  TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
+  TlsCipherSuite get cipherSuite => _suite;
 
   Future<Result<List<Uint8List>, PqTransportError>> ingest(
     Uint8List recordBytes,
@@ -86,8 +89,16 @@ final class PqTlsServer {
     if (ch.isFailure) return Result.failure(ch.errorOrNull!);
     final hello = ch.valueOrNull!;
     if (_hrrCookie != null) {
+      if (!hello.cipherSuites.contains(_suite.codepoint)) {
+        return _fail('cipher dropped after hrr');
+      }
       return _onSecondClientHello(hello, rec.valueOrNull!.payload);
     }
+    final selected = TlsCipherSuite.select(hello.cipherSuites);
+    if (selected == null) {
+      return _fail('no mutually supported cipher');
+    }
+    _bindSuite(selected);
     if (hello.group != group) {
       return _emitHelloRetry(hello, rec.valueOrNull!.payload);
     }
@@ -126,13 +137,14 @@ final class PqTlsServer {
       selectedGroup: group,
       cookie: cookie,
       legacySessionId: hello.legacySessionId,
+      cipherSuite: _suite.codepoint,
     );
     final hrrBytes = hrr.encode();
     rewriteTranscriptForHelloRetry(
       transcript: transcript,
       clientHello1: helloBytes,
       helloRetryRequest: hrrBytes,
-      sha256: crypto.sha256,
+      hash: schedule.transcriptHash,
     );
     return Result.success([
       encodePlainRecord(
@@ -191,6 +203,7 @@ final class PqTlsServer {
         group: group,
         share: serverShare.valueOrNull!,
         legacySessionId: hello.legacySessionId,
+        cipherSuite: _suite.codepoint,
       );
       final shBytes = sh.encode();
       transcript.add(shBytes);
@@ -211,7 +224,7 @@ final class PqTlsServer {
       final cv = encodeCertVerify(sig);
       transcript.add(cv);
       final fin = encodeFinished(
-        crypto.hmac(schedule.serverFinishedKey, transcript.snapshot()),
+        schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
       );
       transcript.add(fin);
       final protected = records!.protectWith(
@@ -250,9 +263,12 @@ final class PqTlsServer {
       epoch: TlsRecordEpoch.handshake,
     );
     if (inner.isFailure) return Result.failure(inner.errorOrNull!);
-    final fin = decodeFinished(inner.valueOrNull!.payload);
+    final fin = decodeFinished(
+      inner.valueOrNull!.payload,
+      verifyDataLength: schedule.hashLen,
+    );
     if (fin.isFailure) return Result.failure(fin.errorOrNull!);
-    final expected = crypto.hmac(
+    final expected = schedule.finishedMac(
       schedule.clientFinishedKey,
       transcript.snapshot(),
     );
@@ -272,6 +288,14 @@ final class PqTlsServer {
   Result<List<Uint8List>, PqTransportError> _fail(String why) {
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
+  }
+
+  void _bindSuite(TlsCipherSuite suite) {
+    _suite = suite;
+    schedule.suite = suite;
+    transcript.hashKind = suite.usesSha384
+        ? TranscriptHashKind.sha384
+        : TranscriptHashKind.sha256;
   }
 
   Uint8List exporter(String label, Uint8List context, int length) =>

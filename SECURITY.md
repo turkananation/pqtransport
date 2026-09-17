@@ -53,12 +53,12 @@ In particular:
   validation.
 - **TLS hellos are RFC 8446-shaped** (`legacy_version`, `key_share`,
   `supported_versions`, SNI, ALPN). Certificate is still a raw ML-DSA-65
-  public key. Cipher suite is private-use `0xFF00`, not IANA `0x1302`.
-  OpenSSL will not complete a handshake. See
+  public key. Cipher suite is IANA `0x1302` (SHA-384 AES-GCM) by default,
+  `0x1303` (ChaCha) if offered. OpenSSL will not complete a handshake until
+  a recorded fixture exists. See
   [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md).
-- **Record protection is AES-256-GCM with HKDF-SHA-256.** That is not IANA
-  `TLS_AES_256_GCM_SHA384` (0x1302). SHA-384 Extract/Expand is exported by
-  pqforge 0.4.4; the **schedule** is still SHA-256 (OPEN-02).
+- **Record protection follows the suite.** `0x1302` is AES-256-GCM with
+  HKDF-SHA-384. `0x1303` is ChaCha20-Poly1305 with HKDF-SHA-256.
 - **Best-effort side-channel resistance.** Pure Dart compiled to the VM,
   dart2js, or dart2wasm cannot guarantee constant-time execution (JIT, GC,
   and per-iteration branch directions are out of our control).

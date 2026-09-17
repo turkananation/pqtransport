@@ -14,8 +14,8 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.4` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 126 passed | `dart test` |
-| Coverage | 90.5% of `lib/` on the codec pass; NIST live tests added after | `coverage/lcov.info` |
+| Tests | 138 passed | `dart test` |
+| Coverage | 90.7% of `lib/` (`2404/2650`) | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
 
@@ -65,9 +65,11 @@ Evidence: `test/core/hybrid_share_test.dart`.
 | P-384 ECDH | `generateP384KeyPairBytes` / `p384SharedSecret` |
 | ML-DSA-65 / ML-DSA-87 | `PqSignaturePrimitives.sign` / `verify` on CertificateVerify and mDNS TXT |
 | AES-256-GCM | `PqSymmetricPrimitives.aesGcmEncrypt` / `aesGcmDecrypt` |
-| HKDF-SHA-256 | pqforge `hkdfExtractSha256` / `hkdfExpandSha256` (RFC 5869 A.1 vector) |
+| ChaCha20-Poly1305 | `chacha20Poly1305Encrypt` / `Decrypt` via `aeadSeal` (`0x1303`) |
+| HKDF-SHA-256 | pqforge `hkdfExtractSha256` / `hkdfExpandSha256` (RFC 5869 A.1 vector; UDP + `0x1303`) |
+| HKDF-SHA-384 | pqforge `hkdfExtractSha384` / `hkdfExpandSha384` (TLS `0x1302` schedule) |
 | KEM check | `PqKemPrimitives.checkEncapsulationKey` before encapsulate |
-| Transcript | SHA-256 of concatenated handshake messages |
+| Transcript | SHA-384 (`0x1302`) or SHA-256 (`0x1303`) of concatenated handshake messages |
 
 Peer stubs (fake flights) were allowed. Crypto stubs were not.
 
@@ -114,8 +116,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 
 Recorded so achievements cannot be misread:
 
-- IANA `TLS_AES_256_GCM_SHA384` (0x1302) or `TLS_CHACHA20_POLY1305_SHA256` (0x1303).
-- OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped).
+- OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped with IANA `0x1302`/`0x1303`).
 - X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
 - Full RFC 9000 QUIC, HTTP/2, HTTP/3+QPACK.
 - Production DoH/DoT with ALPN.

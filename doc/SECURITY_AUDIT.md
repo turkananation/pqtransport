@@ -15,9 +15,9 @@ production hardening.
 | Rating | Count | Notes |
 |---|---|---|
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
-| P1 wrong-on-the-wire or fail-open | 1 | OPEN-02 |
-| P2 incomplete protocol | 6 | OPEN-06 … OPEN-10, OPEN-13 |
-| P3 hygiene | 1 | OPEN-12 |
+| P1 wrong-on-the-wire or fail-open | 0 | OPEN-02 Fixed |
+| P2 incomplete protocol | 5 | OPEN-06 … OPEN-10 |
+| P3 hygiene | 0 | OPEN-12 Fixed |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |
 
@@ -41,21 +41,16 @@ OpenSSL / IANA / profile-footgun reading of the same code. Read
 
 ## Findings (open)
 
-### S1 — Compact TLS is not RFC 8446 (OPEN-01, P1)
+### S1 — Compact TLS is not RFC 8446 (OPEN-01, closed)
 
-Handshake messages omit `legacy_version`, `cipher_suites`, and every
-extension (`supported_versions`, `key_share`, SNI, ALPN). A middlebox
-or OpenSSL peer will not parse them. **Mitigation:** document as
-self-interop; do not put this on the public internet as "TLS 1.3".
-**Fix:** slice 0.2.
+RFC 8446 hellos, raw-pk, and HRR are on the wire. See OPEN-01 / OPEN-04 /
+OPEN-05.
 
-### S2 — SHA-256 schedule is not IANA 0x1302 (OPEN-02, P1)
+### S2 — SHA-256 schedule is not IANA 0x1302 (OPEN-02, closed)
 
-Traffic keys are AES-256-GCM from HKDF-SHA-256. Advertising
-`TLS_AES_256_GCM_SHA384` would desynchronise the transcript hash with
-any SHA-384 peer. **Mitigation:** no IANA codepoint on the 0.1 wire.
-**Fix:** SHA-384 schedule (OPEN-02 / 0.3.5). pqforge already exports
-SHA-384 Extract/Expand.
+IANA `0x1302` is on the wire with HKDF-SHA-384. IANA `0x1303` is ChaCha
+with SHA-256. Private-use `0xFF00` is refused. Evidence:
+`test/tls/cipher_suite_test.dart`.
 
 ### S3 — Profile / group mismatch refused (OPEN-03, closed)
 

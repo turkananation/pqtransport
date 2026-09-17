@@ -44,7 +44,8 @@ Pure Dart. No native bindings. No `dart:ffi`.
   silently drop the classical share. Parses return `Result`. All three
   RFC 10024 groups are live; do not re-introduce fail-closed ECDH.
 - **Claim boundary.** This is not a FIPS 140 module, not OpenSSL-interop
-  in 0.1.0, and not IANA `0x1302` on a SHA-256 schedule.
+  in 0.1.0, and not IANA `0x1302` on a SHA-256 schedule (the `0x1302`
+  path is SHA-384).
 
 ## 3. Branching and commits
 

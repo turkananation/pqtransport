@@ -96,7 +96,7 @@ server: waitClientHello
 
 Illegal `StateMachine.trigger` is converted to `failed` via `driveTls`.
 
-Key schedule (RFC 8446 structure, SHA-256 only):
+Key schedule (RFC 8446 structure; Hash is SHA-384 for `0x1302`, SHA-256 for `0x1303`):
 
 ```text
 early_secret     = HKDF-Extract(0, 0)
@@ -109,7 +109,8 @@ exporter_master  = DeriveSecret(master, "exp master", Hash(full transcript))
 
 `deriveHandshake` installs handshake traffic keys (and a placeholder
 application secret that `deriveApplication` overwrites). Traffic keys are
-32-byte AES-256-GCM keys. IANA `TLS_AES_256_GCM_SHA384` is **not** offered.
+32-byte AES-256-GCM keys (`0x1302`) or ChaCha20 keys (`0x1303`). IANA
+`TLS_AES_256_GCM_SHA384` (`0x1302`) is the default suite.
 
 Handshake messages on the wire are RFC 8446-shaped hellos (OPEN-01):
 
@@ -123,18 +124,20 @@ ServerHello  = HS(2) || legacy_version(0x0303) || random(32) ||
                extensions (supported_versions, key_share)
 Certificate  = HS(11) || pk_len(u16) || ml-dsa-65 public key   // OPEN-04
 CertVerify   = HS(15) || sig_len(u16) || ml-dsa-65 signature
-Finished     = HS(20) || verify_data(32)
+Finished     = HS(20) || verify_data(Hash.length)
 ```
 
-Cipher suite on the wire is private-use `0xFF00` (AES-256-GCM + HKDF-SHA-256).
-IANA `0x1302` is refused. Compact 0.1 hello body is retired.
+Cipher suite on the wire is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, default)
+or `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`). Private-use `0xFF00` is retired.
+Compact 0.1 hello body is retired.
 
-This is enough for self-interop. It is not enough for OpenSSL (raw cert,
-non-IANA suite, empty EncryptedExtensions).
+This is enough for self-interop. OpenSSL still needs a recorded fixture
+(LIM-01): raw ML-DSA cert (raw-pk is negotiated), no X.509 chain.
 
 Record protection: `TLSInnerPlaintext` = `payload || content_type`, sealed
-with AES-256-GCM, outer type application_data. Handshake and application
-epochs have independent sequence counters.
+with AES-256-GCM (`0x1302`) or ChaCha20-Poly1305 (`0x1303`), outer type
+application_data. Handshake and application epochs have independent
+sequence counters.
 
 ## Encrypted UDP
 

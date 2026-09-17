@@ -64,7 +64,8 @@ final a = PqEncryptedUdpSocket(
 - NIST-curve groups are live via pqforge 0.4.4. SecP384r1MLKEM1024
   requires `PqForgeProfile.maximum`. Profile/group mismatches fail closed
   (`requireGroup`) — they do not silently drop the classical share.
-- Do not put IANA `0x1302` on the wire. The schedule is SHA-256.
+- Default cipher is IANA `0x1302` (SHA-384 AES-GCM). `0x1303` is offered.
+  Do not put `0x1302` on a SHA-256 schedule.
 - Import `pqtransport_io.dart` only where you need a real NIC.
 
 ## Next

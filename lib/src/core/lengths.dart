@@ -66,14 +66,21 @@ const int secP384r1MlKem1024SharedSecretBytes = 80; // 48 + 32
 // ---------------------------------------------------------------------------
 
 const int nonceBytes = 32;
-const int transcriptHashBytes = 32;
+const int sha256HashBytes = 32;
+const int sha384HashBytes = 48;
+
+/// SHA-256 digest size. ChaCha suite (`0x1303`) and UDP HKDF use this.
+/// TLS `0x1302` uses [sha384HashBytes] via [TlsCipherSuite.hashBytes].
+const int transcriptHashBytes = sha256HashBytes;
 const int appSessionKeyBytes = 32;
 const int aeadNonceBytes = 12;
 const int aeadTagBytes = 16;
 const int aeadKeyBytes = 32;
 
 const int handshakeRandomBytes = 32;
-const int verifyDataBytes = 32;
+
+/// Finished verify_data for SHA-256. SHA-384 verify_data is [sha384HashBytes].
+const int verifyDataBytes = sha256HashBytes;
 
 // ---------------------------------------------------------------------------
 // UDP datagram envelope
@@ -140,9 +147,8 @@ const int tlsFinishedLabelBytes = 32;
 const int tlsCipherChaCha20Poly1305Sha256 = 0x1303;
 const int tlsCipherAes256GcmSha384 = 0x1302;
 
-/// AES-256-GCM with HKDF-SHA-256. **Not** an IANA suite. Do not put
-/// [tlsCipherAes256GcmSha384] on this schedule (OPEN-02). Private-use
-/// 0xFF00 until the schedule is SHA-384.
+/// Retired 0.1 private-use suite (AES-256-GCM + HKDF-SHA-256). Decode refuses
+/// it. IANA `0x1302` / `0x1303` are the suites on the wire (OPEN-02, OPEN-13).
 const int tlsCipherAes256GcmSha256Private = 0xFF00;
 const int tlsContentHandshake = 22;
 const int tlsContentApplicationData = 23;

@@ -30,14 +30,15 @@ void main() {
     expect(ch.share[0], 1);
     expect(ch.serverName, 'localhost');
     expect(ch.alpnProtocols, ['http/1.1']);
-    expect(ch.cipherSuites, [tlsCipherAes256GcmSha256Private]);
+    expect(ch.cipherSuites, tlsDefaultOfferedCipherSuites);
     expect(ch.legacySessionId, isEmpty);
   });
 
-  test('does not advertise IANA 0x1302', () {
+  test('advertises IANA 0x1302 and 0x1303, not retired 0xFF00', () {
     final hs = fixtureHello().encode();
-    expect(_containsSuite(hs, tlsCipherAes256GcmSha384), isFalse);
-    expect(_containsSuite(hs, tlsCipherAes256GcmSha256Private), isTrue);
+    expect(_containsSuite(hs, tlsCipherAes256GcmSha384), isTrue);
+    expect(_containsSuite(hs, tlsCipherChaCha20Poly1305Sha256), isTrue);
+    expect(_containsSuite(hs, tlsCipherAes256GcmSha256Private), isFalse);
   });
 
   test('compact 0.1 ClientHello body is retired', () {
@@ -54,15 +55,12 @@ void main() {
     expect(r.errorOrNull!.message, contains('compact'));
   });
 
-  test('0x1302 in cipher_suites is unsupported (OPEN-02)', () {
+  test('retired 0xFF00-only ClientHello is unsupported (OPEN-02)', () {
     final ch = ClientHello(
       random: Uint8List(handshakeRandomBytes),
       group: g,
       share: Uint8List(g.clientShareBytes)..[0] = 1,
-      cipherSuites: const [
-        tlsCipherAes256GcmSha256Private,
-        tlsCipherAes256GcmSha384,
-      ],
+      cipherSuites: const [tlsCipherAes256GcmSha256Private],
     );
     final r = ClientHello.decode(ch.encode());
     expect(r.isFailure, isTrue);
@@ -81,11 +79,11 @@ void main() {
     final decoded = ServerHello.decode(hs);
     expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
     expect(decoded.valueOrNull!.group, g);
-    expect(decoded.valueOrNull!.cipherSuite, tlsCipherAes256GcmSha256Private);
+    expect(decoded.valueOrNull!.cipherSuite, tlsCipherAes256GcmSha384);
     expect(decoded.valueOrNull!.share[0], 2);
   });
 
-  test('ServerHello refuses IANA 0x1302', () {
+  test('ServerHello refuses retired 0xFF00', () {
     final ok = ServerHello(
       random: Uint8List(handshakeRandomBytes),
       group: g,
@@ -94,8 +92,8 @@ void main() {
     final body = decodeHandshake(ok).valueOrNull!.$2;
     // cipher_suite sits after version(2)+random(32)+sid_len(1)
     final suiteOffset = 2 + handshakeRandomBytes + 1;
-    body[suiteOffset] = 0x13;
-    body[suiteOffset + 1] = 0x02;
+    body[suiteOffset] = 0xff;
+    body[suiteOffset + 1] = 0x00;
     final hs = encodeHandshake(tlsHsServerHello, body);
     final r = ServerHello.decode(hs);
     expect(r.isFailure, isTrue);

@@ -45,7 +45,9 @@ void main() {
 
   test('key schedule is deterministic for a fixture IKM', () {
     final ikm = Uint8List.fromList(List<int>.generate(64, (i) => i + 1));
-    final hash = Uint8List.fromList(List<int>.generate(32, (i) => 32 - i));
+    final hash = Uint8List.fromList(
+      List<int>.generate(sha384HashBytes, (i) => 32 - i),
+    );
     final a = TlsKeySchedule(crypto)
       ..derive(
         hybridSharedSecret: ikm,
@@ -75,7 +77,9 @@ void main() {
 
   test('exporter is deterministic on a fixture', () {
     final ikm = Uint8List.fromList(List<int>.generate(64, (i) => 7));
-    final hash = Uint8List.fromList(List<int>.generate(32, (i) => 3));
+    final hash = Uint8List.fromList(
+      List<int>.generate(sha384HashBytes, (i) => 3),
+    );
     final a = TlsKeySchedule(crypto)
       ..derive(
         hybridSharedSecret: ikm,

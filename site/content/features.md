@@ -25,13 +25,14 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | --- | --- |
 | Client / server state machines | Done |
 | Compact ClientHello / ServerHello | Done (RFC 8446-shaped; compact 0.1 retired) |
-| AES-256-GCM records, epoch sequences | Done |
+| AES-256-GCM records, epoch sequences | Done (IANA `0x1302`) |
 | TLS exporter | Done |
-| HKDF-SHA-256 schedule | Done |
+| HKDF-SHA-384 schedule | Done (IANA `0x1302`, default) |
+| HKDF-SHA-256 schedule | Done (ChaCha `0x1303` and UDP) |
 | HelloRetryRequest on the wire | Done (cookie + selected_group, OPEN-05) |
 | SNI, ALPN, key_share extensions | Done |
 | X.509 / certificate chains | Not started (raw-pk negotiated, OPEN-04) |
-| ChaCha20-Poly1305 records | Not started |
+| ChaCha20-Poly1305 records | Done (IANA `0x1303`) |
 | OpenSSL interop | Not started |
 
 ## UDP / DNS / mDNS / QUIC / HTTP

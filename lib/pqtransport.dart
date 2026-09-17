@@ -6,7 +6,7 @@
 library;
 
 export 'src/core/bytes.dart';
-export 'src/core/crypto.dart' show PqTransportCrypto;
+export 'src/core/crypto.dart' show PqTransportCrypto, TransportAead;
 export 'src/core/errors.dart';
 export 'src/core/hybrid.dart';
 export 'src/core/lengths.dart';
@@ -20,6 +20,7 @@ export 'src/mdns/pq_mdns.dart';
 export 'src/mdns/signed_record.dart';
 export 'src/quic/packet.dart';
 export 'src/socket/pq_transport_socket.dart';
+export 'src/tls/cipher_suite.dart';
 export 'src/tls/handshake.dart';
 export 'src/tls/key_schedule.dart';
 export 'src/tls/machines.dart';

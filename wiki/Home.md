@@ -9,7 +9,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
 [![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
-[![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
+[![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=white)](https://turkananation.github.io/pqtransport/)
 [![Wiki](https://img.shields.io/badge/Wiki-this_page-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
 [![license](https://img.shields.io/github/license/turkananation/pqtransport?style=for-the-badge&label=license&color=2ea043)](https://github.com/turkananation/pqtransport/blob/main/LICENSE)
 [![Dart SDK](https://img.shields.io/badge/Dart-%3E%3D3.12.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
@@ -20,7 +20,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-104_pass_%7C_90.5%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-138_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
 
 ## Automation
 
@@ -51,8 +51,8 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## 0.1.0 snapshot
 
 - Live handshake: **all three RFC 10024 groups** (X25519, P-256, P-384)
-- RFC 8446-shaped TLS hellos (cipher `0xFF00`, raw cert) — OPEN-01 done
-- HKDF-SHA-256 schedule (not IANA 0x1302) — OPEN-02
+- RFC 8446-shaped TLS hellos (IANA `0x1302` SHA-384 default, `0x1303` ChaCha) — OPEN-01 / OPEN-02 / OPEN-13 done
+- Private-use `0xFF00` retired. Certificate payload is still raw ML-DSA-65
 - Not a FIPS 140 module
 - No `dart:ffi`, no platform TLS on the PQ path
 

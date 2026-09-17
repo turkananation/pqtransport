@@ -21,28 +21,28 @@ PQ path.
 ## 0.2 — RFC 8446-shaped wire
 
 ClientHello / ServerHello are RFC 8446-shaped (OPEN-01 **done**). Cipher
-on the wire is private-use `0xFF00`, not IANA `0x1302`. Raw-pk is
-negotiated (OPEN-04 **done**). Unused UDP `role` args are gone
-(OPEN-11 **done**). HelloRetryRequest is on the wire with cookie
-(OPEN-05 **done**). Remaining in 0.2: leftover error-path coverage
-(OPEN-12).
+on the wire is IANA `0x1302` / `0x1303`; private-use `0xFF00` is retired
+(OPEN-02 **done**). Raw-pk is negotiated (OPEN-04 **done**). Unused UDP
+`role` args are gone (OPEN-11 **done**). HelloRetryRequest is on the wire
+with cookie (OPEN-05 **done**). Leftover error-path coverage is done
+(OPEN-12 **done**). Slice 0.2 is complete.
 
-Still SHA-256. Still do not put IANA `0x1302` on the wire. OpenSSL
-**parsing** of hellos is unblocked; handshake completion still needs
-cert + an IANA suite.
+OpenSSL **parsing** of hellos is unblocked. Handshake completion still
+needs a recorded fixture (LIM-01 / 0.4).
 
 ## 0.3 remaining — honest cipher suite
 
 Live NIST groups, HKDF-SHA-256 Expand, and `checkEncapsulationKey` are
-**done** (pqforge 0.4.4). Remaining: SHA-384 schedule then IANA
-`0x1302` (OPEN-02); wire sync ChaCha as `0x1303` (OPEN-13). Do not put
-`0x1302` on a SHA-256 schedule.
+**done** (pqforge 0.4.4). SHA-384 schedule then IANA `0x1302` (OPEN-02)
+and sync ChaCha as `0x1303` (OPEN-13) are **done**. Do not put `0x1302`
+on a SHA-256 schedule.
 
 ## 0.4 — OpenSSL 3.5+ / BoringSSL fixture
 
 Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server /
-s_client. Requires OPEN-01 hellos. Until that is green, wording stays
-"unit-tested concatenation," not "interoperable with OpenSSL."
+s_client. Requires OPEN-01 hellos and honest IANA suites. Until that is
+green, wording stays "unit-tested concatenation," not "interoperable
+with OpenSSL."
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
 

@@ -27,9 +27,9 @@ and what is still not wired. IDs: [BUGS.md](BUGS.md).
 | HMAC / SHA-256 / CSPRNG | `PqBytes.hmacSha256`, `PqBytes.sha256`, `PqBytes.randomBytes` |
 | Combined HKDF-SHA-256 | `PqSymmetricPrimitives.hkdfSha256` |
 | **RFC 5869 SHA-256 (BLK-02)** | `hkdfExtractSha256` / `hkdfExpandSha256` |
-| RFC 5869 SHA-384 | `hkdfExtractSha384` / `hkdfExpandSha384` / `hmacSha384` — **exported, schedule not wired** (OPEN-02) |
+| RFC 5869 SHA-384 | `hkdfExtractSha384` / `hkdfExpandSha384` / `hmacSha384` — **wired** (OPEN-02) |
 | AES-256-GCM (sync) | `PqSymmetricPrimitives.aesGcmEncrypt` / `aesGcmDecrypt` |
-| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — exported, **not wired** |
+| **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal` |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |
@@ -49,9 +49,9 @@ and what is still not wired. IDs: [BUGS.md](BUGS.md).
 
 | ID | Export | Why it waits |
 |---|---|---|
-| OPEN-02 | SHA-384 Extract/Expand | TLS schedule is still SHA-256. Putting IANA `0x1302` on that schedule is a lie. Slice 0.3.5. |
-| OPEN-13 | Sync ChaCha20-Poly1305 | `aeadSeal` is AES-GCM only. Slice 0.3.6. |
 | Expand-Label | — | Stays in pqtransport (TLS framing: `tls13 ` + label + context). |
+
+OPEN-02 and OPEN-13 are **Fixed**.
 
 ## What pqtransport will never ask pqforge for
 

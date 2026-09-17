@@ -31,7 +31,7 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `requireLength` / `requireMinLength` | Length filter |
 | `PqTransportError` / `PqTransportErrorCode` | Failures without secret bytes |
 | `PqTransportCrypto` | Facade over pqforge (KEM, X25519, ML-DSA, HKDF, AES-GCM) |
-| `Transcript` | Running SHA-256 handshake transcript |
+| `Transcript` | Running SHA-256 or SHA-384 handshake transcript |
 | `zeroize` / `withSecrets` | Best-effort wipe |
 | Length constants | `x25519MlKem768ClientShareBytes` (1216), etc. |
 
@@ -63,9 +63,10 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records |
 | `PqTlsServerIdentity` | ML-DSA-65 key pair |
 | `TlsState` / `TlsEvent` / `tlsClientMachine` / `tlsServerMachine` | Machines |
-| `TlsKeySchedule` | HKDF-SHA-256 schedule + exporter |
-| `TlsRecordLayer` | Epoch-aware AES-256-GCM |
-| `ClientHello` / `ServerHello` | Compact (not RFC 8446) codecs |
+| `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
+| `TlsCipherSuite` | IANA `0x1302` / `0x1303` |
+| `TlsRecordLayer` | Epoch-aware AES-256-GCM or ChaCha20-Poly1305 |
+| `ClientHello` / `ServerHello` | RFC 8446 codecs |
 
 ### In-memory handshake
 

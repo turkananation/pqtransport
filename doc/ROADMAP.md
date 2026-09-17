@@ -31,23 +31,23 @@ Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 
 | # | Work | Closes |
 |---|---|---|
-| 0.2.1 | ~~Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN~~ | **Done** (OPEN-01). Cipher is private-use `0xFF00`, not IANA `0x1302`. Compact 0.1 body retired. |
+| 0.2.1 | ~~Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN~~ | **Done** (OPEN-01). Compact 0.1 body retired. |
 | 0.2.2 | ~~EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension~~ | **Done** (OPEN-04). RFC 7250 RawPublicKey negotiated. Payload is still raw ML-DSA-65, not X.509. |
 | 0.2.3 | ~~HelloRetryRequest on the wire with cookie; keep the existing once-only machine edge~~ | **Done** (OPEN-05) |
 | 0.2.4 | ~~Refuse `PqForgeProfile.maximum` with ML-KEM-768 groups~~ | **Done** (OPEN-03 / `requireGroup`) |
 | 0.2.5 | ~~Drop unused UDP `role` named args~~ | **Done** (OPEN-11) |
-| 0.2.6 | Coverage of leftover DNS/UDP/TLS error paths | OPEN-12 |
+| 0.2.6 | ~~Coverage of leftover DNS/UDP/TLS error paths~~ | **Done** (OPEN-12) |
 
-Still SHA-256 schedule. Still **do not** put IANA `0x1302` on the wire.
-Compact 0.1 hello body is **retired** (OPEN-01). Exit gate for 0.2.1 is
-met: a recorded ClientHello is structurally RFC 8446 (`legacy_version`
-`0x0303`, extensions present). OpenSSL still may reject cipher/group/cert
-until 0.3 / OPEN-04.
+Compact 0.1 hello body is **retired** (OPEN-01). Private-use `0xFF00` is
+**retired** (OPEN-02). Exit gate for 0.2.1 is met: a recorded ClientHello is
+structurally RFC 8446 (`legacy_version` `0x0303`, extensions present).
+Cipher suite bytes match the transcript hash (`0x1302` SHA-384, `0x1303`
+SHA-256). OpenSSL still needs a recorded fixture (0.4 / LIM-01).
 
 ## Slice 0.3 — live NIST groups + honest cipher suite
 
-pqforge 0.4.4 unblocked this slice. Live KEX is **done**. Remaining rows
-are IANA cipher-suite honesty (this package).
+pqforge 0.4.4 unblocked this slice. Live KEX is **done**. IANA
+cipher-suite honesty (OPEN-02, OPEN-13) is **done**.
 
 | # | Work | Closes | Status |
 |---|---|---|---|
@@ -55,16 +55,16 @@ are IANA cipher-suite honesty (this package).
 | 0.3.2 | Live SecP256r1MLKEM768 handshake + encrypted UDP | BLK-01 | **Done** |
 | 0.3.3 | Live SecP384r1MLKEM1024 handshake | BLK-01, OPEN-03 | **Done** (`maximum` only) |
 | 0.3.4 | Replace local HKDF-Expand with pqforge `hkdfExpandSha256` | BLK-02 | **Done** |
-| 0.3.5 | SHA-384 Extract/Expand → IANA `TLS_AES_256_GCM_SHA384` (0x1302) **only after** the schedule is SHA-384 | OPEN-02 | Not started |
-| 0.3.6 | Sync ChaCha → `TLS_CHACHA20_POLY1305_SHA256` (0x1303) | OPEN-13 | Export exists, not wired |
+| 0.3.5 | SHA-384 Extract/Expand → IANA `TLS_AES_256_GCM_SHA384` (0x1302) **only after** the schedule is SHA-384 | OPEN-02 | **Done** |
+| 0.3.6 | Sync ChaCha → `TLS_CHACHA20_POLY1305_SHA256` (0x1303) | OPEN-13 | **Done** |
 | 0.3.7 | `checkEncapsulationKey` → `illegal_parameter` without catch | BLK-05 | **Done** |
 
 Fail-closed remains the rule for a **profile/group mismatch**. Do not
 silently skip the classical share.
 
 Exit gate: live handshake tests for **all three** RFC 10024 groups —
-**met**. Cipher suite bytes on the wire matching the transcript hash is
-still 0.3.5 / 0.3.6.
+**met**. Cipher suite bytes on the wire matching the transcript hash —
+**met** (0.3.5 / 0.3.6).
 
 ## Slice 0.4 — OpenSSL 3.5+ / BoringSSL fixture
 
@@ -114,10 +114,10 @@ Never parallelize:
 
 ## Suggested next coding turn (when directed)
 
-1. OPEN-12 leftover error-path coverage while 0.1.0 is unpublished.
-   OPEN-01, OPEN-04, OPEN-05, and OPEN-11 are done.
-2. Then OPEN-02 / OPEN-13 only after the SHA-256 schedule is an explicit choice
-   on the 0.2 wire, not a silent `0x1302`.
+1. LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). Hellos, raw-pk, HRR,
+   and IANA `0x1302`/`0x1303` are on the wire.
+2. Parallel 0.5 items that do not need QUIC: OPEN-08 (DNS rdata pointers),
+   OPEN-09 (`joinMulticast`).
 
-Do not start QUIC header protection before OPEN-01 is designed; the
-CRYPTO frame has to carry a real TLS handshake, not a compact private one.
+Do not start HTTP/3 before OPEN-06. CRYPTO frames now carry a real TLS
+handshake.

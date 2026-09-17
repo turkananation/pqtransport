@@ -15,6 +15,7 @@ import 'key_schedule.dart';
 import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
+import 'cipher_suite.dart';
 
 /// TLS 1.3 client with RFC 10024 hybrid key exchange.
 final class PqTlsClient {
@@ -22,13 +23,17 @@ final class PqTlsClient {
     PqTransportCrypto? crypto,
     this.group = HybridGroup.x25519MlKem768,
     List<HybridGroup>? offeredGroups,
+    List<int>? offeredCipherSuites,
     this.allowUnauthenticated = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
-       offeredGroups = offeredGroups ?? [group];
+       offeredGroups = offeredGroups ?? [group],
+       offeredCipherSuites =
+           offeredCipherSuites ?? tlsDefaultOfferedCipherSuites;
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
   final List<HybridGroup> offeredGroups;
+  final List<int> offeredCipherSuites;
   final bool allowUnauthenticated;
 
   final StateMachine<TlsState, TlsEvent> machine = tlsClientMachine();
@@ -41,10 +46,12 @@ final class PqTlsClient {
   Uint8List? _hybridSs;
   Uint8List? _clientRandom;
   late HybridGroup _activeGroup;
+  TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
+  TlsCipherSuite get cipherSuite => _suite;
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
     final compatible = crypto.requireGroup(group);
@@ -107,6 +114,8 @@ final class PqTlsClient {
     if (sh.valueOrNull!.isHelloRetryRequest) {
       return _ingestHelloRetry(sh.valueOrNull!, rec.valueOrNull!.payload);
     }
+    final bound = _bindSuite(sh.valueOrNull!.cipherSuite);
+    if (bound.isFailure) return Result.failure(bound.errorOrNull!);
     if (sh.valueOrNull!.group != _activeGroup) return _fail('group mismatch');
     final driven = driveTls(machine, TlsEvent.receiveServerHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
@@ -205,15 +214,21 @@ final class PqTlsClient {
         final toMac = transcript.snapshot();
         final d = driveTls(machine, TlsEvent.receiveFinished);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
-        final fin = decodeFinished(msg);
+        final fin = decodeFinished(msg, verifyDataLength: schedule.hashLen);
         if (fin.isFailure) return Result.failure(fin.errorOrNull!);
-        final expected = crypto.hmac(schedule.serverFinishedKey, toMac);
+        final expected = schedule.finishedMac(
+          schedule.serverFinishedKey,
+          toMac,
+        );
         if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
           return _fail('finished mac');
         }
         transcript.add(msg);
         final clientFin = encodeFinished(
-          crypto.hmac(schedule.clientFinishedKey, transcript.snapshot()),
+          schedule.finishedMac(
+            schedule.clientFinishedKey,
+            transcript.snapshot(),
+          ),
         );
         transcript.add(clientFin);
         finishedRecord = layer.protectWith(
@@ -245,6 +260,8 @@ final class PqTlsClient {
     if (!_offersGroup(hrr.group)) {
       return _fail('hrr group not offered');
     }
+    final bound = _bindSuite(hrr.cipherSuite);
+    if (bound.isFailure) return Result.failure(bound.errorOrNull!);
     final compatible = crypto.requireGroup(hrr.group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final cookie = hrr.cookie;
@@ -254,7 +271,7 @@ final class PqTlsClient {
       transcript: transcript,
       clientHello1: ch1,
       helloRetryRequest: hrrBytes,
-      sha256: crypto.sha256,
+      hash: schedule.transcriptHash,
     );
     zeroize(_kemSecret);
     zeroize(_classicalSecret);
@@ -275,6 +292,7 @@ final class PqTlsClient {
     random: _clientRandom!,
     group: _activeGroup,
     share: share,
+    cipherSuites: offeredCipherSuites,
     supportedGroups: [for (final g in offeredGroups) g.codepoint],
     cookie: cookie,
   );
@@ -298,6 +316,26 @@ final class PqTlsClient {
   bool _offersGroup(HybridGroup g) {
     if (offeredGroups.contains(g)) return true;
     return g == group;
+  }
+
+  Result<void, PqTransportError> _bindSuite(int codepoint) {
+    final selected = TlsCipherSuite.byCodepoint(codepoint);
+    if (selected == null) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('unexpected cipher suite'),
+      );
+    }
+    if (!offeredCipherSuites.contains(selected.codepoint)) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('cipher not offered'),
+      );
+    }
+    _suite = selected;
+    schedule.suite = selected;
+    transcript.hashKind = selected.usesSha384
+        ? TranscriptHashKind.sha384
+        : TranscriptHashKind.sha256;
+    return const Result.success(null);
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {

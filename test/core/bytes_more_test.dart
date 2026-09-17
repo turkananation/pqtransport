@@ -50,15 +50,18 @@ void main() {
     );
   });
 
-  test('transcript snapshot is 32 bytes and changes when added', () {
+  test('transcript snapshot is Hash.length and changes when added', () {
     final t = Transcript();
     t.add(Uint8List.fromList([1]));
     final a = t.snapshot();
-    expect(a.length, transcriptHashBytes);
+    expect(a.length, sha384HashBytes);
     t.add(Uint8List.fromList([2]));
     expect(t.snapshot(), isNot(equals(a)));
     t.clear();
     expect(t.length, 0);
+    final sha256t = Transcript(hashKind: TranscriptHashKind.sha256);
+    sha256t.add(Uint8List.fromList([1]));
+    expect(sha256t.snapshot().length, sha256HashBytes);
   });
 
   test('error toString never contains secret bytes', () {

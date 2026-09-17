@@ -32,7 +32,7 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `requireLength` / `requireMinLength` | Length filter |
 | `PqTransportError` / `PqTransportErrorCode` | Failures without secret bytes |
 | `PqTransportCrypto` | Facade over pqforge |
-| `Transcript` | Running SHA-256 handshake transcript |
+| `Transcript` | Running SHA-256 or SHA-384 handshake transcript |
 | `zeroize` / `withSecrets` | Best-effort wipe |
 
 ## Sockets
@@ -53,8 +53,9 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `PqEncryptedUdpSocket` | Hybrid session then AEAD datagrams |
 | `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records |
 | `PqTlsServerIdentity` | ML-DSA-65 key pair |
-| `TlsKeySchedule` | HKDF-SHA-256 schedule + exporter |
-| `TlsRecordLayer` | Epoch-aware AES-256-GCM |
+| `TlsCipherSuite` | IANA `0x1302` / `0x1303` |
+| `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
+| `TlsRecordLayer` | Epoch-aware AES-256-GCM or ChaCha20-Poly1305 |
 
 ## DNS / mDNS / HTTP / QUIC
 
