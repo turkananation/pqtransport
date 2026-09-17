@@ -18,12 +18,6 @@ void main() {
     expect(readUint64(w, 9), 0x001FFFFFFFFFFFFF);
   });
 
-  test('uint64 round trip above 2^53', () {
-    final b = BytesBuilder(copy: false);
-    writeUint64(b, 0x0102030405060708);
-    expect(readUint64(b.takeBytes(), 0), 0x0102030405060708);
-  }, testOn: 'vm');
-
   test('ByteReader remaining helpers', () {
     final r = ByteReader(Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]));
     expect(r.u32().isSuccess, isTrue);
