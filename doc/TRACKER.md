@@ -82,7 +82,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 |---|---|---|---|---|
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
-| OPEN-08 | P2 | pqtransport | Foreign DNS | Resolve rdata name pointers into the outer message |
 | OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
@@ -103,6 +102,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-02 | P1 | **Fixed** | IANA `0x1302` + HKDF-SHA-384 |
 | OPEN-13 | P2 | **Fixed** | IANA `0x1303` + ChaCha records on VM / dart2wasm / dart2js (pqforge 0.4.5) |
 | OPEN-12 | P3 | **Fixed** | Leftover DNS/UDP/TLS error paths |
+| OPEN-08 | P2 | **Fixed** | Rdata name pointers resolve against the outer message |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -128,7 +128,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 Do not start 0.5 HTTP/3 before OPEN-06. Do not vendor P-256 ECDH. Next coding
 turn: LIM-01 OpenSSL fixture, **or** slice 0.5 items that do not need QUIC
-(OPEN-08, OPEN-09).
+(OPEN-09).
 
 ## Verification commands
 

@@ -35,6 +35,10 @@
   cookie extension 44 is required. Client echoes the cookie on ClientHello2
   and the transcript uses the RFC 8446 §4.4.1 `message_hash` wrapper.
   Once-only machine edge kept. Same-group handshakes do not emit HRR.
+- DNS rdata name compression into the **outer** message (OPEN-08). CNAME /
+  NS / PTR / MX / SRV / HTTPS / SVCB names that are RFC 1035 pointers are
+  resolved against the full datagram. A truncated rdata name cannot
+  consume the next RR. Our encoder still emits uncompressed names.
 
 ### Changed
 
@@ -72,7 +76,8 @@
   HelloRetryRequest flight, cookie echo, second-HRR fail-closed, live
 - Live `0x1302` and `0x1303` handshakes on VM **and dart2js** (no
   platform branch). RFC 8439 §2.8.2 pin through `PqTransportCrypto`.
-  Leftover DNS/UDP/TLS error paths (OPEN-12).
+  Leftover DNS/UDP/TLS error paths (OPEN-12). Foreign-message rdata
+  compression pointers (OPEN-08).
 
 ## 0.1.0
 

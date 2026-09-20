@@ -63,7 +63,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | DoH POST `application/dns-message` | Partial | `DohExchange` helper, not a full HTTP client |
 | DoT length-prefix framing | Partial | `DotExchange` over an already-PQ `PqTransportSocket` |
 | DNSSEC (RRSIG/DS verify) | Not started | Types reserved in `lengths.dart` only |
-| Compression pointers inside rdata | Partial | Inner reader does not jump into the outer message |
+| Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 
 ## mDNS
 
