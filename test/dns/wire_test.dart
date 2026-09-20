@@ -77,6 +77,101 @@ void main() {
     expect(r.isFailure, isTrue);
   });
 
+  test('OPEN-08 CNAME rdata pointer into QNAME is resolved', () {
+    final wire = _foreignMessage(
+      answers: [_rr(owner: _ptr(12), type: dnsTypeCname, rdata: _ptr(12))],
+    );
+    final r = decodeDnsMessage(wire);
+    expect(r.isSuccess, isTrue, reason: '${r.errorOrNull}');
+    final cname = r.valueOrNull!.answers.whereType<DnsCname>().single;
+    expect(cname.name, 'example.com.');
+    expect(cname.canonical, 'example.com.');
+  });
+
+  test('OPEN-08 MX/NS/PTR/SRV rdata pointers into the outer message', () {
+    final wire = _foreignMessage(
+      answers: [
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeMx,
+          rdata: Uint8List.fromList([0, 10, ..._ptr(12)]),
+        ),
+        _rr(owner: _ptr(12), type: dnsTypeNs, rdata: _ptr(12)),
+        _rr(owner: _ptr(12), type: dnsTypePtr, rdata: _ptr(12)),
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeSrv,
+          rdata: Uint8List.fromList([0, 1, 0, 2, 1, 187, ..._ptr(12)]),
+        ),
+      ],
+    );
+    final r = decodeDnsMessage(wire);
+    expect(r.isSuccess, isTrue, reason: '${r.errorOrNull}');
+    final msg = r.valueOrNull!;
+    expect(msg.answers.whereType<DnsMx>().single.exchange, 'example.com.');
+    expect(msg.answers.whereType<DnsMx>().single.preference, 10);
+    expect(msg.answers.whereType<DnsNs>().single.nameserver, 'example.com.');
+    expect(msg.answers.whereType<DnsPtr>().single.pointer, 'example.com.');
+    final srv = msg.answers.whereType<DnsSrv>().single;
+    expect(srv.target, 'example.com.');
+    expect(srv.port, 443);
+  });
+
+  test('OPEN-08 rdata suffix pointer: www + QNAME → www.example.com.', () {
+    final wire = _foreignMessage(
+      answers: [
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeCname,
+          rdata: Uint8List.fromList([3, ...'www'.codeUnits, ..._ptr(12)]),
+        ),
+      ],
+    );
+    final r = decodeDnsMessage(wire);
+    expect(r.isSuccess, isTrue, reason: '${r.errorOrNull}');
+    expect(
+      r.valueOrNull!.answers.whereType<DnsCname>().single.canonical,
+      'www.example.com.',
+    );
+  });
+
+  test('OPEN-08 truncated rdata name does not consume the next RR', () {
+    final wire = _foreignMessage(
+      answers: [
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeCname,
+          rdata: Uint8List.fromList([0xC0]), // truncated pointer
+        ),
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeA,
+          rdata: Uint8List.fromList([1, 2, 3, 4]),
+        ),
+      ],
+    );
+    final r = decodeDnsMessage(wire);
+    expect(r.isFailure, isTrue);
+    expect(r.errorOrNull!.message.toLowerCase(), contains('truncat'));
+  });
+
+  test('OPEN-08 HTTPS target name may pointer into QNAME', () {
+    final wire = _foreignMessage(
+      answers: [
+        _rr(
+          owner: _ptr(12),
+          type: dnsTypeHttps,
+          rdata: Uint8List.fromList([0, 1, ..._ptr(12)]),
+        ),
+      ],
+    );
+    final r = decodeDnsMessage(wire);
+    expect(r.isSuccess, isTrue, reason: '${r.errorOrNull}');
+    final https = r.valueOrNull!.answers.whereType<DnsHttps>().single;
+    expect(https.target, 'example.com.');
+    expect(https.priority, 1);
+  });
+
   test('label too long is rejected', () {
     final r = encodeDnsMessage(
       DnsMessage(
@@ -170,4 +265,52 @@ void main() {
       8,
     ]);
   });
+}
+
+/// RFC 1035 compression pointer. Offset is from the start of the message.
+Uint8List _ptr(int offset) => Uint8List.fromList([
+  dnsPointerMask | ((offset >> 8) & 0x3f),
+  offset & 0xff,
+]);
+
+Uint8List _qnameExampleCom() =>
+    Uint8List.fromList([7, ...'example'.codeUnits, 3, ...'com'.codeUnits, 0]);
+
+Uint8List _rr({
+  required Uint8List owner,
+  required int type,
+  required Uint8List rdata,
+  int ttl = 60,
+}) {
+  final b = BytesBuilder(copy: false)
+    ..add(owner)
+    ..addByte(type >> 8)
+    ..addByte(type & 0xff)
+    ..addByte(0)
+    ..addByte(dnsClassIn)
+    ..addByte((ttl >> 24) & 0xff)
+    ..addByte((ttl >> 16) & 0xff)
+    ..addByte((ttl >> 8) & 0xff)
+    ..addByte(ttl & 0xff)
+    ..addByte((rdata.length >> 8) & 0xff)
+    ..addByte(rdata.length & 0xff)
+    ..add(rdata);
+  return b.takeBytes();
+}
+
+/// One question `example.com. IN A` at offset 12, then [answers].
+Uint8List _foreignMessage({required List<Uint8List> answers}) {
+  final q = BytesBuilder(copy: false)
+    ..add(_qnameExampleCom())
+    ..addByte(0)
+    ..addByte(dnsTypeA)
+    ..addByte(0)
+    ..addByte(dnsClassIn);
+  final b = BytesBuilder(copy: false)
+    ..add([0, 1, 0x81, 0x80, 0, 1, 0, answers.length, 0, 0, 0, 0])
+    ..add(q.takeBytes());
+  for (final rr in answers) {
+    b.add(rr);
+  }
+  return b.takeBytes();
 }

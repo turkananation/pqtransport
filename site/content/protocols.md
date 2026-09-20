@@ -36,7 +36,9 @@ chains and OpenSSL interop are not started. ChaCha records are Done
 ## DNS / DoH / DoT
 
 Wire codec for A, AAAA, CNAME, MX, TXT, SRV, CAA, HTTPS, SVCB, OPT, PTR,
-NS. Compression pointer cycles are rejected. TTL cache uses an injected
+NS. Compression pointer cycles are rejected. Rdata name pointers
+(CNAME / NS / PTR / MX / SRV / HTTPS / SVCB) resolve against the outer
+message (OPEN-08). TTL cache uses an injected
 clock. `CircuitBreaker` wraps exchange and opens after
 `failureThreshold`. Resolver failover DoH → DoT → UDP is Partial
 (independent clients; skip-on-open). DNSSEC verify is not started.

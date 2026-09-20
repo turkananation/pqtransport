@@ -35,6 +35,10 @@ Result<Uint8List, PqTransportError> encodeDnsMessage(DnsMessage msg) {
   return Result.success(wire);
 }
 
+/// Decode a DNS message. RFC 1035 §4.1.4 compression pointers in rdata
+/// (CNAME / NS / PTR / MX / SRV / HTTPS / SVCB names) are offsets from the
+/// **start of [wire]**, not from the start of that rdata slice. RDLENGTH
+/// still bounds the record so a truncated name cannot consume the next RR.
 Result<DnsMessage, PqTransportError> decodeDnsMessage(Uint8List wire) {
   if (wire.length < dnsHeaderBytes) {
     return Result.failure(PqTransportError.decodeFailure('short dns header'));
@@ -244,7 +248,7 @@ final class _DnsReader {
     return out;
   }
 
-  String? readName({int depth = 0}) {
+  String? readName({int depth = 0, int? end}) {
     if (depth > dnsPointerDepthMax) {
       failed = PqTransportError.decodeFailure('pointer depth');
       return null;
@@ -255,13 +259,12 @@ final class _DnsReader {
     var returnTo = offset;
     final seen = <int>{};
     while (true) {
-      if (remaining < 1 && !jumped) {
-        failed = PqTransportError.decodeFailure('truncated name');
-        return null;
-      }
       final pos = jumped ? returnTo : offset;
-      if (pos >= wire.length) {
-        failed = PqTransportError.decodeFailure('name oob');
+      final localLimit = jumped ? wire.length : (end ?? wire.length);
+      if (pos >= localLimit) {
+        failed = PqTransportError.decodeFailure(
+          jumped ? 'name oob' : 'truncated name',
+        );
         return null;
       }
       if (!seen.add(pos)) {
@@ -275,7 +278,7 @@ final class _DnsReader {
           failed = PqTransportError.decodeFailure('pointer loop');
           return null;
         }
-        if (pos + 1 >= wire.length) {
+        if (pos + 1 >= localLimit) {
           failed = PqTransportError.decodeFailure('truncated pointer');
           return null;
         }
@@ -298,7 +301,7 @@ final class _DnsReader {
         return null;
       }
       final start = jumped ? returnTo : offset;
-      if (start + len > wire.length) {
+      if (start + len > localLimit) {
         failed = PqTransportError.decodeFailure('truncated label');
         return null;
       }
@@ -320,14 +323,30 @@ final class _DnsReader {
     final klass = u16();
     final ttl = u32();
     final rdlen = u16();
-    final rdata = take(rdlen);
     if (failed != null) return null;
+    if (remaining < rdlen) {
+      failed = PqTransportError.decodeFailure('truncated rdata');
+      return null;
+    }
+    final rdataStart = offset;
+    final rdataEnd = rdataStart + rdlen;
     final type = dnsTypeFromValue(typeV);
     if (type == null) {
       failed = PqTransportError.decodeFailure('unknown rr type $typeV');
+      offset = rdataEnd;
       return null;
     }
-    return _parseRdata(name, type, klass, ttl, rdata);
+    final rec = _parseRdata(name, type, klass, ttl, rdataStart, rdataEnd);
+    offset = rdataEnd;
+    return rec;
+  }
+
+  bool _rdataNeed(int n, int rdataEnd) {
+    if (offset + n > rdataEnd) {
+      failed ??= PqTransportError.decodeFailure('truncated rdata');
+      return false;
+    }
+    return true;
   }
 
   DnsRecord? _parseRdata(
@@ -335,9 +354,11 @@ final class _DnsReader {
     DnsType type,
     int klass,
     int ttl,
-    Uint8List rdata,
+    int rdataStart,
+    int rdataEnd,
   ) {
-    final inner = _DnsReader(rdata);
+    final rdata = slice(wire, rdataStart, rdataEnd);
+    offset = rdataStart;
     switch (type) {
       case DnsType.a:
         if (rdata.length != 4) {
@@ -352,50 +373,42 @@ final class _DnsReader {
         }
         return DnsAaaa(name: name, address: rdata, ttl: ttl);
       case DnsType.cname:
-        final n = inner.readName();
-        if (n == null) {
-          failed = inner.failed;
-          return null;
-        }
+        final n = readName(end: rdataEnd);
+        if (n == null) return null;
         return DnsCname(name: name, canonical: n, ttl: ttl);
       case DnsType.ptr:
-        final n = inner.readName();
-        if (n == null) {
-          failed = inner.failed;
-          return null;
-        }
+        final n = readName(end: rdataEnd);
+        if (n == null) return null;
         return DnsPtr(name: name, pointer: n, ttl: ttl);
       case DnsType.ns:
-        final n = inner.readName();
-        if (n == null) {
-          failed = inner.failed;
-          return null;
-        }
+        final n = readName(end: rdataEnd);
+        if (n == null) return null;
         return DnsNs(name: name, nameserver: n, ttl: ttl);
       case DnsType.mx:
-        final pref = inner.u16();
-        final ex = inner.readName();
-        if (ex == null) {
-          failed = inner.failed;
-          return null;
-        }
+        if (!_rdataNeed(2, rdataEnd)) return null;
+        final pref = u16();
+        final ex = readName(end: rdataEnd);
+        if (ex == null) return null;
         return DnsMx(name: name, preference: pref, exchange: ex, ttl: ttl);
       case DnsType.txt:
+        final inner = _DnsReader(rdata);
         final strings = <String>[];
         while (inner.remaining > 0) {
           final n = inner.u8();
           strings.add(utf8.decode(inner.take(n)));
         }
-        return DnsTxt(name: name, strings: strings, ttl: ttl);
-      case DnsType.srv:
-        final pri = inner.u16();
-        final w = inner.u16();
-        final port = inner.u16();
-        final tgt = inner.readName();
-        if (tgt == null) {
+        if (inner.failed != null) {
           failed = inner.failed;
           return null;
         }
+        return DnsTxt(name: name, strings: strings, ttl: ttl);
+      case DnsType.srv:
+        if (!_rdataNeed(6, rdataEnd)) return null;
+        final pri = u16();
+        final w = u16();
+        final port = u16();
+        final tgt = readName(end: rdataEnd);
+        if (tgt == null) return null;
         return DnsSrv(
           name: name,
           priority: pri,
@@ -411,6 +424,10 @@ final class _DnsReader {
         }
         final flags = rdata[0];
         final tagLen = rdata[1];
+        if (2 + tagLen > rdata.length) {
+          failed = PqTransportError.decodeFailure('caa');
+          return null;
+        }
         final tag = utf8.decode(rdata.sublist(2, 2 + tagLen));
         final value = utf8.decode(rdata.sublist(2 + tagLen));
         return DnsCaa(
@@ -422,17 +439,16 @@ final class _DnsReader {
         );
       case DnsType.svcb:
       case DnsType.https:
-        final pri = inner.u16();
-        final tgt = inner.readName();
-        if (tgt == null) {
-          failed = inner.failed;
-          return null;
-        }
+        if (!_rdataNeed(2, rdataEnd)) return null;
+        final pri = u16();
+        final tgt = readName(end: rdataEnd);
+        if (tgt == null) return null;
         final params = <int, Uint8List>{};
-        while (inner.remaining > 0) {
-          final k = inner.u16();
-          final l = inner.u16();
-          params[k] = inner.take(l);
+        while (offset + 4 <= rdataEnd) {
+          final k = u16();
+          final l = u16();
+          if (!_rdataNeed(l, rdataEnd)) return null;
+          params[k] = take(l);
         }
         if (type == DnsType.https) {
           return DnsHttps(
@@ -451,11 +467,16 @@ final class _DnsReader {
           ttl: ttl,
         );
       case DnsType.opt:
+        final inner = _DnsReader(rdata);
         final options = <int, Uint8List>{};
         while (inner.remaining > 0) {
           final k = inner.u16();
           final l = inner.u16();
           options[k] = inner.take(l);
+        }
+        if (inner.failed != null) {
+          failed = inner.failed;
+          return null;
         }
         return DnsOpt(
           udpPayload: klass,

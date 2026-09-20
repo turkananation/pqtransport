@@ -92,7 +92,7 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 | 0.5.3 | HTTP/2 on `PqTlsSocket` (ALPN `h2`) | OPEN-07 |
 | 0.5.4 | HTTP/3 + QPACK on a real QUIC stream | OPEN-07 |
 | 0.5.5 | Production DoH (`application/dns-message` POST, URI template) and DoT (ALPN `dot`) | OPEN-10 |
-| 0.5.6 | DNS rdata name-pointer resolution into the outer message | OPEN-08 |
+| 0.5.6 | DNS rdata name-pointer resolution into the outer message | OPEN-08 **Done** |
 
 HTTP/3 must not silently downgrade to HTTP/1.1 (`allowDowngrade: false`
 stays the default).
@@ -116,8 +116,7 @@ Never parallelize:
 
 1. LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). Hellos, raw-pk, HRR,
    and IANA `0x1302`/`0x1303` are on the wire.
-2. Parallel 0.5 items that do not need QUIC: OPEN-08 (DNS rdata pointers),
-   OPEN-09 (`joinMulticast`).
+2. Parallel 0.5 items that do not need QUIC: OPEN-09 (`joinMulticast`).
 
 Do not start HTTP/3 before OPEN-06. CRYPTO frames now carry a real TLS
 handshake.

@@ -19,7 +19,6 @@ Canonical tracker:
 | --- | --- | --- |
 | OPEN-06 | P2 | QUIC has no header protection / ACK / RFC 9001 |
 | OPEN-07 | P2 | HTTP/2 missing; HTTP/3 is frames without QPACK |
-| OPEN-08 | P2 | DNS rdata compression into the outer message is not resolved |
 | OPEN-09 | P2 | `IoDatagramChannel` does not join mDNS multicast |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
 
