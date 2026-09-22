@@ -12,6 +12,6 @@ dart run example/mdns_discovery.dart
 |---|---|
 | `pq_tls_client.dart` | Compact TLS 1.3 hybrid handshake (X25519MLKEM768) and exporter |
 | `encrypted_udp_peer.dart` | Encrypted UDP session over `MemoryDatagramNetwork` |
-| `mdns_discovery.dart` | Probe + announce on the in-memory multicast flood |
+| `mdns_discovery.dart` | Probe + announce; joins mDNS groups on the memory network |
 
 Live IO sockets: `import 'package:pqtransport/pqtransport_io.dart';`

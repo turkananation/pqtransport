@@ -82,7 +82,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 |---|---|---|---|---|
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
-| OPEN-09 | P2 | pqtransport | LAN mDNS | `joinMulticast` on `IoDatagramChannel` |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
 ### pqforge exports (0.4.5 — consumed)
@@ -103,6 +102,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-13 | P2 | **Fixed** | IANA `0x1303` + ChaCha records on VM / dart2wasm / dart2js (pqforge 0.4.5) |
 | OPEN-12 | P3 | **Fixed** | Leftover DNS/UDP/TLS error paths |
 | OPEN-08 | P2 | **Fixed** | Rdata name pointers resolve against the outer message |
+| OPEN-09 | P2 | **Fixed** | `joinMulticast` on IO + membership-gated memory flood |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -124,11 +124,10 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
-| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-09, OPEN-10 |
+| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-10 |
 
 Do not start 0.5 HTTP/3 before OPEN-06. Do not vendor P-256 ECDH. Next coding
-turn: LIM-01 OpenSSL fixture, **or** slice 0.5 items that do not need QUIC
-(OPEN-09).
+turn: LIM-01 OpenSSL fixture. Parallel 0.5 without QUIC: OPEN-10.
 
 ## Verification commands
 

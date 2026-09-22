@@ -45,11 +45,11 @@ clock. `CircuitBreaker` wraps exchange and opens after
 
 ## mDNS
 
-Probe / announce / browse on 5353 against an in-memory multicast flood.
-Optional ML-DSA-65 TXT (`pqsig=`). EventBus announcements per client.
-`IoDatagramChannel` does not yet `joinMulticast` (OPEN-09) — real LAN
-discovery is unicast-only. SLH-DSA signed records are not the interactive
-default.
+Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
+`ff02::fb` (`joinMdnsGroups`). Optional ML-DSA-65 TXT (`pqsig=`).
+EventBus announcements per client. Real LAN mDNS uses
+`IoDatagramChannel.joinMulticast`. Browsers have no raw UDP (LIM-04).
+SLH-DSA signed records are not the interactive default.
 
 ## QUIC / HTTP
 

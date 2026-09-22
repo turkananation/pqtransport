@@ -49,7 +49,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | QUIC 1-RTT protect + CRYPTO/STREAM | Partial |
 | HTTP/2 | Not started |
 | HTTP/3 QPACK | Not started |
-| IoDatagramChannel multicast join | Not started |
+| IoDatagramChannel multicast join | Done |
 
 ## Claims we do not feature
 

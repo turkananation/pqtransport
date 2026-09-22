@@ -39,6 +39,12 @@
   NS / PTR / MX / SRV / HTTPS / SVCB names that are RFC 1035 pointers are
   resolved against the full datagram. A truncated rdata name cannot
   consume the next RR. Our encoder still emits uncompressed names.
+- `PqDatagramChannel.joinMulticast` / `leaveMulticast` (OPEN-09).
+  `IoDatagramChannel` calls `RawDatagramSocket.joinMulticast` on
+  `224.0.0.251` / `ff02::fb` (TTL 255 for mDNS). Memory channels record
+  membership so flood delivery only hits sockets that joined. `PqMdnsClient.browse`
+  and `PqMdnsServer.beginProbe` join both families (`joinMdnsGroups`).
+  `beginProbe` is now `Future`. Browsers still have no raw UDP (LIM-04).
 
 ### Changed
 
@@ -77,7 +83,8 @@
 - Live `0x1302` and `0x1303` handshakes on VM **and dart2js** (no
   platform branch). RFC 8439 §2.8.2 pin through `PqTransportCrypto`.
   Leftover DNS/UDP/TLS error paths (OPEN-12). Foreign-message rdata
-  compression pointers (OPEN-08).
+  compression pointers (OPEN-08). `joinMulticast` IO loopback + memory
+  membership (OPEN-09).
 
 ## 0.1.0
 

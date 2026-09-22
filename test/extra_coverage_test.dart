@@ -49,12 +49,12 @@ void main() {
   });
 
   group('mDNS collision', () {
-    test('collision fails closed', () {
+    test('collision fails closed', () async {
       final net = MemoryDatagramNetwork();
       final server = PqMdnsServer(
         channel: net.bind(const PqEndpoint('10.9.0.1', mdnsPort)),
       );
-      expect(server.beginProbe('x.local.').isSuccess, isTrue);
+      expect((await server.beginProbe('x.local.')).isSuccess, isTrue);
       expect(server.completeProbe(collision: true).isFailure, isTrue);
       expect(server.state, MdnsState.failed);
     });

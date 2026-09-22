@@ -41,9 +41,10 @@ import 'package:pqtransport/pqtransport_io.dart';
 |---|---|
 | `PqTransportSocket` | Bytes in / bytes out |
 | `MemoryByteSocket.pair()` | In-memory duplex; buffers until a listener attaches |
-| `PqEndpoint` / `PqDatagramChannel` / `PqDatagramIn` | Addressed datagrams |
-| `MemoryDatagramNetwork` | In-memory network; multicast flood on 224.0.0.251 / ff02::fb |
-| `IoDatagramChannel.bind` | `dart:io` UDP (IO barrel only) |
+| `PqEndpoint` / `PqDatagramChannel` / `PqDatagramIn` | Addressed datagrams; `joinMulticast` / `leaveMulticast` |
+| `MemoryDatagramNetwork` | In-memory network; multicast only to joined sockets (`224.0.0.251` / `ff02::fb`) |
+| `IoDatagramChannel.bind` | `dart:io` UDP (IO barrel only); `joinMulticast` for LAN mDNS |
+| `joinMdnsGroups` | Join IPv4 and/or IPv6 mDNS groups; succeeds if either family joins |
 
 ## UDP
 

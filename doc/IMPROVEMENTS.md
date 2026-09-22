@@ -52,7 +52,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | ID | Pri | Item | Why |
 |---|---|---|---|
 | IMP-12 | P1 | OpenSSL 3.5+ fixture | LIM-01; wording stays honest until green |
-| IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | OPEN-09; real LAN mDNS |
+| IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | **Done** OPEN-09 |
 | IMP-14 | P2 | QUIC header protection + ACK + RFC 9001 | OPEN-06 |
 | IMP-15 | P2 | HTTP/2; then HTTP/3+QPACK | OPEN-07 |
 | IMP-16 | P2 | Production DoH/DoT (ALPN, URI template) | OPEN-10 |
@@ -83,6 +83,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ## Suggested first PR (when directed)
 
 LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
-OPEN-04, OPEN-05, OPEN-12, OPEN-13 are done. Do not mix with QUIC work.
-ChaCha on dart2js is **done** in pqforge 0.4.5 (Dart engine), consumed
-here. Do not vendor ChaCha. See [CHACHA_DART2JS.md](CHACHA_DART2JS.md).
+OPEN-04, OPEN-05, OPEN-08, OPEN-09, OPEN-12, OPEN-13 are done. Do not mix
+with QUIC work. ChaCha on dart2js is **done** in pqforge 0.4.5 (Dart
+engine), consumed here. Do not vendor ChaCha. See
+[CHACHA_DART2JS.md](CHACHA_DART2JS.md).

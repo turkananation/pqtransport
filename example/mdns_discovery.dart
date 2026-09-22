@@ -7,7 +7,7 @@ Future<void> main() async {
   final server = PqMdnsServer(
     channel: net.bind(const PqEndpoint('10.0.0.1', mdnsPort)),
   );
-  server.beginProbe('printer._pq._tcp.local.');
+  await server.beginProbe('printer._pq._tcp.local.');
   server.completeProbe(collision: false);
   server.completeProbe(collision: false);
   await server.announce(

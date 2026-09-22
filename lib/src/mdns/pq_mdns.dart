@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/errors.dart';
@@ -6,6 +7,20 @@ import '../core/lengths.dart';
 import '../dns/records.dart';
 import '../dns/wire.dart';
 import '../socket/pq_transport_socket.dart';
+
+/// Join IPv4 and/or IPv6 mDNS groups. Succeeds if **either** family joins
+/// (an IPv4 socket cannot join `ff02::fb`). Callers must still send to the
+/// family they bound.
+Future<Result<void, PqTransportError>> joinMdnsGroups(
+  PqDatagramChannel channel,
+) async {
+  final v4 = await channel.joinMulticast(PqEndpoint.mdnsV4);
+  final v6 = await channel.joinMulticast(PqEndpoint.mdnsV6);
+  if (v4.isSuccess || v6.isSuccess) {
+    return const Result.success(null);
+  }
+  return v4;
+}
 
 enum MdnsState {
   idle,
@@ -64,7 +79,7 @@ final class PqMdnsServer {
 
   MdnsState get state => machine.currentState;
 
-  Result<void, PqTransportError> beginProbe(String instance) {
+  Future<Result<void, PqTransportError>> beginProbe(String instance) async {
     final r = machine.trigger(MdnsEvent.startProbe);
     if (r.isFailure) {
       return Result.failure(
@@ -72,7 +87,7 @@ final class PqMdnsServer {
       );
     }
     _probes = 0;
-    return const Result.success(null);
+    return joinMdnsGroups(channel);
   }
 
   Result<void, PqTransportError> completeProbe({required bool collision}) {
@@ -128,6 +143,8 @@ final class PqMdnsClient {
         PqTransportError.unexpectedMessage(t.errorOrNull!.message),
       );
     }
+    final joined = await joinMdnsGroups(channel);
+    if (joined.isFailure) return joined;
     _sub = channel.incoming.listen((d) {
       final msg = decodeDnsMessage(d.data);
       if (msg.isFailure) return;

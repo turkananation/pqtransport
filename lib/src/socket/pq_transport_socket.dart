@@ -43,11 +43,26 @@ final class PqEndpoint {
       host == mdnsIpv6Group ||
       host.startsWith('224.') ||
       host.toLowerCase().startsWith('ff');
+
+  static const mdnsV4 = PqEndpoint(mdnsIpv4Group, mdnsPort);
+  static const mdnsV6 = PqEndpoint(mdnsIpv6Group, mdnsPort);
 }
 
 abstract interface class PqDatagramChannel {
   Stream<PqDatagramIn> get incoming;
   Future<Result<void, PqTransportError>> send(Uint8List data, PqEndpoint peer);
+
+  /// Join an IP multicast group. Required to **receive** mDNS on a real NIC
+  /// (`224.0.0.251` / `ff02::fb`). Sending to a group does not join.
+  /// In-memory channels record membership so flood delivery only hits
+  /// sockets that joined. [group.port] is ignored by the IO driver
+  /// (`IP_ADD_MEMBERSHIP` is address-only); the memory driver still
+  /// matches destination port on deliver.
+  Future<Result<void, PqTransportError>> joinMulticast(PqEndpoint group);
+
+  /// Drop membership previously added by [joinMulticast].
+  Future<Result<void, PqTransportError>> leaveMulticast(PqEndpoint group);
+
   Future<void> close();
   bool get isClosed;
 }
@@ -138,6 +153,7 @@ final class MemoryDatagramNetwork {
   MemoryDatagramNetwork();
 
   final Map<PqEndpoint, _Mailbox> _mailboxes = {};
+  final Map<PqEndpoint, Set<String>> _memberships = {};
 
   MemoryDatagramChannel bind(PqEndpoint local) {
     // ignore: close_sinks
@@ -154,12 +170,23 @@ final class MemoryDatagramNetwork {
     return MemoryDatagramChannel._(this, local, mailbox);
   }
 
+  void _join(PqEndpoint local, String groupHost) {
+    _memberships.putIfAbsent(local, () => {}).add(groupHost.toLowerCase());
+  }
+
+  void _leave(PqEndpoint local, String groupHost) {
+    _memberships[local]?.remove(groupHost.toLowerCase());
+  }
+
   void deliver(PqEndpoint from, PqEndpoint to, Uint8List data) {
     final packet = PqDatagramIn(data: Uint8List.fromList(data), peer: from);
     if (to.isMulticast) {
+      final group = to.host.toLowerCase();
       for (final entry in _mailboxes.entries) {
         if (entry.key == from) continue;
         if (entry.key.port != to.port) continue;
+        final joined = _memberships[entry.key];
+        if (joined == null || !joined.contains(group)) continue;
         entry.value.add(packet);
       }
       return;
@@ -214,6 +241,31 @@ final class MemoryDatagramChannel implements PqDatagramChannel {
       return Result.failure(PqTransportError.closed('send on closed channel'));
     }
     _net.deliver(local, peer, data);
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<void, PqTransportError>> joinMulticast(PqEndpoint group) async {
+    if (_closed) {
+      return Result.failure(PqTransportError.closed('joinMulticast'));
+    }
+    if (!group.isMulticast) {
+      return Result.failure(
+        PqTransportError.unsupported('not a multicast group ${group.host}'),
+      );
+    }
+    _net._join(local, group.host);
+    return const Result.success(null);
+  }
+
+  @override
+  Future<Result<void, PqTransportError>> leaveMulticast(
+    PqEndpoint group,
+  ) async {
+    if (_closed) {
+      return Result.failure(PqTransportError.closed('leaveMulticast'));
+    }
+    _net._leave(local, group.host);
     return const Result.success(null);
   }
 
