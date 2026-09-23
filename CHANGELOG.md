@@ -119,7 +119,7 @@
 - No OpenSSL interop fixture yet. Wording is RFC 10024-aligned encoding with
   unit-tested concatenation, not "interoperable with OpenSSL".
 - No FIPS 140 module validation claim. Best-effort zeroization only.
-- TLS schedule in the 0.1.0 snapshot was HKDF-SHA-256. See Unreleased for
-  IANA `0x1302` / `0x1303`.
+- TLS schedule in the initial 0.1.0 snapshot was HKDF-SHA-256; this release
+  records the IANA `0x1302` / `0x1303` update above.
 - QUIC is 1-RTT packet protect + frames, not a full RFC 9000 stack.
 - HTTP/3 is frames, not QPACK.
