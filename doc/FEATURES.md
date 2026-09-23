@@ -8,7 +8,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## Hybrid key exchange (RFC 10024)
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | X25519MLKEM768 share encode/decode/combine | Done | ML-KEM first. 1216 / 1120 / 64. |
 | SecP256r1MLKEM768 share encode/decode/combine | Done | ECDHE first. Leading `0x04`. 1249 / 1153 / 64. |
 | SecP384r1MLKEM1024 share encode/decode/combine | Done | ECDHE first. 1665 / 1665 / 80. |
@@ -22,7 +22,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## TLS 1.3
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Client / server state machines | Done | swissarmyknife `StateMachine`; illegal event → `failed` |
 | RFC 8446 ClientHello / ServerHello | Done | `legacy_version` 0x0303, extensions, `key_share`. Compact 0.1 retired. |
 | EncryptedExtensions + Certificate + CertVerify + Finished | Done | EE carries RFC 7250 RawPublicKey. Certificate payload is raw ML-DSA-65, negotiated not silent. |
@@ -41,7 +41,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## UDP
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Versioned datagram envelope | Done | `version \|\| hdrLen \|\| header \|\| nonce \|\| ct\|\|tag` |
 | AES-256-GCM with AAD-bound sequence | Done | |
 | Replay window | Done | Peek sequence **before** AEAD open |
@@ -54,7 +54,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## DNS / DoH / DoT
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | A, AAAA, CNAME, MX, TXT, SRV, CAA, HTTPS, SVCB, OPT, PTR, NS | Done | Round-trip tests |
 | Compression pointer cycle rejection | Done | |
 | TTL cache (injected clock) | Done | |
@@ -68,7 +68,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## mDNS
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09) |
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
@@ -78,7 +78,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## QUIC / HTTP
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | 1-RTT packet protect | Done | No header protection |
 | CRYPTO / STREAM / padding-capable frames | Partial | CRYPTO + STREAM encode; no ACK processor |
 | Flow control (MAX_DATA / MAX_STREAM_DATA) | Partial | `QuicFlowControl.consume` |
@@ -94,7 +94,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 ## Platform
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Web-safe barrel | Done | `package:pqtransport/pqtransport.dart` |
 | IO barrel | Done | `package:pqtransport/pqtransport_io.dart` |
 | In-memory sockets for tests | Done | Buffer-until-listen; multicast flood |

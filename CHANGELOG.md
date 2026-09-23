@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0
 
 ### Added
 
@@ -86,9 +86,9 @@
   compression pointers (OPEN-08). `joinMulticast` IO loopback + memory
   membership (OPEN-09).
 
-## 0.1.0
+### Baseline release surface
 
-### Added
+#### Added
 
 - Core length contracts and RFC 10024 hybrid share encode/decode/combine for
   X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024.
@@ -106,7 +106,7 @@
 - In-memory `MemoryByteSocket` / `MemoryDatagramNetwork` (multicast flood on
   224.0.0.251 / ff02::fb) so the stack is easy to consume in tests.
 
-### Tests
+#### Tests
 
 - Analyzer clean. `dart test` covers hybrid concat (all three groups), AEAD
   round-trip, replay-before-open, TLS machines, live X25519MLKEM768 handshake,
@@ -114,7 +114,7 @@
   probe/announce/browse, ML-DSA-65 TXT, QUIC CRYPTO frames carrying the
   1216-byte share, and `dart:io` UDP bind.
 
-### Limits (honest)
+#### Limits (honest)
 
 - No OpenSSL interop fixture yet. Wording is RFC 10024-aligned encoding with
   unit-tested concatenation, not "interoperable with OpenSSL".

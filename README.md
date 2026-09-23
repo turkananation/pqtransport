@@ -1,7 +1,6 @@
 # pqtransport
 
-Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange
-(RFC 10024), DNS/DoH/DoT, mDNS, QUIC, and HTTP/1.1–3.
+Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange(RFC 10024), DNS/DoH/DoT, mDNS, QUIC, and HTTP/1.1–3.
 
 ## Project signals
 
@@ -62,7 +61,7 @@ How the site is built: [`doc/SITE.md`](doc/SITE.md).
 ## Hybrid groups (RFC 10024)
 
 | Group | Codepoint | Client | Server | Shared secret | Order |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | X25519MLKEM768 | 0x11EC | 1216 | 1120 | 64 | **ML-KEM then X25519** |
 | SecP256r1MLKEM768 | 0x11EB | 1249 | 1153 | 64 | ECDHE then ML-KEM |
 | SecP384r1MLKEM1024 | 0x11ED | 1665 | 1665 | 80 | ECDHE then ML-KEM |
@@ -144,7 +143,7 @@ QUIC CRYPTO frames carrying the 1216-byte share, `dart:io` UDP.
 Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 
 | Document | Purpose |
-|---|---|
+| --- | --- |
 | [doc/ACHIEVEMENTS.md](doc/ACHIEVEMENTS.md) | What 0.1.0 shipped, with evidence |
 | [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) | Layout, concat, TLS/UDP data flow |
 | [doc/FEATURES.md](doc/FEATURES.md) | Done / partial / fail-closed / not started |
@@ -158,7 +157,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 ## Sister packages
 
 | Package | Role |
-|---|---|
+| --- | --- |
 | [pqcrypto](https://github.com/turkananation/pqcrypto) | ML-KEM / ML-DSA / SLH-DSA primitives and KATs |
 | [pqforge](https://github.com/turkananation/pqforge) | Hybrid crypto workflows this package consumes |
 | [swissarmyknife](https://github.com/turkananation/swissarmyknife) | `Result`, `StateMachine`, `CircuitBreaker`, `Cache` |

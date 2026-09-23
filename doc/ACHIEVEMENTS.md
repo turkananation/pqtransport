@@ -8,7 +8,7 @@ file. If a row cannot be cited, it does not belong here.
 ## Release snapshot
 
 | Item | Value | Evidence |
-|---|---|---|
+| --- | --- | --- |
 | Version | `0.1.0` | `pubspec.yaml` |
 | SDK | `>=3.12.0 <4.0.0` | `pubspec.yaml` (blueprint's `>=3.8.0` was stale) |
 | Crypto | `pqforge ^0.4.5` | `pubspec.yaml` |
@@ -26,7 +26,7 @@ Build order from the skill was respected:
 `core lengths/errors` → `socket` → `udp` → `tls` → `dns` → `mdns` → `quic` → `http`
 
 | Phase | Delivered | Gate |
-|---|---|---|
+| --- | --- | --- |
 | 0 Core | `lengths.dart` holds every protocol size; `requireLength`; hybrid concat for **three** groups including ML-KEM-1024 | `test/core/` |
 | 1 Socket | `PqTransportSocket`, `MemoryByteSocket` (buffers until listen), `MemoryDatagramNetwork` (unicast + mDNS multicast flood), `IoDatagramChannel` | `test/io/`, `test/extra_coverage_test.dart` |
 | 2 UDP | `PqDatagram` AES-256-GCM, replay peek **before** AEAD, Throttler, `PqEncryptedUdpSocket` for all three RFC 10024 groups | `test/udp/datagram_test.dart` |
@@ -44,7 +44,7 @@ RFC 10024 concatenation is **group-dependent**. Tests prove the two 64-byte
 combiners differ for the same `(ssKem, ssEcdh)` pair.
 
 | Group | Codepoint | Client | Server | SS | Order | Live KEX |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | X25519MLKEM768 | 0x11EC | 1216 | 1120 | 64 | **ML-KEM then X25519** | Yes |
 | SecP256r1MLKEM768 | 0x11EB | 1249 | 1153 | 64 | ECDHE then ML-KEM; leading `0x04` | Yes (`balanced`) |
 | SecP384r1MLKEM1024 | 0x11ED | 1665 | 1665 | 80 | ECDHE then ML-KEM; leading `0x04` | Yes (`maximum`) |
@@ -58,7 +58,7 @@ Evidence: `test/core/hybrid_share_test.dart`.
 ## Live cryptography (not stubs)
 
 | Path | What actually runs |
-|---|---|
+| --- | --- |
 | ML-KEM-768 / ML-KEM-1024 | `PqKemPrimitives.generateKeyPair` / `encapsulate` / `decapsulate` |
 | X25519 | `PqForgeHybridKeyAgreement.generateClassicalKeyPairBytes` + `x25519SharedSecret` |
 | P-256 ECDH | `generateP256KeyPairBytes` / `p256SharedSecret` (uncompressed SEC1, x-coordinate) |
@@ -76,7 +76,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 ## swissarmyknife mapping (mandatory, done)
 
 | Concern | Primitive | Where |
-|---|---|---|
+| --- | --- | --- |
 | TLS / UDP reliability / mDNS / QUIC | `StateMachine` | `tls/machines.dart`, `udp/reliable_window.dart`, `mdns/pq_mdns.dart`, `quic/packet.dart` |
 | Parses | `Result<T, PqTransportError>` | every codec |
 | DoH/DoT/UDP resolver hops | `CircuitBreaker` | `PqDnsClient` |
@@ -87,7 +87,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 ## Test gates (skill `09-test-gates.md`) — 0.1.0
 
 | Gate | Status |
-|---|---|
+| --- | --- |
 | `requireLength` exact / n-1 / n+1 | Done |
 | Combiner order differs X25519 vs P-256 | Done |
 | `zeroize` overwrites the buffer | Done |

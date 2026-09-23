@@ -24,7 +24,7 @@ upgrade a claim this layer is not allowed to make. See
 ## Current package boundary
 
 | Area | Current state |
-|---|---|
+| --- | --- |
 | Package version | `0.1.0` (unpublished on pub.dev; GitHub tag `vX.Y.Z` publishes via `publish.yml` once automated publishing is enabled) |
 | SDK | `>=3.12.0 <4.0.0` |
 | Runtime dependencies | `pqforge ^0.4.5`, `swissarmyknife ^0.1.0` |
@@ -39,7 +39,7 @@ upgrade a claim this layer is not allowed to make. See
 ## Read this first
 
 | Need | Start here | Then read |
-|---|---|---|
+| --- | --- | --- |
 | What 0.1.0 actually shipped | [ACHIEVEMENTS.md](ACHIEVEMENTS.md) | [FEATURES.md](FEATURES.md) |
 | How the stack is laid out | [ARCHITECTURE.md](ARCHITECTURE.md) | [API.md](API.md) |
 | Public API and barrels | [API.md](API.md) | [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
@@ -53,7 +53,7 @@ upgrade a claim this layer is not allowed to make. See
 ## Documents
 
 | Document | Purpose |
-|---|---|
+| --- | --- |
 | [ACHIEVEMENTS.md](ACHIEVEMENTS.md) | What 0.1.0 delivered, with evidence (tests, coverage, gates). |
 | [FEATURES.md](FEATURES.md) | Feature matrix: done / partial / fail-closed / not started. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Module layout, data flow, barrels, swissarmyknife/pqforge mapping. |

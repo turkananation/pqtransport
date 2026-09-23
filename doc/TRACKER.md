@@ -16,7 +16,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 ## Snapshot
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | Package | `pqtransport 0.1.0` (unpublished on pub.dev until the owner cuts a release) |
 | SDK | `>=3.12.0 <4.0.0` |
 | Crypto | `pqforge ^0.4.5` |
@@ -32,7 +32,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 ## What 0.1.0 closed
 
 | Area | Result | Evidence |
-|---|---|---|
+| --- | --- | --- |
 | Core lengths + hybrid concat (3 groups) | Done | `test/core/` |
 | Socket abstraction + in-memory drivers | Done | `test/io/`, `test/extra_coverage_test.dart` |
 | Encrypted UDP (all three groups) | Done | `test/udp/datagram_test.dart` |
@@ -48,7 +48,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 ## Test gates (skill `09-test-gates.md`)
 
 | ID | Gate | Status |
-|---|---|---|
+| --- | --- | --- |
 | GATE-01 | `requireLength` exact / n-1 / n+1 | Done |
 | GATE-02 | Combiner order differs X25519 vs P-256 | Done |
 | GATE-03 | `zeroize` overwrites the buffer | Done |
@@ -79,7 +79,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 ### Transport defects (this package)
 
 | ID | Sev | Owner | Blocks | Next action |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
@@ -87,7 +87,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 ### pqforge exports (0.4.5 — consumed)
 
 | ID | Sev | Status | Evidence |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | BLK-01 | P0 | **Fixed** | Live SecP256r1MLKEM768 / SecP384r1MLKEM1024 |
 | BLK-02 | P1 | **Fixed** | SHA-256 UDP + SHA-384 TLS schedule (OPEN-02) |
 | BLK-03 | P2 | **Fixed** | Wired as OPEN-13 / IANA `0x1303` |
@@ -109,7 +109,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ### Honest 0.1 limits (not defects)
 
 | ID | Summary | Roadmap slice |
-|---|---|---|
+| --- | --- | --- |
 | LIM-01 | OpenSSL / BoringSSL handshake | 0.4, after OPEN-01 |
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
@@ -119,7 +119,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ## Roadmap slices (ownership)
 
 | Slice | Theme | Depends on | Primary IDs |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
