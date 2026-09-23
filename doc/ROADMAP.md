@@ -87,7 +87,7 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 
 | # | Work | Closes |
 |---|---|---|
-| 0.5.1 | `IoDatagramChannel.joinMulticast` on 224.0.0.251 / ff02::fb | OPEN-09 |
+| 0.5.1 | `IoDatagramChannel.joinMulticast` on 224.0.0.251 / ff02::fb | OPEN-09 **Done** |
 | 0.5.2 | QUIC header protection, ACK processing, RFC 9001 TLS-in-QUIC | OPEN-06 |
 | 0.5.3 | HTTP/2 on `PqTlsSocket` (ALPN `h2`) | OPEN-07 |
 | 0.5.4 | HTTP/3 + QPACK on a real QUIC stream | OPEN-07 |
@@ -116,7 +116,7 @@ Never parallelize:
 
 1. LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). Hellos, raw-pk, HRR,
    and IANA `0x1302`/`0x1303` are on the wire.
-2. Parallel 0.5 items that do not need QUIC: OPEN-09 (`joinMulticast`).
+2. Parallel 0.5 items that do not need QUIC: OPEN-10 (production DoH/DoT).
 
 Do not start HTTP/3 before OPEN-06. CRYPTO frames now carry a real TLS
 handshake.

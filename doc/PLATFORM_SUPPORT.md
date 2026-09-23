@@ -27,7 +27,7 @@ not exist — `pqtransport_io.dart` only adds a datagram driver.
 | Encrypted UDP (memory network) | Yes | Yes | Yes | Yes |
 | Encrypted UDP (real NIC) | Yes (`IoDatagramChannel`) | Yes | Yes | **No** |
 | mDNS probe/announce (memory flood) | Yes | Yes | Yes | Yes |
-| mDNS on a real LAN | Bind/send/receive unicast only until OPEN-09 (`joinMulticast`) | same | same | **No** |
+| mDNS on a real LAN | Yes (`joinMulticast` on 224.0.0.251 / ff02::fb) | Yes | Yes | **No** |
 | QUIC / HTTP/3 | Sketch only (all platforms) | Sketch | Sketch | Sketch (and no raw UDP) |
 | Platform `SecureSocket` / `HttpClient` TLS | Not used on the PQ path | Not used | Not used | Not used |
 
@@ -52,13 +52,24 @@ the HTTP round-trip.
 ```dart
 import 'package:pqtransport/pqtransport_io.dart';
 
-final ch = await IoDatagramChannel.bind(InternetAddress.anyIPv4, 0);
+final ch = await IoDatagramChannel.bind(
+  InternetAddress.anyIPv4,
+  mdnsPort,
+  reusePort: true,
+);
+await ch.joinMulticast(PqEndpoint.mdnsV4);
 ```
 
-`IoDatagramChannel` does **not** call `joinMulticast` on 224.0.0.251 /
-ff02::fb (OPEN-09). Unicast bind/send/receive works; real LAN mDNS
-discovery does not. The in-memory `MemoryDatagramNetwork` floods those
-group addresses so tests can exercise probe/announce/browse.
+`IoDatagramChannel.joinMulticast` issues `IP_ADD_MEMBERSHIP` /
+`IPV6_JOIN_GROUP` for `224.0.0.251` and `ff02::fb`. mDNS hops are 255
+(RFC 6762). Family mismatch (IPv4 socket + `ff02::fb`) fails closed.
+
+Linux IPv4 sockets bound to `INADDR_ANY` may still see 224.0.0.0/4 on
+that port when `IP_MULTICAST_ALL=1` (kernel default). That does **not**
+replace IGMP join on a switched LAN. The in-memory
+`MemoryDatagramNetwork` delivers multicast only to sockets that joined.
+
+Browsers have no raw UDP (LIM-04).
 
 ## Verified in this tree
 

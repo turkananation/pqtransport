@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/errors.dart';
+import '../core/lengths.dart';
 import 'pq_transport_socket.dart';
 
 /// `dart:io` UDP driver. Not exported from the web-safe barrel.
@@ -19,8 +20,23 @@ final class IoDatagramChannel implements PqDatagramChannel {
   int get port => _socket.port;
   InternetAddress get address => _socket.address;
 
-  static Future<IoDatagramChannel> bind(InternetAddress addr, int port) async {
-    final sock = await RawDatagramSocket.bind(addr, port);
+  /// Bind a UDP socket. [reuseAddress] defaults on so mDNS can share 5353.
+  /// [reusePort] is SO_REUSEPORT — pass `true` when binding [mdnsPort].
+  /// [multicastLoopback] must stay on for same-host mDNS tests.
+  static Future<IoDatagramChannel> bind(
+    InternetAddress addr,
+    int port, {
+    bool reuseAddress = true,
+    bool reusePort = false,
+    bool multicastLoopback = true,
+  }) async {
+    final sock = await RawDatagramSocket.bind(
+      addr,
+      port,
+      reuseAddress: reuseAddress,
+      reusePort: reusePort,
+    );
+    sock.multicastLoopback = multicastLoopback;
     // ignore: close_sinks
     final controller = StreamController<PqDatagramIn>.broadcast();
     final ch = IoDatagramChannel._(sock, controller);
@@ -54,6 +70,54 @@ final class IoDatagramChannel implements PqDatagramChannel {
     }
     _socket.send(data, InternetAddress(peer.host), peer.port);
     return const Result.success(null);
+  }
+
+  @override
+  Future<Result<void, PqTransportError>> joinMulticast(PqEndpoint group) async {
+    if (_closed) {
+      return Result.failure(PqTransportError.closed('joinMulticast'));
+    }
+    if (!group.isMulticast) {
+      return Result.failure(
+        PqTransportError.unsupported('not a multicast group ${group.host}'),
+      );
+    }
+    final addr = InternetAddress(group.host);
+    if (addr.type != _socket.address.type) {
+      return Result.failure(
+        PqTransportError.unsupported(
+          'joinMulticast family mismatch ${addr.type} vs ${_socket.address.type}',
+        ),
+      );
+    }
+    try {
+      if (group.host == mdnsIpv4Group || group.host == mdnsIpv6Group) {
+        _socket.multicastHops = 255;
+      }
+      _socket.joinMulticast(addr);
+      return const Result.success(null);
+    } on Object catch (e) {
+      return Result.failure(
+        PqTransportError.unsupported('joinMulticast ${group.host}: $e'),
+      );
+    }
+  }
+
+  @override
+  Future<Result<void, PqTransportError>> leaveMulticast(
+    PqEndpoint group,
+  ) async {
+    if (_closed) {
+      return Result.failure(PqTransportError.closed('leaveMulticast'));
+    }
+    try {
+      _socket.leaveMulticast(InternetAddress(group.host));
+      return const Result.success(null);
+    } on Object catch (e) {
+      return Result.failure(
+        PqTransportError.unsupported('leaveMulticast ${group.host}: $e'),
+      );
+    }
   }
 
   @override

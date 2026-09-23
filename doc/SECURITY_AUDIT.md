@@ -129,7 +129,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | Downgrade to TLS 1.2 / classical-only | Compact encoding has no 1.2 path; still add `supported_versions` in 0.2 |
 | HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |
 | DNS cache poisoning from compressed rdata names | Mitigated (OPEN-08): rdata pointers resolve against the outer message; RDLENGTH bounds the record |
-| mDNS spoofing on a real LAN | OPEN-09 (no multicast join); TXT sig helps when used |
+| mDNS spoofing on a real LAN | Mitigated in part (OPEN-09): `joinMulticast` required to receive; signed TXT (`pqsig=`) when used. Spoofed LAN peers remain a threat. |
 | QUIC injection via unprotected headers | OPEN-06 |
 | Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.5` / transitive 0.4.2 |
 

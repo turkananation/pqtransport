@@ -120,5 +120,4 @@ Recorded so achievements cannot be misread:
 - X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
 - Full RFC 9000 QUIC, HTTP/2, HTTP/3+QPACK.
 - Production DoH/DoT with ALPN.
-- Real multicast join on `IoDatagramChannel`.
 - CMVP / FIPS 140 module validation.

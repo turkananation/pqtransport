@@ -164,9 +164,9 @@ duplicates are dropped before `aeadOpen`.
 breaker is open.
 
 mDNS uses a separate `StateMachine` (`idle → probing → announcing → registered`)
-and an instance `EventBus` for `MdnsServiceEvent`. In-memory networks flood
-every mailbox on the same port when the destination host is `224.0.0.251` or
-`ff02::fb`.
+and an instance `EventBus` for `MdnsServiceEvent`. Multicast delivery
+hits only sockets that called `joinMulticast` for `224.0.0.251` /
+`ff02::fb` (IO: IGMP/MLD; memory: membership set).
 
 ## QUIC / HTTP
 

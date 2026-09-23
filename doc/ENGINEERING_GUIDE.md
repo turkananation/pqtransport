@@ -136,7 +136,8 @@ A new symbol on the web barrel needs a test that imports **only**
   sequences).
 - Datagram replay peeks the sequence **before** AEAD open.
 - `MemoryByteSocket` buffers until `onListen`. Do not "fix" that.
-- `MemoryDatagramNetwork` floods on `224.0.0.251` / `ff02::fb`.
+- `MemoryDatagramNetwork` delivers multicast only to sockets that joined
+  `224.0.0.251` / `ff02::fb`.
 
 ## Agent checklist (print before a coding turn)
 

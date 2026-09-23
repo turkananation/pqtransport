@@ -24,7 +24,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | DNS codec / cache / breaker | Yes | Yes | Yes |
 | Encrypted UDP (memory) | Yes | Yes | Yes |
 | Encrypted UDP (real NIC) | Yes | Yes | **No** |
-| mDNS on a real LAN | Unicast until OPEN-09 | same | **No** |
+| mDNS on a real LAN | Yes (`joinMulticast`) | Yes | **No** |
 | QUIC / HTTP/3 | Sketch | Sketch | Sketch |
 | `SecureSocket` on PQ path | Not used | Not used | Not used |
 

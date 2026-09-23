@@ -69,10 +69,10 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 
 | Feature | Status | Notes |
 |---|---|---|
-| Probe / announce / browse | Done | In-memory multicast flood |
+| Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09) |
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
-| `IoDatagramChannel` multicast join | Not started | Bind/send/receive unicast only |
+| `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |
 | SLH-DSA signed records | Not started | Sister profile: archival only, after ML-DSA |
 
 ## QUIC / HTTP
