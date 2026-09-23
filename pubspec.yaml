@@ -23,6 +23,7 @@ workspace:
 
 dependencies:
   pqforge: ^0.4.5
+  zeroize: ^0.1.0
   swissarmyknife: ^0.1.0
 
 dev_dependencies:

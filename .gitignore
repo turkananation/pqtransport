@@ -10,3 +10,4 @@ doc/api/
 *.iml
 .DS_Store
 pub-credentials.json
+pubspec.lock

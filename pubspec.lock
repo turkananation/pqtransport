@@ -809,5 +809,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.4"
+  zeroize:
+    dependency: "direct main"
+    description:
+      name: zeroize
+      sha256: d3932b6bdfa89ee76d4a35cea5f606b77ff0accd00e005aef024baa9f6692524
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0"
 sdks:
   dart: ">=3.13.0-107.0.dev <3.14.0-z"

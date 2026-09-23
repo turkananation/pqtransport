@@ -12,5 +12,5 @@ tool/agent_framework/
 **/*.iml
 **/*.lcov
 **/*.vm.json
-doc/api/
 .DS_Store
+pubspec.lock
