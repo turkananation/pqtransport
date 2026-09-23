@@ -55,7 +55,7 @@ abstract interface class PqDatagramChannel {
   /// Join an IP multicast group. Required to **receive** mDNS on a real NIC
   /// (`224.0.0.251` / `ff02::fb`). Sending to a group does not join.
   /// In-memory channels record membership so flood delivery only hits
-  /// sockets that joined. [group.port] is ignored by the IO driver
+  /// sockets that joined. `group.port` is ignored by the IO driver
   /// (`IP_ADD_MEMBERSHIP` is address-only); the memory driver still
   /// matches destination port on deliver.
   Future<Result<void, PqTransportError>> joinMulticast(PqEndpoint group);
