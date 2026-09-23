@@ -9,15 +9,26 @@ import 'lengths.dart';
 import 'zeroize.dart';
 
 /// AEAD primitive. Protocol files pick one; they do not vendor ChaCha or AES.
-enum TransportAead { aes256Gcm, chacha20Poly1305 }
+enum TransportAead {
+  /// AES-256-GCM.
+  aes256Gcm,
+
+  /// ChaCha20-Poly1305.
+  chacha20Poly1305,
+}
 
 /// Thin facade over `package:pqforge`. Protocol files must not invent primitives.
 final class PqTransportCrypto {
+  /// Creates a crypto facade for [profile].
   const PqTransportCrypto({this.profile = PqForgeProfile.balanced});
 
+  /// pqforge profile used by this facade.
   final PqForgeProfile profile;
 
+  /// KEM selected by [profile].
   PqKemAlgorithm get kem => profile.kem;
+
+  /// Signature algorithm selected by [profile].
   PqSignatureAlgorithm get signature => profile.signature;
 
   /// KEM required by [group]. Compact (ML-KEM-512) matches no RFC 10024 group.
@@ -41,6 +52,7 @@ final class PqTransportCrypto {
     return const Result.success(null);
   }
 
+  /// Generates a KEM key pair.
   PqKeyPair kemKeyGen({Uint8List? seed}) =>
       PqKemPrimitives.generateKeyPair(kem, seed: seed);
 
@@ -48,18 +60,22 @@ final class PqTransportCrypto {
   bool checkEncapsulationKey(Uint8List publicKey) =>
       PqKemPrimitives.checkEncapsulationKey(kem, publicKey);
 
+  /// Encapsulates to a KEM public key.
   PqKemEncapsulation encapsulate(Uint8List publicKey) =>
       PqKemPrimitives.encapsulate(kem, publicKey);
 
+  /// Decapsulates a KEM ciphertext.
   Uint8List decapsulate(Uint8List secretKey, Uint8List ciphertext) =>
       PqKemPrimitives.decapsulate(kem, secretKey, ciphertext);
 
+  /// Generates an X25519 key pair.
   Future<({Uint8List publicKey, Uint8List secretKey})> x25519KeyGen({
     Uint8List? seed,
   }) => const PqForgeHybridKeyAgreement().generateClassicalKeyPairBytes(
     seed: seed,
   );
 
+  /// Performs X25519 agreement.
   Future<Uint8List> x25519Agree({
     required Uint8List secretKey,
     required Uint8List remotePublicKey,
@@ -68,10 +84,12 @@ final class PqTransportCrypto {
     remotePublicKey: remotePublicKey,
   );
 
+  /// Generates a P-256 key pair.
   Future<({Uint8List publicKey, Uint8List secretKey})> p256KeyGen({
     Uint8List? seed,
   }) => PqForgeHybridKeyAgreement.generateP256KeyPairBytes(seed: seed);
 
+  /// Performs P-256 agreement.
   Future<Uint8List> p256Agree({
     required Uint8List secretKey,
     required Uint8List remotePublicKey,
@@ -80,10 +98,12 @@ final class PqTransportCrypto {
     remotePublicKey: remotePublicKey,
   );
 
+  /// Generates a P-384 key pair.
   Future<({Uint8List publicKey, Uint8List secretKey})> p384KeyGen({
     Uint8List? seed,
   }) => PqForgeHybridKeyAgreement.generateP384KeyPairBytes(seed: seed);
 
+  /// Performs P-384 agreement.
   Future<Uint8List> p384Agree({
     required Uint8List secretKey,
     required Uint8List remotePublicKey,

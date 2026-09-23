@@ -12,90 +12,119 @@ import 'lengths.dart';
 /// X25519MLKEM768 does **not** follow RFC 9954 naming order: ML-KEM is first.
 /// NIST-curve groups put ECDHE first so the FIPS-approved secret leads the
 /// SP 800-56C combiner.
-enum HybridConcatOrder { kemThenClassical, classicalThenKem }
+enum HybridConcatOrder {
+  /// Place the KEM secret before the classical secret.
+  kemThenClassical,
+
+  /// Place the classical secret before the KEM secret.
+  classicalThenKem,
+}
 
 /// RFC 10024 hybrid named groups.
-enum HybridGroup { x25519MlKem768, secP256r1MlKem768, secP384r1MlKem1024 }
+enum HybridGroup {
+  /// X25519 with ML-KEM-768.
+  x25519MlKem768,
+
+  /// P-256 ECDH with ML-KEM-768.
+  secP256r1MlKem768,
+
+  /// P-384 ECDH with ML-KEM-1024.
+  secP384r1MlKem1024,
+}
 
 extension HybridGroupContract on HybridGroup {
+  /// RFC 10024 named-group codepoint.
   int get codepoint => switch (this) {
     HybridGroup.x25519MlKem768 => namedGroupX25519MlKem768,
     HybridGroup.secP256r1MlKem768 => namedGroupSecP256r1MlKem768,
     HybridGroup.secP384r1MlKem1024 => namedGroupSecP384r1MlKem1024,
   };
 
+  /// Secret concatenation order required for this group.
   HybridConcatOrder get concatOrder => switch (this) {
     HybridGroup.x25519MlKem768 => HybridConcatOrder.kemThenClassical,
     HybridGroup.secP256r1MlKem768 => HybridConcatOrder.classicalThenKem,
     HybridGroup.secP384r1MlKem1024 => HybridConcatOrder.classicalThenKem,
   };
 
+  /// Encapsulation-key size for this group's KEM.
   int get kemPublicKeyBytes => switch (this) {
     HybridGroup.x25519MlKem768 => mlKem768PublicKeyBytes,
     HybridGroup.secP256r1MlKem768 => mlKem768PublicKeyBytes,
     HybridGroup.secP384r1MlKem1024 => mlKem1024PublicKeyBytes,
   };
 
+  /// Ciphertext size for this group's KEM.
   int get kemCiphertextBytes => switch (this) {
     HybridGroup.x25519MlKem768 => mlKem768CiphertextBytes,
     HybridGroup.secP256r1MlKem768 => mlKem768CiphertextBytes,
     HybridGroup.secP384r1MlKem1024 => mlKem1024CiphertextBytes,
   };
 
+  /// KEM shared-secret size.
   int get kemSharedSecretBytes => switch (this) {
     HybridGroup.x25519MlKem768 => mlKem768SharedSecretBytes,
     HybridGroup.secP256r1MlKem768 => mlKem768SharedSecretBytes,
     HybridGroup.secP384r1MlKem1024 => mlKem1024SharedSecretBytes,
   };
 
+  /// Classical public-share size.
   int get classicalShareBytes => switch (this) {
     HybridGroup.x25519MlKem768 => x25519ShareBytes,
     HybridGroup.secP256r1MlKem768 => secp256r1UncompressedBytes,
     HybridGroup.secP384r1MlKem1024 => secp384r1UncompressedBytes,
   };
 
+  /// Classical shared-secret size.
   int get classicalSharedSecretBytes => switch (this) {
     HybridGroup.x25519MlKem768 => x25519SharedSecretBytes,
     HybridGroup.secP256r1MlKem768 => secp256r1SharedSecretBytes,
     HybridGroup.secP384r1MlKem1024 => secp384r1SharedSecretBytes,
   };
 
+  /// Total client key-share size.
   int get clientShareBytes => switch (this) {
     HybridGroup.x25519MlKem768 => x25519MlKem768ClientShareBytes,
     HybridGroup.secP256r1MlKem768 => secP256r1MlKem768ClientShareBytes,
     HybridGroup.secP384r1MlKem1024 => secP384r1MlKem1024ClientShareBytes,
   };
 
+  /// Total server key-share size.
   int get serverShareBytes => switch (this) {
     HybridGroup.x25519MlKem768 => x25519MlKem768ServerShareBytes,
     HybridGroup.secP256r1MlKem768 => secP256r1MlKem768ServerShareBytes,
     HybridGroup.secP384r1MlKem1024 => secP384r1MlKem1024ServerShareBytes,
   };
 
+  /// Total hybrid shared-secret size.
   int get sharedSecretBytes => switch (this) {
     HybridGroup.x25519MlKem768 => x25519MlKem768SharedSecretBytes,
     HybridGroup.secP256r1MlKem768 => secP256r1MlKem768SharedSecretBytes,
     HybridGroup.secP384r1MlKem1024 => secP384r1MlKem1024SharedSecretBytes,
   };
 
+  /// Length label for the KEM public key.
   PqLengthLabel get kemPublicLabel => switch (this) {
     HybridGroup.x25519MlKem768 => PqLengthLabel.mlKem768PublicKey,
     HybridGroup.secP256r1MlKem768 => PqLengthLabel.mlKem768PublicKey,
     HybridGroup.secP384r1MlKem1024 => PqLengthLabel.mlKem1024PublicKey,
   };
 
+  /// Length label for the KEM ciphertext.
   PqLengthLabel get kemCiphertextLabel => switch (this) {
     HybridGroup.x25519MlKem768 => PqLengthLabel.mlKem768Ciphertext,
     HybridGroup.secP256r1MlKem768 => PqLengthLabel.mlKem768Ciphertext,
     HybridGroup.secP384r1MlKem1024 => PqLengthLabel.mlKem1024Ciphertext,
   };
 
+  /// Length label for the classical share.
   PqLengthLabel get classicalShareLabel => switch (this) {
     HybridGroup.x25519MlKem768 => PqLengthLabel.x25519Share,
     HybridGroup.secP256r1MlKem768 => PqLengthLabel.secp256r1Share,
     HybridGroup.secP384r1MlKem1024 => PqLengthLabel.secp384r1Share,
   };
 
+  /// Resolves an RFC 10024 codepoint, or returns `null` when unknown.
   static HybridGroup? byCodepoint(int codepoint) {
     for (final g in HybridGroup.values) {
       if (g.codepoint == codepoint) return g;
@@ -106,27 +135,39 @@ extension HybridGroupContract on HybridGroup {
 
 /// Client key_share payload (encapsulation key + classical ephemeral share).
 final class HybridClientShare {
+  /// Creates a client hybrid key-share payload.
   const HybridClientShare({
     required this.group,
     required this.kemEncapsulationKey,
     required this.classicalShare,
   });
 
+  /// Group encoded by this share.
   final HybridGroup group;
+
+  /// KEM encapsulation key.
   final Uint8List kemEncapsulationKey;
+
+  /// Classical public share.
   final Uint8List classicalShare;
 }
 
 /// Server key_share payload (KEM ciphertext + classical ephemeral share).
 final class HybridServerShare {
+  /// Creates a server hybrid key-share payload.
   const HybridServerShare({
     required this.group,
     required this.kemCiphertext,
     required this.classicalShare,
   });
 
+  /// Group encoded by this share.
   final HybridGroup group;
+
+  /// KEM ciphertext.
   final Uint8List kemCiphertext;
+
+  /// Classical public share.
   final Uint8List classicalShare;
 }
 

@@ -18,6 +18,7 @@ Result<Uint8List, PqTransportError> requireLength(
   return Result.success(bytes);
 }
 
+/// Requires [bytes] to contain at least [minimum] bytes.
 Result<Uint8List, PqTransportError> requireMinLength(
   Uint8List bytes,
   int minimum,
@@ -31,6 +32,7 @@ Result<Uint8List, PqTransportError> requireMinLength(
   return Result.success(bytes);
 }
 
+/// Returns whether every byte in [bytes] is zero.
 bool isAllZeros(Uint8List bytes) {
   var acc = 0;
   for (final b in bytes) {
@@ -39,6 +41,7 @@ bool isAllZeros(Uint8List bytes) {
   return acc == 0;
 }
 
+/// Concatenates [parts] into one byte buffer.
 Uint8List concatBytes(List<Uint8List> parts) {
   var total = 0;
   for (final p in parts) {
@@ -53,20 +56,24 @@ Uint8List concatBytes(List<Uint8List> parts) {
   return out;
 }
 
+/// Copies the half-open range `[start, end)` from [src].
 Uint8List slice(Uint8List src, int start, int end) =>
     Uint8List.fromList(src.sublist(start, end));
 
+/// Writes [value] as a big-endian unsigned 16-bit integer.
 void writeUint16(BytesBuilder builder, int value) {
   builder.addByte((value >> 8) & 0xff);
   builder.addByte(value & 0xff);
 }
 
+/// Writes [value] as a big-endian unsigned 24-bit integer.
 void writeUint24(BytesBuilder builder, int value) {
   builder.addByte((value >> 16) & 0xff);
   builder.addByte((value >> 8) & 0xff);
   builder.addByte(value & 0xff);
 }
 
+/// Writes [value] as a big-endian unsigned 32-bit integer.
 void writeUint32(BytesBuilder builder, int value) {
   builder.addByte((value >> 24) & 0xff);
   builder.addByte((value >> 16) & 0xff);
@@ -74,28 +81,34 @@ void writeUint32(BytesBuilder builder, int value) {
   builder.addByte(value & 0xff);
 }
 
+/// Writes [value] as a big-endian unsigned 64-bit integer.
 void writeUint64(BytesBuilder builder, int value) {
   writeUint32(builder, (value >> 32) & 0xffffffff);
   writeUint32(builder, value & 0xffffffff);
 }
 
+/// Writes an 8-bit length-prefixed opaque value.
 void writeOpaque8(BytesBuilder builder, Uint8List data) {
   builder.addByte(data.length);
   builder.add(data);
 }
 
+/// Writes a 16-bit length-prefixed opaque value.
 void writeOpaque16(BytesBuilder builder, Uint8List data) {
   writeUint16(builder, data.length);
   builder.add(data);
 }
 
+/// Reads a big-endian unsigned 16-bit integer.
 int readUint16(Uint8List bytes, int offset) =>
     ((bytes[offset] << 8) | bytes[offset + 1]) & 0xffff;
 
+/// Reads a big-endian unsigned 24-bit integer.
 int readUint24(Uint8List bytes, int offset) =>
     ((bytes[offset] << 16) | (bytes[offset + 1] << 8) | bytes[offset + 2]) &
     0xffffff;
 
+/// Reads a big-endian unsigned 32-bit integer.
 int readUint32(Uint8List bytes, int offset) =>
     ((bytes[offset] << 24) |
         (bytes[offset + 1] << 16) |
@@ -103,6 +116,7 @@ int readUint32(Uint8List bytes, int offset) =>
         bytes[offset + 3]) &
     0xffffffff;
 
+/// Reads a big-endian unsigned 64-bit integer.
 int readUint64(Uint8List bytes, int offset) {
   final hi = readUint32(bytes, offset);
   final lo = readUint32(bytes, offset + 4);
@@ -111,15 +125,22 @@ int readUint64(Uint8List bytes, int offset) {
 
 /// Cursor over a buffer for Result-typed codecs.
 final class ByteReader {
+  /// Creates a cursor over [bytes].
   ByteReader(this.bytes);
 
+  /// The source buffer being read.
   final Uint8List bytes;
+
+  /// The current cursor position in [bytes].
   int offset = 0;
 
+  /// The number of unread bytes.
   int get remaining => bytes.length - offset;
 
+  /// Whether the cursor has consumed the entire buffer.
   bool get isDone => remaining == 0;
 
+  /// Takes exactly [n] bytes, or returns a typed decode failure.
   Result<Uint8List, PqTransportError> take(int n, PqLengthLabel label) {
     if (n < 0 || remaining < n) {
       return Result.failure(
@@ -133,6 +154,7 @@ final class ByteReader {
     return Result.success(out);
   }
 
+  /// Reads one unsigned byte.
   Result<int, PqTransportError> u8() {
     if (remaining < 1) {
       return Result.failure(PqTransportError.decodeFailure('truncated u8'));
@@ -140,6 +162,7 @@ final class ByteReader {
     return Result.success(bytes[offset++]);
   }
 
+  /// Reads an unsigned 16-bit integer.
   Result<int, PqTransportError> u16() {
     if (remaining < 2) {
       return Result.failure(PqTransportError.decodeFailure('truncated u16'));
@@ -149,6 +172,7 @@ final class ByteReader {
     return Result.success(v);
   }
 
+  /// Reads an unsigned 24-bit integer.
   Result<int, PqTransportError> u24() {
     if (remaining < 3) {
       return Result.failure(PqTransportError.decodeFailure('truncated u24'));
@@ -158,6 +182,7 @@ final class ByteReader {
     return Result.success(v);
   }
 
+  /// Reads an unsigned 32-bit integer.
   Result<int, PqTransportError> u32() {
     if (remaining < 4) {
       return Result.failure(PqTransportError.decodeFailure('truncated u32'));
@@ -167,6 +192,7 @@ final class ByteReader {
     return Result.success(v);
   }
 
+  /// Reads an unsigned 64-bit integer.
   Result<int, PqTransportError> u64() {
     if (remaining < 8) {
       return Result.failure(PqTransportError.decodeFailure('truncated u64'));
@@ -176,12 +202,14 @@ final class ByteReader {
     return Result.success(v);
   }
 
+  /// Reads an 8-bit length-prefixed opaque value.
   Result<Uint8List, PqTransportError> opaque8(PqLengthLabel label) {
     final n = u8();
     if (n.isFailure) return Result.failure(n.errorOrNull!);
     return take(n.valueOrNull!, label);
   }
 
+  /// Reads a 16-bit length-prefixed opaque value.
   Result<Uint8List, PqTransportError> opaque16(PqLengthLabel label) {
     final n = u16();
     if (n.isFailure) return Result.failure(n.errorOrNull!);
