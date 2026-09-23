@@ -14,8 +14,8 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.5` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 140 passed | `dart test` |
-| Coverage | 90.7% of `lib/` (`2404/2650`) | `coverage/lcov.info` |
+| Tests | 153 passed | `dart test` |
+| Coverage | 90.7% of `lib/` (`2466/2720`) | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
 

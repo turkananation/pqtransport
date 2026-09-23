@@ -57,7 +57,7 @@ language):
 bash ../.grok/skills/pqtransport-distinguished-engineer/scripts/check_invariants.sh .
 ```
 
-Coverage (line coverage of `lib/` is **90.7%**, `2404/2650`):
+Coverage (line coverage of `lib/` is **90.7%**, `2466/2720`):
 
 ```bash
 dart pub global activate coverage

@@ -12,7 +12,7 @@ pub.dev until the owner cuts a release.
 - `dart format`
 - `dart analyze --fatal-infos`
 - `bash tool/check_invariants.sh .` (no `dart:ffi`, no stray sizes, claim language)
-- `dart test` — 140 passed
+- `dart test` — 153 passed
 - Line coverage of `lib/` — 90.7%
 - This Jaspr site build (`cd site && jaspr build`)
 

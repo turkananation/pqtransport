@@ -22,8 +22,8 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.5` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 140 passed |
-| Coverage | 90.7% of `lib/` (`2404/2650`) |
+| Tests | 153 passed |
+| Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
 | OpenSSL interop | Not started |
