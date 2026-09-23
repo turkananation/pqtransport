@@ -112,7 +112,7 @@ Full list: [ARCHITECTURE.md](ARCHITECTURE.md) and the skill `SKILL.md`.
 ## Barrels
 
 | Import | Allowed | Forbidden |
-|---|---|---|
+| --- | --- | --- |
 | `package:pqtransport/pqtransport.dart` | Codecs, machines, hybrid, TLS, DNS, HTTP, memory sockets | `dart:io`, `dart:ffi`, `SecureSocket` |
 | `package:pqtransport/pqtransport_io.dart` | Everything above + `IoDatagramChannel` | Crypto of its own |
 
@@ -166,7 +166,7 @@ If you cannot fill that card, you are not ready to edit.
 ## Examples
 
 | File | What it shows |
-|---|---|
+| --- | --- |
 | `example/pq_tls_client.dart` | Compact in-memory handshake + exporter |
 | `example/encrypted_udp_peer.dart` | X25519MLKEM768 UDP session |
 | `example/mdns_discovery.dart` | Probe/announce/browse on the memory network |
