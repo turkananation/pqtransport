@@ -27,7 +27,7 @@ upgrade a claim this layer is not allowed to make. See
 | --- | --- |
 | Package version | `0.1.0` (unpublished on pub.dev; GitHub tag `vX.Y.Z` publishes via `publish.yml` once automated publishing is enabled) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Runtime dependencies | `pqforge ^0.4.5`, `swissarmyknife ^0.1.0` |
+| Runtime dependencies | `pqforge ^0.4.6`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
 | Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
 | Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |

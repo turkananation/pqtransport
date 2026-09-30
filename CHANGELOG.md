@@ -1,3 +1,34 @@
+## Unreleased
+
+### Added
+
+- RFC 9001 TLS-in-QUIC (OPEN-06). Handshake messages travel in CRYPTO
+  frames with **no TLS record layer** (`PqTlsClient`/`PqTlsServer`
+  `quic: true`, `QuicTlsHandshake`). Live X25519MLKEM768 encapsulate,
+  not a zero share.
+- QUIC header protection (RFC 9000 §5.4): AES-ECB mask from pqforge
+  `aesEncryptBlock` (0.4.6). Short-header 1-RTT (`0x1f`) and Initial
+  long-header (`0x0f`). Receive path accepts 1–4 byte packet numbers;
+  send defaults to 4 bytes (RFC 9001 A.2).
+- QUIC ACK frames + `QuicAckProcessor` (RFC 9000 §19.3).
+- Initial secrets from DCID + salt (RFC 9001 §5.2 / Appendix A.1 pin).
+  AES-128-GCM via pqforge `aes128GcmEncrypt`. Floor **pqforge ^0.4.6**.
+- ChaCha20 QUIC header protection is **not** implemented; 1-RTT ChaCha
+  fails closed. 0-RTT remains a non-goal (LIM-05).
+
+### Tests
+
+- RFC 9001 Appendix A.1 Initial secrets; Appendix A.2 client Initial
+  packet (HP sample, mask, 1200-byte datagram). FIPS 197 C.1 AES-128
+  and C.3 AES-256 blocks (HP). Live CRYPTO ClientHello (non-zero
+  share). Initial + 1-RTT HP round trips including 2-byte packet
+  numbers; header/tag bit-flips fail. ACK ranges. TLS-in-QUIC
+  exporters (X25519 and P-256). Out-of-order and fragmented CRYPTO
+  frames reassemble into handshake messages. Initial packets carry
+  the live handshake with ≥1200-byte client datagrams; 1-RTT keys
+  from TLS application traffic secrets round-trip. ChaCha HP and
+  STREAM / ACK-ECN payload types fail closed.
+
 ## 0.1.0
 
 ### Added

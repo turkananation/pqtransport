@@ -20,7 +20,7 @@ Infrastructure is exclusively
 There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 
 <Info>
-  v0.1.0 is a self-interop vertical slice. 153 tests pass, 90.7% line coverage
+  v0.1.0 is a self-interop vertical slice. 174 tests pass, 90.7% line coverage
   of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
   groups**. RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303`
   ChaCha). Not OpenSSL interop. Not a FIPS 140 module.

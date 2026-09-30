@@ -49,6 +49,30 @@ Result<TlsRecord, PqTransportError> decodePlainRecord(Uint8List wire) {
   );
 }
 
+/// Handshake bytes on the wire. TLS over TCP wraps a record; RFC 9001
+/// CRYPTO frames carry the handshake messages with no record layer.
+Uint8List wrapHandshake(Uint8List handshake, {required bool quic}) {
+  if (quic) return handshake;
+  return encodePlainRecord(
+    TlsRecord(type: tlsContentHandshake, payload: handshake),
+  );
+}
+
+Result<Uint8List, PqTransportError> unwrapHandshake(
+  Uint8List bytes, {
+  required bool quic,
+}) {
+  if (quic) return Result.success(bytes);
+  final rec = decodePlainRecord(bytes);
+  if (rec.isFailure) return Result.failure(rec.errorOrNull!);
+  if (rec.valueOrNull!.type != tlsContentHandshake) {
+    return Result.failure(
+      PqTransportError.unexpectedMessage('expected handshake'),
+    );
+  }
+  return Result.success(rec.valueOrNull!.payload);
+}
+
 Uint8List encodeHandshake(int msgType, Uint8List body) {
   final b = BytesBuilder(copy: false);
   b.addByte(msgType);
@@ -72,6 +96,12 @@ Result<(int, Uint8List), PqTransportError> decodeHandshake(Uint8List payload) {
     type,
     slice(payload, tlsHandshakeHeaderBytes, payload.length),
   ));
+}
+
+/// Wire length of a TLS handshake message (4-byte header + body), or -1.
+int handshakeWireLength(Uint8List bytes) {
+  if (bytes.length < tlsHandshakeHeaderBytes) return -1;
+  return tlsHandshakeHeaderBytes + readUint24(bytes, 1);
 }
 
 final class TlsRecordLayer {

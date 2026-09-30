@@ -170,9 +170,11 @@ hits only sockets that called `joinMulticast` for `224.0.0.251` /
 
 ## QUIC / HTTP
 
-QUIC 0.1.0 is a packet + frame sketch so HTTP/3 work has a place to land.
-It is **not** a connection: no header protection, no ACK processing, no
-RFC 9001 TLS-in-QUIC.
+QUIC 0.1.0 now has RFC 9001 TLS-in-QUIC (CRYPTO stream, no TLS records),
+AES header protection on Initial (AES-128-GCM) and 1-RTT (AES-256-GCM),
+and ACK processing. It is still not a full connection: no congestion
+control, no loss recovery, no HTTP/3 stream mapping. ChaCha HP fails
+closed. 0-RTT is a non-goal.
 
 HTTP/1.1 is a real codec used by `PqHttpClient.roundTripH1` over a completed
 `PqTlsSocket`. HTTP/3 is frame encode/decode only.

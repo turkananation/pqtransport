@@ -10,7 +10,7 @@ imports only `package:pqtransport/pqtransport.dart`.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.5
+  pqforge: ^0.4.6
   swissarmyknife: ^0.1.0
 ```
 
@@ -93,7 +93,11 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 over TLS |
 | `Http3Frame` | HTTP/3 frame codec |
-| `QuicPacketCodec` / `QuicCryptoFrame` / `QuicFlowControl` | QUIC sketch |
+| `QuicPacketCodec` / `QuicInitialCodec` / `QuicCryptoFrame` | 1-RTT and Initial HP |
+| `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
+| `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |
+| `QuicFlowControl` | MAX_DATA / MAX_STREAM_DATA |
+| `QuicInitialSecrets` / `quicKeysFromTls` | RFC 9001 key schedule |
 
 ## Errors
 

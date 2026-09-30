@@ -1,6 +1,6 @@
 # Tracker
 
-Last updated: 2026-09-17
+Last updated: 2026-10-01
 
 Canonical project tracker for `package:pqtransport` **0.1.0**.
 
@@ -19,10 +19,10 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | --- | --- |
 | Package | `pqtransport 0.1.0` (unpublished on pub.dev until the owner cuts a release) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Crypto | `pqforge ^0.4.5` |
+| Crypto | `pqforge ^0.4.6` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 153 passed |
+| Tests | 174 passed |
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
@@ -41,7 +41,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
 | mDNS probe/announce/browse + ML-DSA TXT | Done | `test/mdns/mdns_test.dart` |
-| QUIC packet protect + CRYPTO/STREAM size gate | Partial | `test/quic/quic_test.dart` |
+| QUIC packet protect + CRYPTO/STREAM + RFC 9001 | Done | `test/quic/quic_test.dart` |
 | Web-safe barrel / IO barrel split | Done | `lib/pqtransport.dart`, `lib/pqtransport_io.dart` |
 | FIX-01 … FIX-12 | Fixed | [BUGS.md](BUGS.md) |
 
@@ -65,7 +65,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-14 | DNS RR round-trip; pointer cycle rejected | Done |
 | GATE-15 | CircuitBreaker opens; cache expires at TTL | Done |
 | GATE-16 | mDNS probe/announce/browse; ML-DSA TXT verify / mutate-fail | Done |
-| GATE-17 | CRYPTO frame carries 1216-byte share | Partial — size gate, body is zeros (OPEN-06) |
+| GATE-17 | CRYPTO frame carries 1216-byte share | **Done** — live ClientHello, not zeros (OPEN-06) |
 | GATE-18 | Packet protect round trip; bit-flip fails | Done |
 | GATE-19 | Flow control violation is an error | Done |
 | GATE-20 | HTTP/1.1 GET over mock TLS | Done |
@@ -80,11 +80,10 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Owner | Blocks | Next action |
 | --- | --- | --- | --- | --- |
-| OPEN-06 | P2 | pqtransport | HTTP/3 | Header protection, ACK, RFC 9001 |
 | OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
-### pqforge exports (0.4.5 — consumed)
+### pqforge exports (0.4.6 — consumed)
 
 | ID | Sev | Status | Evidence |
 | --- | --- | --- | --- |
@@ -103,6 +102,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-12 | P3 | **Fixed** | Leftover DNS/UDP/TLS error paths |
 | OPEN-08 | P2 | **Fixed** | Rdata name pointers resolve against the outer message |
 | OPEN-09 | P2 | **Fixed** | `joinMulticast` on IO + membership-gated memory flood |
+| OPEN-06 | P2 | **Fixed** | Header protection, ACK, RFC 9001 TLS-in-QUIC (pqforge 0.4.6) |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -124,10 +124,11 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
-| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-06, OPEN-07, OPEN-10 |
+| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-07, OPEN-10 |
 
-Do not start 0.5 HTTP/3 before OPEN-06. Do not vendor P-256 ECDH. Next coding
-turn: LIM-01 OpenSSL fixture. Parallel 0.5 without QUIC: OPEN-10.
+Do not start 0.5 HTTP/3 QPACK before a real QUIC stream mapping (OPEN-07).
+Do not vendor P-256 ECDH. Next coding turn: LIM-01 OpenSSL fixture, or
+OPEN-07 HTTP/2.
 
 ## Verification commands
 

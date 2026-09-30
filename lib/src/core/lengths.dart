@@ -246,6 +246,42 @@ const int quicMaxStreamDataDefault = 65536;
 const int quicMaxDataDefault = 262144;
 const int quicHeaderProtectionSampleBytes = 16;
 const int quicPacketNumberMaxBytes = 4;
+const int quicShortDcidBytes = 8;
+const int quicAes128KeyBytes = 16;
+const int quicMaxConnectionIdBytes = 20;
+
+/// RFC 9000 §14.1: UDP datagrams carrying client Initial packets.
+const int quicMinClientInitialUdpBytes = 1200;
+
+/// RFC 9001 §5.2 Initial salt for QUIC version 1.
+const List<int> quicInitialSaltV1 = [
+  0x38,
+  0x76,
+  0x2c,
+  0xf7,
+  0xf5,
+  0x59,
+  0x34,
+  0xb3,
+  0x4d,
+  0x17,
+  0x9a,
+  0xe6,
+  0xa4,
+  0xc8,
+  0x0c,
+  0xad,
+  0xcc,
+  0xbb,
+  0x7f,
+  0x0a,
+];
+
+const String quicLabelClientIn = 'client in';
+const String quicLabelServerIn = 'server in';
+const String quicLabelKey = 'quic key';
+const String quicLabelIv = 'quic iv';
+const String quicLabelHp = 'quic hp';
 
 const int quicFramePadding = 0x00;
 const int quicFramePing = 0x01;

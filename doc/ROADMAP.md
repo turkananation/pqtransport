@@ -88,7 +88,7 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 | # | Work | Closes |
 |---|---|---|
 | 0.5.1 | `IoDatagramChannel.joinMulticast` on 224.0.0.251 / ff02::fb | OPEN-09 **Done** |
-| 0.5.2 | QUIC header protection, ACK processing, RFC 9001 TLS-in-QUIC | OPEN-06 |
+| 0.5.2 | QUIC header protection, ACK processing, RFC 9001 TLS-in-QUIC | OPEN-06 **Done** |
 | 0.5.3 | HTTP/2 on `PqTlsSocket` (ALPN `h2`) | OPEN-07 |
 | 0.5.4 | HTTP/3 + QPACK on a real QUIC stream | OPEN-07 |
 | 0.5.5 | Production DoH (`application/dns-message` POST, URI template) and DoT (ALPN `dot`) | OPEN-10 |
@@ -108,7 +108,7 @@ Safe after 0.1 constants exist:
 Never parallelize:
 
 - OpenSSL fixture before OPEN-04 cert and a recorded transcript
-- HTTP/3 with QUIC still a packet sketch
+- HTTP/3 with no QUIC stream mapping / QPACK
 - Live P-256 handshake with a local ECDH vendor
 - Two changes both editing `lengths.dart` / `hybrid.dart`
 
@@ -116,7 +116,7 @@ Never parallelize:
 
 1. LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). Hellos, raw-pk, HRR,
    and IANA `0x1302`/`0x1303` are on the wire.
-2. Parallel 0.5 items that do not need QUIC: OPEN-10 (production DoH/DoT).
+2. OPEN-07 HTTP/2 on `PqTlsSocket`, then HTTP/3+QPACK on QUIC streams.
 
-Do not start HTTP/3 before OPEN-06. CRYPTO frames now carry a real TLS
-handshake.
+Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
+carry a real TLS handshake (OPEN-06).

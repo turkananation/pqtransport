@@ -130,13 +130,13 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **153 tests**, **90.7% line coverage** of `lib/`.
+`dart analyze` is clean. **174 tests**, **90.7% line coverage** of `lib/`.
 Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
 TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
 IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,
 `checkEncapsulationKey` on a bad modulus, HTTP/1.1 GET over `PqTlsSocket`,
 DNS circuit-breaker + TTL cache, mDNS probe/announce/browse, ML-DSA-65 TXT,
-QUIC CRYPTO frames carrying the 1216-byte share, `dart:io` UDP.
+QUIC RFC 9001 A.1/A.2 + live TLS-in-QUIC, `dart:io` UDP.
 
 ## Documentation
 

@@ -25,6 +25,7 @@ final class PqTlsClient {
     List<HybridGroup>? offeredGroups,
     List<int>? offeredCipherSuites,
     this.allowUnauthenticated = false,
+    this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -35,6 +36,9 @@ final class PqTlsClient {
   final List<HybridGroup> offeredGroups;
   final List<int> offeredCipherSuites;
   final bool allowUnauthenticated;
+
+  /// RFC 9001: handshake messages without the TLS record layer.
+  final bool quic;
 
   final StateMachine<TlsState, TlsEvent> machine = tlsClientMachine();
   final Transcript transcript = Transcript();
@@ -65,9 +69,7 @@ final class PqTlsClient {
     final hello = _clientHello(share.valueOrNull!);
     final encoded = hello.encode();
     transcript.add(encoded);
-    return Result.success(
-      encodePlainRecord(TlsRecord(type: tlsContentHandshake, payload: encoded)),
-    );
+    return Result.success(wrapHandshake(encoded, quic: quic));
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> ingest(
@@ -104,22 +106,30 @@ final class PqTlsClient {
   Future<Result<List<Uint8List>, PqTransportError>> _ingestServerHello(
     Uint8List recordBytes,
   ) async {
-    final rec = decodePlainRecord(recordBytes);
+    final rec = unwrapHandshake(recordBytes, quic: quic);
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
-    if (rec.valueOrNull!.type != tlsContentHandshake) {
-      return _fail('expected handshake');
+    var shBytes = rec.valueOrNull!;
+    var leftover = Uint8List(0);
+    if (quic) {
+      final n = handshakeWireLength(shBytes);
+      if (n < 0 || n > shBytes.length) return _fail('truncated sh');
+      leftover = n < shBytes.length
+          ? slice(shBytes, n, shBytes.length)
+          : Uint8List(0);
+      shBytes = slice(shBytes, 0, n);
     }
-    final sh = ServerHello.decode(rec.valueOrNull!.payload);
+    final sh = ServerHello.decode(shBytes);
     if (sh.isFailure) return Result.failure(sh.errorOrNull!);
     if (sh.valueOrNull!.isHelloRetryRequest) {
-      return _ingestHelloRetry(sh.valueOrNull!, rec.valueOrNull!.payload);
+      if (leftover.isNotEmpty) return _fail('trailing after hrr');
+      return _ingestHelloRetry(sh.valueOrNull!, shBytes);
     }
     final bound = _bindSuite(sh.valueOrNull!.cipherSuite);
     if (bound.isFailure) return Result.failure(bound.errorOrNull!);
     if (sh.valueOrNull!.group != _activeGroup) return _fail('group mismatch');
     final driven = driveTls(machine, TlsEvent.receiveServerHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
-    transcript.add(rec.valueOrNull!.payload);
+    transcript.add(shBytes);
     final decoded = decodeServerShare(_activeGroup, sh.valueOrNull!.share);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final share = decoded.valueOrNull!;
@@ -145,6 +155,9 @@ final class PqTlsClient {
         handshakeTranscriptHash: transcript.snapshot(),
       );
       records = TlsRecordLayer(crypto, schedule);
+      if (quic && leftover.isNotEmpty) {
+        return await _ingestEncrypted(leftover);
+      }
       return const Result.success([]);
     } on PqTransportError catch (e) {
       driveTls(machine, TlsEvent.fatal);
@@ -162,16 +175,21 @@ final class PqTlsClient {
   Future<Result<List<Uint8List>, PqTransportError>> _ingestEncrypted(
     Uint8List recordBytes,
   ) async {
-    final layer = records;
-    if (layer == null) return _fail('no records');
-    final inner = layer.openWith(
-      trafficSecret: schedule.serverHandshakeTraffic,
-      iv: schedule.serverHandshakeIv,
-      wire: recordBytes,
-      epoch: TlsRecordEpoch.handshake,
-    );
-    if (inner.isFailure) return Result.failure(inner.errorOrNull!);
-    final payload = inner.valueOrNull!.payload;
+    Uint8List payload;
+    if (quic) {
+      payload = recordBytes;
+    } else {
+      final layer = records;
+      if (layer == null) return _fail('no records');
+      final inner = layer.openWith(
+        trafficSecret: schedule.serverHandshakeTraffic,
+        iv: schedule.serverHandshakeIv,
+        wire: recordBytes,
+        epoch: TlsRecordEpoch.handshake,
+      );
+      if (inner.isFailure) return Result.failure(inner.errorOrNull!);
+      payload = inner.valueOrNull!.payload;
+    }
     var offset = 0;
     Uint8List? certPk;
     Uint8List? finishedRecord;
@@ -234,12 +252,16 @@ final class PqTlsClient {
           ),
         );
         transcript.add(clientFin);
-        finishedRecord = layer.protectWith(
-          trafficSecret: schedule.clientHandshakeTraffic,
-          iv: schedule.clientHandshakeIv,
-          inner: TlsRecord(type: tlsContentHandshake, payload: clientFin),
-          epoch: TlsRecordEpoch.handshake,
-        );
+        if (quic) {
+          finishedRecord = clientFin;
+        } else {
+          finishedRecord = records!.protectWith(
+            trafficSecret: schedule.clientHandshakeTraffic,
+            iv: schedule.clientHandshakeIv,
+            inner: TlsRecord(type: tlsContentHandshake, payload: clientFin),
+            epoch: TlsRecordEpoch.handshake,
+          );
+        }
         schedule.deriveApplication(
           hybridSharedSecret: _hybridSs!,
           applicationTranscriptHash: transcript.snapshot(),
@@ -286,9 +308,7 @@ final class PqTlsClient {
     final hello = _clientHello(share.valueOrNull!, cookie: cookie);
     final encoded = hello.encode();
     transcript.add(encoded);
-    return Result.success([
-      encodePlainRecord(TlsRecord(type: tlsContentHandshake, payload: encoded)),
-    ]);
+    return Result.success([wrapHandshake(encoded, quic: quic)]);
   }
 
   ClientHello _clientHello(Uint8List share, {Uint8List? cookie}) => ClientHello(

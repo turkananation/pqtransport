@@ -38,6 +38,7 @@ final class PqTlsServer {
     PqTransportCrypto? crypto,
     this.group = HybridGroup.x25519MlKem768,
     PqTlsServerIdentity? identity,
+    this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        identity =
            identity ??
@@ -46,6 +47,9 @@ final class PqTlsServer {
   final PqTransportCrypto crypto;
   final HybridGroup group;
   final PqTlsServerIdentity identity;
+
+  /// RFC 9001: handshake messages without the TLS record layer.
+  final bool quic;
 
   final StateMachine<TlsState, TlsEvent> machine = tlsServerMachine();
   final Transcript transcript = Transcript();
@@ -80,19 +84,22 @@ final class PqTlsServer {
   ) async {
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
-    final rec = decodePlainRecord(recordBytes);
+    final rec = unwrapHandshake(recordBytes, quic: quic);
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
-    if (rec.valueOrNull!.type != tlsContentHandshake) {
-      return _fail('expected handshake');
+    var helloBytes = rec.valueOrNull!;
+    if (quic) {
+      final n = handshakeWireLength(helloBytes);
+      if (n < 0 || n > helloBytes.length) return _fail('truncated ch');
+      helloBytes = slice(helloBytes, 0, n);
     }
-    final ch = ClientHello.decode(rec.valueOrNull!.payload);
+    final ch = ClientHello.decode(helloBytes);
     if (ch.isFailure) return Result.failure(ch.errorOrNull!);
     final hello = ch.valueOrNull!;
     if (_hrrCookie != null) {
       if (!hello.cipherSuites.contains(_suite.codepoint)) {
         return _fail('cipher dropped after hrr');
       }
-      return _onSecondClientHello(hello, rec.valueOrNull!.payload);
+      return _onSecondClientHello(hello, helloBytes);
     }
     final selected = TlsCipherSuite.select(hello.cipherSuites);
     if (selected == null) {
@@ -100,9 +107,9 @@ final class PqTlsServer {
     }
     _bindSuite(selected);
     if (hello.group != group) {
-      return _emitHelloRetry(hello, rec.valueOrNull!.payload);
+      return _emitHelloRetry(hello, helloBytes);
     }
-    return _completeClientHello(hello, rec.valueOrNull!.payload);
+    return _completeClientHello(hello, helloBytes);
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> _onSecondClientHello(
@@ -146,11 +153,7 @@ final class PqTlsServer {
       helloRetryRequest: hrrBytes,
       hash: schedule.transcriptHash,
     );
-    return Result.success([
-      encodePlainRecord(
-        TlsRecord(type: tlsContentHandshake, payload: hrrBytes),
-      ),
-    ]);
+    return Result.success([wrapHandshake(hrrBytes, quic: quic)]);
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> _completeClientHello(
@@ -227,21 +230,17 @@ final class PqTlsServer {
         schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
       );
       transcript.add(fin);
+      final rest = concatBytes([ee, cert, cv, fin]);
+      if (quic) {
+        return Result.success([shBytes, rest]);
+      }
       final protected = records!.protectWith(
         trafficSecret: schedule.serverHandshakeTraffic,
         iv: schedule.serverHandshakeIv,
-        inner: TlsRecord(
-          type: tlsContentHandshake,
-          payload: concatBytes([ee, cert, cv, fin]),
-        ),
+        inner: TlsRecord(type: tlsContentHandshake, payload: rest),
         epoch: TlsRecordEpoch.handshake,
       );
-      return Result.success([
-        encodePlainRecord(
-          TlsRecord(type: tlsContentHandshake, payload: shBytes),
-        ),
-        protected,
-      ]);
+      return Result.success([wrapHandshake(shBytes, quic: false), protected]);
     } on PqTransportError catch (e) {
       driveTls(machine, TlsEvent.fatal);
       return Result.failure(e);
@@ -257,19 +256,22 @@ final class PqTlsServer {
   Future<Result<List<Uint8List>, PqTransportError>> _onClientFinished(
     Uint8List recordBytes,
   ) async {
-    final layer = records;
-    if (layer == null) return _fail('no records');
-    final inner = layer.openWith(
-      trafficSecret: schedule.clientHandshakeTraffic,
-      iv: schedule.clientHandshakeIv,
-      wire: recordBytes,
-      epoch: TlsRecordEpoch.handshake,
-    );
-    if (inner.isFailure) return Result.failure(inner.errorOrNull!);
-    final fin = decodeFinished(
-      inner.valueOrNull!.payload,
-      verifyDataLength: schedule.hashLen,
-    );
+    late final Uint8List finBytes;
+    if (quic) {
+      finBytes = recordBytes;
+    } else {
+      final layer = records;
+      if (layer == null) return _fail('no records');
+      final inner = layer.openWith(
+        trafficSecret: schedule.clientHandshakeTraffic,
+        iv: schedule.clientHandshakeIv,
+        wire: recordBytes,
+        epoch: TlsRecordEpoch.handshake,
+      );
+      if (inner.isFailure) return Result.failure(inner.errorOrNull!);
+      finBytes = inner.valueOrNull!.payload;
+    }
+    final fin = decodeFinished(finBytes, verifyDataLength: schedule.hashLen);
     if (fin.isFailure) return Result.failure(fin.errorOrNull!);
     final expected = schedule.finishedMac(
       schedule.clientFinishedKey,
@@ -278,7 +280,7 @@ final class PqTlsServer {
     if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
       return _fail('client finished mac');
     }
-    transcript.add(inner.valueOrNull!.payload);
+    transcript.add(finBytes);
     final driven = driveTls(machine, TlsEvent.receiveFinished);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     schedule.deriveApplication(
