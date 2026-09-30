@@ -46,7 +46,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |
-| QUIC 1-RTT protect + CRYPTO/STREAM | Partial |
+| QUIC 1-RTT protect + CRYPTO/STREAM | Done |
 | HTTP/2 | Not started |
 | HTTP/3 QPACK | Not started |
 | IoDatagramChannel multicast join | Done |

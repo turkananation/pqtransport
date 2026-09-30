@@ -79,11 +79,13 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| 1-RTT packet protect | Done | No header protection |
-| CRYPTO / STREAM / padding-capable frames | Partial | CRYPTO + STREAM encode; no ACK processor |
+| 1-RTT packet protect | Done | Short-header HP (`0x1f` mask); AES-256-GCM |
+| CRYPTO / STREAM / padding-capable frames | Done | CRYPTO + ACK decode; STREAM encode; PADDING skipped |
 | Flow control (MAX_DATA / MAX_STREAM_DATA) | Partial | `QuicFlowControl.consume` |
 | Connection / stream state machines | Partial | Happy + illegal-event tests |
-| TLS in QUIC (RFC 9001) | Not started | |
+| TLS in QUIC (RFC 9001) | Done | CRYPTO stream, no TLS records. Initial AES-128-GCM + HP. OPEN-06. |
+| Header protection | Done | AES-ECB (pqforge `aesEncryptBlock`). ChaCha HP not implemented. |
+| ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3 |
 | 0-RTT | Not started | Explicit non-goal for v1 |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |

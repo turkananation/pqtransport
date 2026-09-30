@@ -19,6 +19,8 @@ export 'src/http/pq_http_client.dart';
 export 'src/mdns/pq_mdns.dart';
 export 'src/mdns/signed_record.dart';
 export 'src/quic/packet.dart';
+export 'src/quic/initial.dart';
+export 'src/quic/tls_in_quic.dart';
 export 'src/socket/pq_transport_socket.dart';
 export 'src/tls/cipher_suite.dart';
 export 'src/tls/handshake.dart';

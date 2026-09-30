@@ -14,5 +14,8 @@ void main() {
     expect(PqMdnsServer, isNotNull);
     expect(PqHttpClient, isNotNull);
     expect(PqTransportError, isNotNull);
+    expect(QuicTlsHandshake, isNotNull);
+    expect(QuicInitialSecrets, isNotNull);
+    expect(QuicAckProcessor, isNotNull);
   });
 }

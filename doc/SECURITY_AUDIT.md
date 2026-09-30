@@ -16,7 +16,7 @@ production hardening.
 |---|---|---|
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
 | P1 wrong-on-the-wire or fail-open | 0 | OPEN-02 Fixed |
-| P2 incomplete protocol | 5 | OPEN-06 … OPEN-10 |
+| P2 incomplete protocol | 2 | OPEN-07, OPEN-10 |
 | P3 hygiene | 0 | OPEN-12 Fixed |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |
@@ -79,12 +79,11 @@ Handshake and application epochs have independent counters
 (`TlsRecordEpoch`). Mixing them again would reuse nonces under the
 same key.
 
-### S7 — QUIC sketch has no header protection (OPEN-06, P2)
+### S7 — QUIC ChaCha HP and 0-RTT (LIM-05 / residual)
 
-1-RTT packet protect only. Connection IDs and packet numbers are not
-header-protected. Do not treat this as RFC 9000 confidentiality for
-the header. CRYPTO-frame test uses a 1216-byte **zero** share (size
-gate).
+AES header protection and RFC 9001 TLS-in-QUIC are **done** (OPEN-06).
+ChaCha20 HP is not implemented and fails closed. 0-RTT remains a
+non-goal. CRYPTO frames carry a live encapsulate.
 
 ### S8 — UDP HKDF extra is shared (by design)
 
@@ -130,8 +129,8 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |
 | DNS cache poisoning from compressed rdata names | Mitigated (OPEN-08): rdata pointers resolve against the outer message; RDLENGTH bounds the record |
 | mDNS spoofing on a real LAN | Mitigated in part (OPEN-09): `joinMulticast` required to receive; signed TXT (`pqsig=`) when used. Spoofed LAN peers remain a threat. |
-| QUIC injection via unprotected headers | OPEN-06 |
-| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.5` / transitive 0.4.2 |
+| QUIC injection via unprotected headers | Mitigated (OPEN-06): AES-ECB HP on Initial and 1-RTT. ChaCha HP not implemented. |
+| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.6` / transitive pqcrypto |
 
 ## Audit extras that are **not** claimed
 

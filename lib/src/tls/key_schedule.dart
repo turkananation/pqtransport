@@ -225,4 +225,14 @@ final class TlsKeySchedule {
 
   Uint8List trafficKey(Uint8List trafficSecret) =>
       expandLabel(trafficSecret, tlsLabelKey, Uint8List(0), aeadKeyBytes);
+
+  /// RFC 9001 §5.1 packet keys from a TLS traffic secret.
+  Uint8List quicPacketKey(Uint8List secret, int length) =>
+      expandLabel(secret, quicLabelKey, Uint8List(0), length);
+
+  Uint8List quicPacketIv(Uint8List secret) =>
+      expandLabel(secret, quicLabelIv, Uint8List(0), aeadNonceBytes);
+
+  Uint8List quicHeaderProtectionKey(Uint8List secret, int length) =>
+      expandLabel(secret, quicLabelHp, Uint8List(0), length);
 }

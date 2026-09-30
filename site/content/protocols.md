@@ -53,9 +53,10 @@ SLH-DSA signed records are not the interactive default.
 
 ## QUIC / HTTP
 
-1-RTT packet protect, no header protection. CRYPTO / STREAM frames
-encode; no ACK processor. Flow control `consume` exists. TLS-in-QUIC
-(RFC 9001) is not started. QUIC 0-RTT is an explicit non-goal.
+1-RTT short-header HP and Initial long-header HP (AES). CRYPTO frames
+carry a live TLS handshake (RFC 9001, no TLS records). ACK processor
+is present. ChaCha HP is not implemented. QUIC 0-RTT is an explicit
+non-goal.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is not started. HTTP/3 is frames without QPACK.

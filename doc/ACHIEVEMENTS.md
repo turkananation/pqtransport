@@ -11,7 +11,7 @@ file. If a row cannot be cited, it does not belong here.
 | --- | --- | --- |
 | Version | `0.1.0` | `pubspec.yaml` |
 | SDK | `>=3.12.0 <4.0.0` | `pubspec.yaml` (blueprint's `>=3.8.0` was stale) |
-| Crypto | `pqforge ^0.4.5` | `pubspec.yaml` |
+| Crypto | `pqforge ^0.4.6` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
 | Tests | 153 passed | `dart test` |
@@ -106,8 +106,8 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | DNS RR round-trip; pointer cycle rejected | Done |
 | CircuitBreaker opens; cache expires at TTL | Done |
 | mDNS probe/announce/browse; ML-DSA TXT verify / mutate-fail | Done |
-| CRYPTO frame carries 1216-byte share | Done (size; share body is zeros in that test) |
-| Packet protect round trip; bit-flip fails | Done |
+| CRYPTO frame carries 1216-byte share | Done (live ClientHello; OPEN-06) |
+| Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
 | OpenSSL interop fixture | **Not a 0.1.0 claim** |
@@ -118,6 +118,7 @@ Recorded so achievements cannot be misread:
 
 - OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped with IANA `0x1302`/`0x1303`).
 - X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
-- Full RFC 9000 QUIC, HTTP/2, HTTP/3+QPACK.
+- Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC are in tree;
+  still no congestion control, loss recovery, or HTTP/3 stream mapping).
 - Production DoH/DoT with ALPN.
 - CMVP / FIPS 140 module validation.

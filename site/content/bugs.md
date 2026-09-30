@@ -17,7 +17,6 @@ Canonical tracker:
 
 | ID | Sev | Summary |
 | --- | --- | --- |
-| OPEN-06 | P2 | QUIC has no header protection / ACK / RFC 9001 |
 | OPEN-07 | P2 | HTTP/2 missing; HTTP/3 is frames without QPACK |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
 

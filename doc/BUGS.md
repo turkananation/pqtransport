@@ -20,7 +20,6 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 | ID | Sev | Component | Summary | Evidence / next step |
 |---|---|---|---|---|
-| OPEN-06 | P2 | QUIC | No header protection, no ACK processing, no RFC 9001 TLS-in-QUIC. CRYPTO-frame test uses a 1216-byte **zero** share (size gate, not a live encapsulate). | `lib/src/quic/packet.dart`, `test/quic/quic_test.dart` |
 | OPEN-07 | P2 | HTTP | HTTP/2 not implemented. HTTP/3 is frames without QPACK or a QUIC stream mapping. | `lib/src/http/pq_http_client.dart` |
 | OPEN-10 | P2 | DoH/DoT | `DohExchange` / `DotExchange` are thin adapters. No ALPN `dot`/`h2`, no production URI template. | `lib/src/dns/pq_dns_client.dart` |
 
@@ -71,3 +70,4 @@ Do not vendor ChaCha or ECDH.
 | OPEN-12 | Coverage | Leftover DNS/UDP/TLS error paths. | Extra coverage tests; `lib/` line coverage 90.7%. |
 | OPEN-08 | DNS | Rdata name compression into the outer message. | RFC 1035 pointers in CNAME/NS/PTR/MX/SRV/HTTPS/SVCB rdata resolve against the full datagram. Truncated rdata cannot consume the next RR. `test/dns/wire_test.dart`. |
 | OPEN-09 | mDNS / IO | `IoDatagramChannel` did not `joinMulticast`. | `joinMulticast`/`leaveMulticast` on the channel. IO uses `RawDatagramSocket.joinMulticast` (TTL 255). Memory flood is membership-gated. `PqMdnsClient.browse` / `PqMdnsServer.beginProbe` call `joinMdnsGroups`. `test/io/io_channel_test.dart`, `test/mdns/mdns_test.dart`. |
+| OPEN-06 | QUIC | No header protection, ACK, or RFC 9001 TLS-in-QUIC. Zero CRYPTO share. | AES-ECB HP (pqforge 0.4.6), ACK processor, CRYPTO stream (offset + handshake-message reassembly), `QuicTlsHandshake` (`quic: true`). RFC 9001 A.1 + A.2 pins. Live encapsulate. ChaCha HP fails closed. `test/quic/quic_test.dart`. |

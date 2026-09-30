@@ -13,6 +13,9 @@ enum TransportAead {
   /// AES-256-GCM.
   aes256Gcm,
 
+  /// AES-128-GCM (QUIC Initial, RFC 9001 §5.2).
+  aes128Gcm,
+
   /// ChaCha20-Poly1305.
   chacha20Poly1305,
 }
@@ -252,6 +255,12 @@ final class PqTransportCrypto {
         plaintext: plaintext,
         aad: aad,
       ),
+      TransportAead.aes128Gcm => PqSymmetricPrimitives.aes128GcmEncrypt(
+        key: key,
+        nonce: nonce,
+        plaintext: plaintext,
+        aad: aad,
+      ),
       TransportAead.chacha20Poly1305 =>
         PqSymmetricPrimitives.chacha20Poly1305Encrypt(
           key: key,
@@ -276,6 +285,12 @@ final class PqTransportCrypto {
         ciphertext: ciphertextWithTag,
         aad: aad,
       ),
+      TransportAead.aes128Gcm => PqSymmetricPrimitives.aes128GcmDecrypt(
+        key: key,
+        nonce: nonce,
+        ciphertext: ciphertextWithTag,
+        aad: aad,
+      ),
       TransportAead.chacha20Poly1305 =>
         PqSymmetricPrimitives.chacha20Poly1305Decrypt(
           key: key,
@@ -285,6 +300,12 @@ final class PqTransportCrypto {
         ),
     };
   }
+
+  /// AES-ECB one 16-byte block. QUIC header protection (RFC 9000 §5.4.3).
+  Uint8List aesEncryptBlock({
+    required Uint8List key,
+    required Uint8List block,
+  }) => PqSymmetricPrimitives.aesEncryptBlock(key: key, block: block);
 
   HybridGroup get defaultGroup => switch (kem) {
     PqKemAlgorithm.mlKem1024 => HybridGroup.secP384r1MlKem1024,
