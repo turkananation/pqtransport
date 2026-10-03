@@ -14,7 +14,7 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.6` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 153 passed | `dart test` |
+| Tests | 195 passed | `dart test` |
 | Coverage | 90.7% of `lib/` (`2466/2720`) | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
@@ -34,9 +34,10 @@ Build order from the skill was respected:
 | 4 DNS | Wire codec for v1 RRs including PTR/NS; CircuitBreaker; TTL Cache; DoH/DoT helpers | `test/dns/wire_test.dart` |
 | 5 mDNS | Probe/announce/browse; ML-DSA-65 TXT sign/verify | `test/mdns/mdns_test.dart` |
 | 6 HTTP/1.1 | Encoder/decoder; GET over a completed `PqTlsSocket` | `test/tls/socket_http_test.dart` |
+| 6b HTTP/2 | RFC 9113 + RFC 7541 HPACK on `PqTlsSocket` (ALPN `h2`) | `test/http/http_test.dart`, `test/tls/socket_http_test.dart` |
 | 7 QUIC (minimum) | 1-RTT protect, CRYPTO/STREAM frames, flow control | `test/quic/quic_test.dart` |
 
-HTTP/2 was **not** implemented (blueprint phase 6 second half). HTTP/3 is frames only.
+HTTP/2 is **Done** (slice 0.5.3). HTTP/3 is frames only (no QPACK, no QUIC STREAM mapping).
 
 ## Hybrid (the #1 interop bug, pinned)
 
@@ -110,6 +111,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
+| HTTP/2 GET over mock TLS (ALPN `h2`) | Done |
 | OpenSSL interop fixture | **Not a 0.1.0 claim** |
 
 ## What this release does *not* achieve

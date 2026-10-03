@@ -300,3 +300,67 @@ const int http3FrameData = 0x00;
 const int http3FrameHeaders = 0x01;
 const int http3FrameSettings = 0x04;
 const int httpMaxHeaderBytes = 65536;
+
+const String httpAlpnH1 = 'http/1.1';
+const String httpAlpnH2 = 'h2';
+const String httpAlpnH3 = 'h3';
+
+/// RFC 9113 §3.4 connection preface. ASCII, 24 bytes.
+const String http2ConnectionPreface = 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n';
+const int http2PrefaceBytes = 24;
+const int http2FrameHeaderBytes = 9;
+const int http2DefaultMaxFrameSize = 16384;
+const int http2MinMaxFrameSize = 16384;
+const int http2MaxMaxFrameSize = 16777215;
+const int http2DefaultHeaderTableSize = 4096;
+const int http2DefaultInitialWindowSize = 65535;
+const int http2MaxWindowSize = 0x7fffffff;
+const int http2DefaultMaxConcurrentStreams = 100;
+const int http2SettingEntryBytes = 6;
+const int http2PriorityPayloadBytes = 5;
+const int http2PingPayloadBytes = 8;
+const int http2RstStreamPayloadBytes = 4;
+const int http2WindowUpdatePayloadBytes = 4;
+const int http2GoawayMinPayloadBytes = 8;
+const int http2StreamIdMask = 0x7fffffff;
+const int http2ClientInitialStreamId = 1;
+
+const int http2FrameData = 0x00;
+const int http2FrameHeaders = 0x01;
+const int http2FramePriority = 0x02;
+const int http2FrameRstStream = 0x03;
+const int http2FrameSettings = 0x04;
+const int http2FramePushPromise = 0x05;
+const int http2FramePing = 0x06;
+const int http2FrameGoaway = 0x07;
+const int http2FrameWindowUpdate = 0x08;
+const int http2FrameContinuation = 0x09;
+
+const int http2FlagEndStream = 0x01;
+const int http2FlagAck = 0x01;
+const int http2FlagEndHeaders = 0x04;
+const int http2FlagPadded = 0x08;
+const int http2FlagPriority = 0x20;
+
+const int http2SettingsHeaderTableSize = 0x01;
+const int http2SettingsEnablePush = 0x02;
+const int http2SettingsMaxConcurrentStreams = 0x03;
+const int http2SettingsInitialWindowSize = 0x04;
+const int http2SettingsMaxFrameSize = 0x05;
+const int http2SettingsMaxHeaderListSize = 0x06;
+
+const int hpackStaticTableLength = 61;
+const int hpackEntryOverheadBytes = 32;
+const int hpackIndexedMask = 0x80;
+const int hpackLiteralIncremental = 0x40;
+const int hpackLiteralIncrementalMask = 0xc0;
+const int hpackTableSizeUpdate = 0x20;
+const int hpackTableSizeUpdateMask = 0xe0;
+const int hpackLiteralNever = 0x10;
+const int hpackLiteralNeverMask = 0xf0;
+const int hpackLiteralWithoutMask = 0xf0;
+const int hpackHuffmanBit = 0x80;
+const int hpackIntContinuation = 0x80;
+const int hpackMaxIntegerShift = 28;
+const int hpackHuffmanEosBits = 30;
+const int hpackHuffmanMaxCodeBits = 30;

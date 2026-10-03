@@ -33,7 +33,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | HKDF-SHA-256 schedule | Done | ChaCha suite (`0x1303`) and UDP |
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
 | HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
-| SNI, ALPN, supported_versions, key_share extensions | Done | On ClientHello. ServerHello has supported_versions + key_share. |
+| SNI, ALPN, supported_versions, key_share extensions | Done | ClientHello ALPN default `http/1.1`. EncryptedExtensions carries the selected protocol (RFC 7301). `h2` is selectable. |
 | X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). X.509 chains are a later interop extra. |
 | ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
 | OpenSSL interop | Not started | |
@@ -89,9 +89,9 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | 0-RTT | Not started | Explicit non-goal for v1 |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
-| HTTP/2 | Not started | |
-| HTTP/3 frames | Partial | DATA/HEADERS/SETTINGS type bytes; no QPACK |
-| Silent h3→h1 downgrade | Refused | `allowDowngrade: false` default |
+| HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |
+| HTTP/3 frames | Partial | DATA/HEADERS/SETTINGS type bytes; no QPACK, no QUIC STREAM mapping (0.5.4) |
+| Silent h2/h3→h1 downgrade | Refused | `allowDowngrade: false` default |
 
 ## Platform
 

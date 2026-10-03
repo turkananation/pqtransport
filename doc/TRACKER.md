@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.6` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 174 passed |
+| Tests | 195 passed |
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
@@ -39,6 +39,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | TLS machines + RFC 8446 hellos + IANA cipher suites | Done | `test/tls/` |
 | Live NIST groups (P-256 / P-384) | Done | `handshake_test.dart`, `crypto_facade_test.dart` |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
+| HTTP/2 GET/POST over `PqTlsSocket` (ALPN `h2`) | Done | `test/http/http_test.dart`, `test/tls/socket_http_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
 | mDNS probe/announce/browse + ML-DSA TXT | Done | `test/mdns/mdns_test.dart` |
 | QUIC packet protect + CRYPTO/STREAM + RFC 9001 | Done | `test/quic/quic_test.dart` |
@@ -70,6 +71,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-19 | Flow control violation is an error | Done |
 | GATE-20 | HTTP/1.1 GET over mock TLS | Done |
 | GATE-21 | OpenSSL interop fixture | Not started (LIM-01) |
+| GATE-22 | HTTP/2 GET over mock TLS (ALPN `h2`) | **Done** — RFC 7541 C.2–C.4 + live GET/POST (OPEN-07 HTTP/2) |
 
 Universal gates (analyze, no `dart:ffi`, no stray size literals, claim
 language) are green as of this pass. See [INDEX.md](INDEX.md).
@@ -80,7 +82,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Owner | Blocks | Next action |
 | --- | --- | --- | --- | --- |
-| OPEN-07 | P2 | pqtransport | h2 / h3 | HTTP/2; HTTP/3+QPACK after OPEN-06 |
+| OPEN-07 | P2 | pqtransport | h3 QPACK | HTTP/2 **Done** (0.5.3). HTTP/3+QPACK needs QUIC STREAM mapping (0.5.4) |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
 ### pqforge exports (0.4.6 — consumed)
@@ -128,7 +130,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 Do not start 0.5 HTTP/3 QPACK before a real QUIC stream mapping (OPEN-07).
 Do not vendor P-256 ECDH. Next coding turn: LIM-01 OpenSSL fixture, or
-OPEN-07 HTTP/2.
+OPEN-07 HTTP/3+QPACK on a QUIC stream (0.5.4), or OPEN-10 DoH/DoT.
 
 ## Verification commands
 

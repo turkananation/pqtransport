@@ -34,7 +34,7 @@ lib/
     dns/                    # records, wire, client, DoH/DoT helpers
     mdns/                   # probe/announce/browse, signed TXT
     quic/                   # packet protect, frames, flow control, machines
-    http/                   # HTTP/1.1 codec, HTTP/3 frames, PqHttpClient
+    http/                   # HTTP/1.1, HTTP/2 (HPACK + RFC 9113), HTTP/3 frames, PqHttpClient
 ```
 
 All protocol sizes live in [`lib/src/core/lengths.dart`](../lib/src/core/lengths.dart).
@@ -177,7 +177,8 @@ control, no loss recovery, no HTTP/3 stream mapping. ChaCha HP fails
 closed. 0-RTT is a non-goal.
 
 HTTP/1.1 is a real codec used by `PqHttpClient.roundTripH1` over a completed
-`PqTlsSocket`. HTTP/3 is frame encode/decode only.
+`PqTlsSocket`. HTTP/2 (RFC 9113 + RFC 7541) is a real session on ALPN `h2`
+(`PqHttp2Session`, `roundTripH2`). HTTP/3 is frame encode/decode only.
 
 ## Error model
 

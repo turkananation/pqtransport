@@ -54,7 +54,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | IMP-12 | P1 | OpenSSL 3.5+ fixture | LIM-01; wording stays honest until green |
 | IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | **Done** OPEN-09 |
 | IMP-14 | P2 | QUIC header protection + ACK + RFC 9001 | **Done** OPEN-06 |
-| IMP-15 | P2 | HTTP/2; then HTTP/3+QPACK | OPEN-07 |
+| IMP-15 | P2 | HTTP/2; then HTTP/3+QPACK | HTTP/2 **Done** OPEN-07; HTTP/3+QPACK remains |
 | IMP-16 | P2 | Production DoH/DoT (ALPN, URI template) | OPEN-10 |
 | IMP-17 | P2 | DNS rdata name pointers into the outer message | **Done** OPEN-08 |
 

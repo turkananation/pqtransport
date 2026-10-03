@@ -24,17 +24,20 @@ final class PqTlsClient {
     this.group = HybridGroup.x25519MlKem768,
     List<HybridGroup>? offeredGroups,
     List<int>? offeredCipherSuites,
+    List<String>? alpnProtocols,
     this.allowUnauthenticated = false,
     this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
-           offeredCipherSuites ?? tlsDefaultOfferedCipherSuites;
+           offeredCipherSuites ?? tlsDefaultOfferedCipherSuites,
+       alpnProtocols = alpnProtocols ?? const [httpAlpnH1];
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
   final List<HybridGroup> offeredGroups;
   final List<int> offeredCipherSuites;
+  final List<String> alpnProtocols;
   final bool allowUnauthenticated;
 
   /// RFC 9001: handshake messages without the TLS record layer.
@@ -52,6 +55,7 @@ final class PqTlsClient {
   late HybridGroup _activeGroup;
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
+  String? selectedAlpn;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -205,6 +209,11 @@ final class PqTlsClient {
       if (type == tlsHsEncryptedExtensions) {
         final ee = decodeEncryptedExtensions(msg);
         if (ee.isFailure) return Result.failure(ee.errorOrNull!);
+        final selected = ee.valueOrNull!.alpnProtocol;
+        if (selected != null && !alpnProtocols.contains(selected)) {
+          return _fail('alpn not offered');
+        }
+        selectedAlpn = selected;
         final d = driveTls(machine, TlsEvent.receiveEncryptedExtensions);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         transcript.add(msg);
@@ -316,6 +325,7 @@ final class PqTlsClient {
     group: _activeGroup,
     share: share,
     cipherSuites: offeredCipherSuites,
+    alpnProtocols: alpnProtocols,
     supportedGroups: [for (final g in offeredGroups) g.codepoint],
     cookie: cookie,
   );

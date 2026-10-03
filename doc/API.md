@@ -61,13 +61,13 @@ import 'package:pqtransport/pqtransport_io.dart';
 
 | Type | Role |
 |---|---|
-| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records |
+| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `PqTlsSocket.alpn` is the RFC 7301 selection. |
 | `PqTlsServerIdentity` | ML-DSA-65 key pair |
 | `TlsState` / `TlsEvent` / `tlsClientMachine` / `tlsServerMachine` | Machines |
 | `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
 | `TlsCipherSuite` | IANA `0x1302` / `0x1303` |
 | `TlsRecordLayer` | Epoch-aware AES-256-GCM or ChaCha20-Poly1305 |
-| `ClientHello` / `ServerHello` | RFC 8446 codecs |
+| `ClientHello` / `ServerHello` / `EncryptedExtensions` | RFC 8446 codecs. EE carries raw-pk and optional ALPN. |
 
 ### In-memory handshake
 
@@ -91,8 +91,9 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `encodeDnsMessage` / `decodeDnsMessage` | Wire |
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
-| `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 over TLS |
-| `Http3Frame` | HTTP/3 frame codec |
+| `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. `roundTrip` follows ALPN. |
+| `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK |
+| `Http3Frame` | HTTP/3 frame codec (no QPACK) |
 | `QuicPacketCodec` / `QuicInitialCodec` / `QuicCryptoFrame` | 1-RTT and Initial HP |
 | `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
 | `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |

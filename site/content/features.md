@@ -47,7 +47,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |
 | QUIC 1-RTT protect + CRYPTO/STREAM | Done |
-| HTTP/2 | Not started |
+| HTTP/2 | Done (ALPN `h2`, RFC 9113 + RFC 7541) |
 | HTTP/3 QPACK | Not started |
 | IoDatagramChannel multicast join | Done |
 

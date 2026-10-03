@@ -2,6 +2,16 @@
 
 ### Added
 
+- HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
+  SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.
+  RFC 7541 HPACK (static table, dynamic table, Huffman encode/decode).
+  ALPN `h2` is selected in EncryptedExtensions (RFC 7301). Default
+  ClientHello ALPN stays `http/1.1`. `PqHttpClient.roundTrip` uses
+  negotiated ALPN; silent h2→h1 is refused unless `allowDowngrade`.
+  HTTP/3 QPACK and QUIC STREAM mapping are **not** in this slice
+  (0.5.4).
+- `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` take `alpnProtocols`.
+  No overlap is `no_application_protocol` (alert 120).
 - RFC 9001 TLS-in-QUIC (OPEN-06). Handshake messages travel in CRYPTO
   frames with **no TLS record layer** (`PqTlsClient`/`PqTlsServer`
   `quic: true`, `QuicTlsHandshake`). Live X25519MLKEM768 encapsulate,
@@ -17,6 +27,13 @@
   fails closed. 0-RTT remains a non-goal (LIM-05).
 
 ### Tests
+
+- RFC 7541 C.2.1–C.2.3, C.3.1–C.3.3 (no Huffman), C.4.1 (Huffman).
+  HTTP/2 frame header, SETTINGS, pad overflow. `selectAlpn` overlap
+  and fatal miss. Live GET and POST over `PqTlsSocket` with ALPN `h2`.
+  Default handshake still selects `http/1.1`. Prefer-h2 refuses silent
+  downgrade. HPACK index 0 / truncated int / table-size 4097 fail
+  closed.
 
 - RFC 9001 Appendix A.1 Initial secrets; Appendix A.2 client Initial
   packet (HP sample, mask, 1200-byte datagram). FIPS 197 C.1 AES-128

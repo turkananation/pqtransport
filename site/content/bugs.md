@@ -17,7 +17,7 @@ Canonical tracker:
 
 | ID | Sev | Summary |
 | --- | --- | --- |
-| OPEN-07 | P2 | HTTP/2 missing; HTTP/3 is frames without QPACK |
+| OPEN-07 | P2 | HTTP/2 Done on `PqTlsSocket`; HTTP/3 still frames without QPACK |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
 
 ## Blocked on pqforge

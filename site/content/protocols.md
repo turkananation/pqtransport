@@ -59,5 +59,6 @@ is present. ChaCha HP is not implemented. QUIC 0-RTT is an explicit
 non-goal.
 
 HTTP/1.1 request/response is Done, including GET over a completed
-`PqTlsSocket`. HTTP/2 is not started. HTTP/3 is frames without QPACK.
-Silent h3→h1 downgrade is refused (`allowDowngrade: false`).
+`PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
+is frames without QPACK. Silent h2/h3→h1 downgrade is refused
+(`allowDowngrade: false`).

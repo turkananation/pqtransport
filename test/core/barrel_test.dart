@@ -13,6 +13,10 @@ void main() {
     expect(PqMdnsClient, isNotNull);
     expect(PqMdnsServer, isNotNull);
     expect(PqHttpClient, isNotNull);
+    expect(PqHttp2Session, isNotNull);
+    expect(HpackCodec, isNotNull);
+    expect(Http2Frame, isNotNull);
+    expect(EncryptedExtensions, isNotNull);
     expect(PqTransportError, isNotNull);
     expect(QuicTlsHandshake, isNotNull);
     expect(QuicInitialSecrets, isNotNull);

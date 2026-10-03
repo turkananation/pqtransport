@@ -7,6 +7,7 @@ import '../core/bytes.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
 import '../tls/pq_tls_socket.dart';
+import 'http2.dart';
 
 enum HttpVersion { h1, h2, h3 }
 
@@ -38,7 +39,7 @@ final class PqHttpResponse {
   final HttpVersion version;
 }
 
-/// HTTP/1.1 request encoder / response parser (ALPN later).
+/// HTTP/1.1 request encoder / response parser.
 Uint8List encodeHttp1Request(PqHttpRequest req) {
   final b = StringBuffer();
   final path = req.uri.hasQuery
@@ -164,6 +165,67 @@ final class PqHttpClient {
 
   final HttpVersion prefer;
   final bool allowDowngrade;
+  PqHttp2Session? _h2;
+
+  /// Version-negotiated entry. Uses ALPN; refuses silent h2/h3→h1 unless
+  /// [allowDowngrade] is true.
+  Future<Result<PqHttpResponse, PqTransportError>> roundTrip({
+    required PqTlsSocket tls,
+    required PqHttpRequest request,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!tls.isComplete) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('tls not complete'),
+      );
+    }
+    final alpn = tls.alpn;
+    if (alpn == httpAlpnH2) {
+      if (prefer == HttpVersion.h3 && !allowDowngrade) {
+        return Result.failure(
+          PqTransportError.handshakeFailure('h3 not negotiated'),
+        );
+      }
+      return roundTripH2(tls: tls, request: request, timeout: timeout);
+    }
+    if (alpn == httpAlpnH3) {
+      return Result.failure(
+        PqTransportError.unsupported('HTTP/3 stream mapping not implemented'),
+      );
+    }
+    if (prefer == HttpVersion.h2 && !allowDowngrade) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('silent h2 downgrade refused'),
+      );
+    }
+    if (prefer == HttpVersion.h3 && !allowDowngrade) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('silent h3 downgrade refused'),
+      );
+    }
+    return roundTripH1(tls: tls, request: request, timeout: timeout);
+  }
+
+  Future<Result<PqHttpResponse, PqTransportError>> roundTripH2({
+    required PqTlsSocket tls,
+    required PqHttpRequest request,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!tls.isComplete) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('tls not complete'),
+      );
+    }
+    if (tls.alpn != httpAlpnH2) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('alpn is not h2'),
+      );
+    }
+    _h2 ??= PqHttp2Session.client(tls);
+    final started = await _h2!.ensureStarted(timeout: timeout);
+    if (started.isFailure) return Result.failure(started.errorOrNull!);
+    return _h2!.request(request, timeout: timeout);
+  }
 
   Future<Result<PqHttpResponse, PqTransportError>> roundTripH1({
     required PqTlsSocket tls,
@@ -174,10 +236,6 @@ final class PqHttpClient {
       return Result.failure(
         PqTransportError.handshakeFailure('tls not complete'),
       );
-    }
-    if (prefer == HttpVersion.h3 && !allowDowngrade) {
-      // Still serve h1 when the caller explicitly used roundTripH1; refuse
-      // silent h3→h1 only on the version-negotiated entry point.
     }
     final pending = tls.applicationData.first;
     final sent = await tls.send(encodeHttp1Request(request));
