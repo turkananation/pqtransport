@@ -41,19 +41,27 @@ final class QuicTlsHandshake {
   QuicTlsHandshake.client({
     PqTransportCrypto? crypto,
     HybridGroup group = HybridGroup.x25519MlKem768,
-  }) : _client = PqTlsClient(crypto: crypto, group: group, quic: true),
+    List<String>? alpnProtocols,
+  }) : _client = PqTlsClient(
+         crypto: crypto,
+         group: group,
+         quic: true,
+         alpnProtocols: alpnProtocols,
+       ),
        _server = null;
 
   QuicTlsHandshake.server({
     PqTransportCrypto? crypto,
     HybridGroup group = HybridGroup.x25519MlKem768,
     PqTlsServerIdentity? identity,
+    List<String>? alpnProtocols,
   }) : _client = null,
        _server = PqTlsServer(
          crypto: crypto,
          group: group,
          identity: identity,
          quic: true,
+         alpnProtocols: alpnProtocols,
        );
 
   final PqTlsClient? _client;
@@ -66,6 +74,8 @@ final class QuicTlsHandshake {
 
   bool get isComplete =>
       (_client?.isComplete ?? false) || (_server?.isComplete ?? false);
+
+  String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
 
   Uint8List exporterBytes(String label, Uint8List context, int length) {
     final c = _client;

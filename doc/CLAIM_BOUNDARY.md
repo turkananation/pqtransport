@@ -77,9 +77,9 @@ Also forbidden in meaning, even if the substring differs:
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |
 | ML-KEM / ML-DSA / SLH-DSA | FIPS 203 / 204 / 205 | Via pqforge → pqcrypto |
-| QUIC | RFC 9000, 9001, 9002 | Packet + frame sketch, not a connection |
+| QUIC | RFC 9000, 9001, 9002 | Self-interop packets, STREAM, TLS-in-QUIC. Not loss recovery. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
-| HTTP/3 | RFC 9114 | Frame types only |
+| HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
 | DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire + helpers; production ALPN not done |
 | X25519 | RFC 7748 | Via pqforge |
 

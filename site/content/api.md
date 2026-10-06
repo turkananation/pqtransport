@@ -65,9 +65,11 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `DohExchange` / `DotExchange` | Thin adapters |
 | `PqMdnsClient` / `PqMdnsServer` | Probe / announce / browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
-| `PqHttpClient` | HTTP/1.1 and HTTP/2 over TLS |
+| `PqHttpClient` | HTTP/1.1 and HTTP/2 over TLS; HTTP/3 over `PqQuicConn` |
 | `PqHttp2Session` / `HpackCodec` | RFC 9113 + RFC 7541 |
-| `QuicPacketCodec` / `QuicCryptoFrame` | QUIC sketch |
+| `PqHttp3Session` / `QpackCodec` | RFC 9114 + RFC 9204 |
+| `PqQuicConn` / `QuicStreamFrame` | TLS-in-QUIC + 1-RTT STREAM |
+| `QuicPacketCodec` / `QuicCryptoFrame` | QUIC Initial / 1-RTT |
 
 ## Errors
 

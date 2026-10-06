@@ -60,5 +60,5 @@ non-goal.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
-is frames without QPACK. Silent h2/h3→h1 downgrade is refused
-(`allowDowngrade: false`).
+is Done on ALPN `h3` (RFC 9114 + RFC 9204 QPACK on QUIC STREAM). Silent
+h2/h3→h1 downgrade is refused (`allowDowngrade: false`).

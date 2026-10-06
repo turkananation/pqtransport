@@ -17,7 +17,6 @@ Canonical tracker:
 
 | ID | Sev | Summary |
 | --- | --- | --- |
-| OPEN-07 | P2 | HTTP/2 Done on `PqTlsSocket`; HTTP/3 still frames without QPACK |
 | OPEN-10 | P2 | DoH/DoT are thin adapters |
 
 ## Blocked on pqforge
@@ -42,5 +41,7 @@ handshake `late` application secrets. OPEN-03 (`requireGroup`), BLK-01
 (RFC 8446 hellos), OPEN-04 (RFC 7250 RawPublicKey), OPEN-05 (wire HRR +
 cookie), OPEN-11 (unused UDP `role` args removed), OPEN-02 (IANA `0x1302`
 + SHA-384 schedule), OPEN-13 (IANA `0x1303` + ChaCha records), OPEN-12
-(leftover DNS/UDP/TLS error paths). Twelve FIX-* rows plus those in the
+(leftover DNS/UDP/TLS error paths), OPEN-06 (QUIC HP + RFC 9001),
+OPEN-07 (HTTP/2 + HTTP/3 QPACK on STREAM), OPEN-08 (DNS rdata pointers),
+OPEN-09 (`joinMulticast`). Twelve FIX-* rows plus those in the
 canonical file.

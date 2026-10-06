@@ -29,7 +29,7 @@ not exist — `pqtransport_io.dart` only adds a datagram driver.
 | Encrypted UDP (real NIC) | Yes (`IoDatagramChannel`) | Yes | Yes | **No** |
 | mDNS probe/announce (memory flood) | Yes | Yes | Yes | Yes |
 | mDNS on a real LAN | Yes (`joinMulticast` on 224.0.0.251 / ff02::fb) | Yes | Yes | **No** |
-| QUIC / HTTP/3 | Sketch only (all platforms) | Sketch | Sketch | Sketch (and no raw UDP) |
+| QUIC / HTTP/3 | Self-interop on `PqQuicConn` (all platforms); no raw browser UDP | Self-interop | Self-interop | No raw UDP |
 | Platform `SecureSocket` / `HttpClient` TLS | Not used on the PQ path | Not used | Not used | Not used |
 
 ## Web

@@ -26,7 +26,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | Encrypted UDP (memory) | Yes | Yes | Yes |
 | Encrypted UDP (real NIC) | Yes | Yes | **No** |
 | mDNS on a real LAN | Yes (`joinMulticast`) | Yes | **No** |
-| QUIC / HTTP/3 | Sketch | Sketch | Sketch |
+| QUIC / HTTP/3 | Self-interop (`PqQuicConn`) | Self-interop | No raw UDP |
 | `SecureSocket` on PQ path | Not used | Not used | Not used |
 
 Browsers do not expose generic UDP, multicast, or a raw QUIC socket.

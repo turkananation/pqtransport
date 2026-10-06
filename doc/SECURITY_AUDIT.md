@@ -16,7 +16,7 @@ production hardening.
 |---|---|---|
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
 | P1 wrong-on-the-wire or fail-open | 0 | OPEN-02 Fixed |
-| P2 incomplete protocol | 2 | OPEN-07, OPEN-10 |
+| P2 incomplete protocol | 1 | OPEN-10 |
 | P3 hygiene | 0 | OPEN-12 Fixed |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
 | Honest limits | 5 | LIM-01 … LIM-05 |

@@ -91,9 +91,10 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `encodeDnsMessage` / `decodeDnsMessage` | Wire |
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
-| `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. `roundTrip` follows ALPN. |
+| `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |
 | `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK |
-| `Http3Frame` | HTTP/3 frame codec (no QPACK) |
+| `PqHttp3Session` / `Http3Frame` / `QpackCodec` | RFC 9114 session + RFC 9204 QPACK |
+| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC + 1-RTT STREAM |
 | `QuicPacketCodec` / `QuicInitialCodec` / `QuicCryptoFrame` | 1-RTT and Initial HP |
 | `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
 | `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |

@@ -20,7 +20,6 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 | ID | Sev | Component | Summary | Evidence / next step |
 |---|---|---|---|---|
-| OPEN-07 | P2 | HTTP | HTTP/2 is on `PqTlsSocket` (ALPN `h2`, 0.5.3). HTTP/3 is still frames without QPACK or a QUIC stream mapping (0.5.4). | `lib/src/http/http2.dart`; STREAM decode + QPACK remain |
 | OPEN-10 | P2 | DoH/DoT | `DohExchange` / `DotExchange` are thin adapters. No ALPN `dot`/`h2`, no production URI template. | `lib/src/dns/pq_dns_client.dart` |
 
 ## Blocked on pqforge
@@ -72,3 +71,4 @@ Do not vendor ChaCha or ECDH.
 | OPEN-09 | mDNS / IO | `IoDatagramChannel` did not `joinMulticast`. | `joinMulticast`/`leaveMulticast` on the channel. IO uses `RawDatagramSocket.joinMulticast` (TTL 255). Memory flood is membership-gated. `PqMdnsClient.browse` / `PqMdnsServer.beginProbe` call `joinMdnsGroups`. `test/io/io_channel_test.dart`, `test/mdns/mdns_test.dart`. |
 | OPEN-06 | QUIC | No header protection, ACK, or RFC 9001 TLS-in-QUIC. Zero CRYPTO share. | AES-ECB HP (pqforge 0.4.6), ACK processor, CRYPTO stream (offset + handshake-message reassembly), `QuicTlsHandshake` (`quic: true`). RFC 9001 A.1 + A.2 pins. Live encapsulate. ChaCha HP fails closed. `test/quic/quic_test.dart`. |
 | OPEN-07 HTTP/2 | HTTP | HTTP/2 missing on `PqTlsSocket`. | RFC 9113 frames + RFC 7541 HPACK (static, dynamic, Huffman). ALPN `h2` in EncryptedExtensions. GET/POST over `PqTlsSocket`. Default ALPN stays `http/1.1`. Silent h2→h1 refused. `test/http/http_test.dart`, `test/tls/socket_http_test.dart`. |
+| OPEN-07 HTTP/3 | HTTP / QUIC | HTTP/3 frames without QPACK or STREAM mapping. | RFC 9000 STREAM decode + reassembly. RFC 9204 QPACK (static 99, dynamic, B.1–B.5). RFC 9114 session on `PqQuicConn` ALPN `h3`. GET/POST. Silent h3→h1 refused. `test/http/http3_test.dart`. |

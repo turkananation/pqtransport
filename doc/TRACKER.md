@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.6` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 195 passed |
+| Tests | 214 passed |
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
@@ -40,6 +40,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Live NIST groups (P-256 / P-384) | Done | `handshake_test.dart`, `crypto_facade_test.dart` |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | `test/tls/socket_http_test.dart` |
 | HTTP/2 GET/POST over `PqTlsSocket` (ALPN `h2`) | Done | `test/http/http_test.dart`, `test/tls/socket_http_test.dart` |
+| HTTP/3 GET/POST over `PqQuicConn` (ALPN `h3`) | Done | `test/http/http3_test.dart` |
 | DNS wire + cache + breaker | Done | `test/dns/wire_test.dart` |
 | mDNS probe/announce/browse + ML-DSA TXT | Done | `test/mdns/mdns_test.dart` |
 | QUIC packet protect + CRYPTO/STREAM + RFC 9001 | Done | `test/quic/quic_test.dart` |
@@ -72,6 +73,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-20 | HTTP/1.1 GET over mock TLS | Done |
 | GATE-21 | OpenSSL interop fixture | Not started (LIM-01) |
 | GATE-22 | HTTP/2 GET over mock TLS (ALPN `h2`) | **Done** — RFC 7541 C.2–C.4 + live GET/POST (OPEN-07 HTTP/2) |
+| GATE-23 | HTTP/3 GET over `PqQuicConn` (ALPN `h3`) | **Done** — RFC 9204 B.1–B.5 + live GET/POST (OPEN-07 HTTP/3) |
 
 Universal gates (analyze, no `dart:ffi`, no stray size literals, claim
 language) are green as of this pass. See [INDEX.md](INDEX.md).
@@ -82,7 +84,6 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Owner | Blocks | Next action |
 | --- | --- | --- | --- | --- |
-| OPEN-07 | P2 | pqtransport | h3 QPACK | HTTP/2 **Done** (0.5.3). HTTP/3+QPACK needs QUIC STREAM mapping (0.5.4) |
 | OPEN-10 | P2 | pqtransport | Production DoH/DoT | ALPN `dot`/`h2`, URI template |
 
 ### pqforge exports (0.4.6 — consumed)
@@ -105,6 +106,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-08 | P2 | **Fixed** | Rdata name pointers resolve against the outer message |
 | OPEN-09 | P2 | **Fixed** | `joinMulticast` on IO + membership-gated memory flood |
 | OPEN-06 | P2 | **Fixed** | Header protection, ACK, RFC 9001 TLS-in-QUIC (pqforge 0.4.6) |
+| OPEN-07 | P2 | **Fixed** | HTTP/2 on `PqTlsSocket`; HTTP/3+QPACK on `PqQuicConn` STREAM |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -126,11 +128,10 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
 | 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
-| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-07, OPEN-10 |
+| 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-10 |
 
-Do not start 0.5 HTTP/3 QPACK before a real QUIC stream mapping (OPEN-07).
-Do not vendor P-256 ECDH. Next coding turn: LIM-01 OpenSSL fixture, or
-OPEN-07 HTTP/3+QPACK on a QUIC stream (0.5.4), or OPEN-10 DoH/DoT.
+OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. Do not vendor P-256
+ECDH. Next coding turn: LIM-01 OpenSSL fixture, or OPEN-10 DoH/DoT.
 
 ## Verification commands
 

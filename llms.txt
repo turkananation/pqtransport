@@ -12,7 +12,7 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - No dart:ffi. No platform TLS on the PQ path.
 - Live handshake in 0.1.0: all three RFC 10024 groups (X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024). P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup).
 - TLS encoding is RFC 8446-shaped ClientHello/ServerHello (OPEN-01 done). Compact 0.1 body retired. Cipher IANA 0x1302 (SHA-384 AES-GCM, default) and 0x1303 (ChaCha). Certificate is still raw ML-DSA-65; raw-pk is negotiated (OPEN-04). HelloRetryRequest is on the wire with cookie (OPEN-05). EncryptedExtensions carries selected ALPN (RFC 7301). Default ALPN is http/1.1; h2 is selectable. Not OpenSSL-interop.
-- HTTP/2 is implemented on PqTlsSocket (RFC 9113 + RFC 7541 HPACK, ALPN h2). HTTP/3 is frames without QPACK. Silent h2/h3→h1 downgrade is refused.
+- HTTP/2 is implemented on PqTlsSocket (RFC 9113 + RFC 7541 HPACK, ALPN h2). HTTP/3 is implemented on PqQuicConn (RFC 9114 + RFC 9204 QPACK, ALPN h3). Silent h2/h3→h1 downgrade is refused.
 - Record schedule follows the suite: HKDF-SHA-384 for 0x1302, HKDF-SHA-256 for 0x1303. OPEN-02 and OPEN-13 are Fixed. dart2js fail-closes 0x1303 (PointyCastle Poly1305 needs 64-bit integers); AES-GCM 0x1302 is the web suite.
 - Not a FIPS 140 module.
 

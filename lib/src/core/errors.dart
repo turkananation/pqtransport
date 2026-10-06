@@ -151,6 +151,9 @@ enum PqLengthLabel {
   http2Frame,
   http2Preface,
   hpack,
+  qpack,
+  http3Frame,
+  quicStream,
 }
 
 const int tlsAlertDecodeError = 50;

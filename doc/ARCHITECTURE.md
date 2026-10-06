@@ -34,7 +34,7 @@ lib/
     dns/                    # records, wire, client, DoH/DoT helpers
     mdns/                   # probe/announce/browse, signed TXT
     quic/                   # packet protect, frames, flow control, machines
-    http/                   # HTTP/1.1, HTTP/2 (HPACK + RFC 9113), HTTP/3 frames, PqHttpClient
+    http/                   # HTTP/1.1, HTTP/2 (HPACK + RFC 9113), HTTP/3 + QPACK, PqHttpClient
 ```
 
 All protocol sizes live in [`lib/src/core/lengths.dart`](../lib/src/core/lengths.dart).
@@ -172,13 +172,14 @@ hits only sockets that called `joinMulticast` for `224.0.0.251` /
 
 QUIC 0.1.0 now has RFC 9001 TLS-in-QUIC (CRYPTO stream, no TLS records),
 AES header protection on Initial (AES-128-GCM) and 1-RTT (AES-256-GCM),
-and ACK processing. It is still not a full connection: no congestion
-control, no loss recovery, no HTTP/3 stream mapping. ChaCha HP fails
-closed. 0-RTT is a non-goal.
+ACK processing, STREAM decode/reassembly, and an in-memory `PqQuicConn`
+pair. It is still not a full connection: no congestion control, no loss
+recovery. ChaCha HP fails closed. 0-RTT is a non-goal.
 
 HTTP/1.1 is a real codec used by `PqHttpClient.roundTripH1` over a completed
 `PqTlsSocket`. HTTP/2 (RFC 9113 + RFC 7541) is a real session on ALPN `h2`
-(`PqHttp2Session`, `roundTripH2`). HTTP/3 is frame encode/decode only.
+(`PqHttp2Session`, `roundTripH2`). HTTP/3 (RFC 9114 + RFC 9204) is a real
+session on ALPN `h3` (`PqHttp3Session`, `roundTripH3`) over QUIC STREAM.
 
 ## Error model
 

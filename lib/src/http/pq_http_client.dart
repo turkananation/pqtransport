@@ -6,8 +6,10 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 import '../core/bytes.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
+import '../quic/connection.dart';
 import '../tls/pq_tls_socket.dart';
 import 'http2.dart';
+import 'http3.dart';
 
 enum HttpVersion { h1, h2, h3 }
 
@@ -105,67 +107,13 @@ Uint8List encodeHttp1Response(PqHttpResponse resp) {
   ]);
 }
 
-final class Http3Frame {
-  const Http3Frame({required this.type, required this.payload});
-  final int type;
-  final Uint8List payload;
-
-  Uint8List encode() {
-    final b = BytesBuilder(copy: false);
-    b.addByte(type);
-    _len(b, payload.length);
-    b.add(payload);
-    return b.takeBytes();
-  }
-
-  static Result<Http3Frame, PqTransportError> decode(Uint8List wire) {
-    if (wire.isEmpty) {
-      return Result.failure(PqTransportError.decodeFailure('empty h3'));
-    }
-    final type = wire[0];
-    var i = 1;
-    if (i >= wire.length) {
-      return Result.failure(PqTransportError.decodeFailure('h3 len'));
-    }
-    final first = wire[i];
-    final prefix = first >> 6;
-    final lenLen = 1 << prefix;
-    if (i + lenLen > wire.length) {
-      return Result.failure(PqTransportError.decodeFailure('h3 len'));
-    }
-    var length = first & 0x3f;
-    i++;
-    for (var n = 1; n < lenLen; n++) {
-      length = (length << 8) | wire[i++];
-    }
-    if (i + length > wire.length) {
-      return Result.failure(PqTransportError.decodeFailure('h3 payload'));
-    }
-    if (length > httpMaxHeaderBytes && type == http3FrameHeaders) {
-      return Result.failure(PqTransportError.decodeFailure('h3 headers huge'));
-    }
-    return Result.success(
-      Http3Frame(type: type, payload: slice(wire, i, i + length)),
-    );
-  }
-
-  static void _len(BytesBuilder b, int v) {
-    if (v < 64) {
-      b.addByte(v);
-    } else if (v < 16384) {
-      writeUint16(b, v | 0x4000);
-    } else {
-      writeUint32(b, v | 0x80000000);
-    }
-  }
-}
-
 final class PqHttpClient {
   PqHttpClient({this.prefer = HttpVersion.h1, this.allowDowngrade = false});
 
   final HttpVersion prefer;
   final bool allowDowngrade;
   PqHttp2Session? _h2;
+  PqHttp3Session? _h3;
 
   /// Version-negotiated entry. Uses ALPN; refuses silent h2/h3→h1 unless
   /// [allowDowngrade] is true.
@@ -190,7 +138,9 @@ final class PqHttpClient {
     }
     if (alpn == httpAlpnH3) {
       return Result.failure(
-        PqTransportError.unsupported('HTTP/3 stream mapping not implemented'),
+        PqTransportError.unsupported(
+          'HTTP/3 runs on PqQuicConn; use roundTripH3',
+        ),
       );
     }
     if (prefer == HttpVersion.h2 && !allowDowngrade) {
@@ -225,6 +175,27 @@ final class PqHttpClient {
     final started = await _h2!.ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
     return _h2!.request(request, timeout: timeout);
+  }
+
+  Future<Result<PqHttpResponse, PqTransportError>> roundTripH3({
+    required PqQuicConn conn,
+    required PqHttpRequest request,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!conn.isComplete) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('quic not complete'),
+      );
+    }
+    if (conn.alpn != httpAlpnH3) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('alpn is not h3'),
+      );
+    }
+    _h3 ??= PqHttp3Session.client(conn);
+    final started = await _h3!.ensureStarted(timeout: timeout);
+    if (started.isFailure) return Result.failure(started.errorOrNull!);
+    return _h3!.request(request, timeout: timeout);
   }
 
   Future<Result<PqHttpResponse, PqTransportError>> roundTripH1({

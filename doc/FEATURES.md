@@ -80,17 +80,18 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Feature | Status | Notes |
 | --- | --- | --- |
 | 1-RTT packet protect | Done | Short-header HP (`0x1f` mask); AES-256-GCM |
-| CRYPTO / STREAM / padding-capable frames | Done | CRYPTO + ACK decode; STREAM encode; PADDING skipped |
+| CRYPTO / STREAM / padding-capable frames | Done | CRYPTO + ACK + STREAM decode; offset reassembly + FIN |
 | Flow control (MAX_DATA / MAX_STREAM_DATA) | Partial | `QuicFlowControl.consume` |
 | Connection / stream state machines | Partial | Happy + illegal-event tests |
 | TLS in QUIC (RFC 9001) | Done | CRYPTO stream, no TLS records. Initial AES-128-GCM + HP. OPEN-06. |
 | Header protection | Done | AES-ECB (pqforge `aesEncryptBlock`). ChaCha HP not implemented. |
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3 |
+| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair; not loss recovery |
 | 0-RTT | Not started | Explicit non-goal for v1 |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
 | HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |
-| HTTP/3 frames | Partial | DATA/HEADERS/SETTINGS type bytes; no QPACK, no QUIC STREAM mapping (0.5.4) |
+| HTTP/3 + QPACK | Done | RFC 9114 + RFC 9204 on `PqQuicConn` (ALPN `h3`). Control SETTINGS, bidi HEADERS/DATA, QPACK static+dynamic (B.1–B.5). Slice 0.5.4. Not nghttp3. |
 | Silent h2/h3→h1 downgrade | Refused | `allowDowngrade: false` default |
 
 ## Platform
