@@ -170,6 +170,14 @@ void main() {
     expect(String.fromCharCodes(dec.valueOrNull!), 'www.example.com');
   });
 
+  test('HPACK Huffman round-trips every octet', () {
+    final raw = Uint8List.fromList([for (var i = 0; i < 256; i++) i]);
+    final enc = hpackHuffmanEncode(raw);
+    final dec = hpackHuffmanDecode(enc);
+    expect(dec.isSuccess, isTrue, reason: '${dec.errorOrNull}');
+    expect(dec.valueOrNull, raw);
+  });
+
   test('HPACK rejects truncated block, index 0, oversized table update', () {
     expect(HpackCodec().decode(hex('80')).isFailure, isTrue); // index 0
     expect(HpackCodec().decode(hex('7f')).isFailure, isTrue); // truncated int

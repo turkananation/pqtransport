@@ -363,18 +363,27 @@ Uint8List hpackHuffmanEncode(List<int> bytes) {
   var nbits = 0;
   final out = BytesBuilder(copy: false);
   for (final b in bytes) {
-    acc = (acc << _huffBits[b]) | _huffCode[b];
-    nbits += _huffBits[b];
-    while (nbits >= 8) {
-      nbits -= 8;
-      out.addByte((acc >> nbits) & 0xff);
-      acc &= (1 << nbits) - 1;
+    var code = _huffCode[b];
+    var len = _huffBits[b];
+    while (len > 0) {
+      final space = 8 - nbits;
+      final take = len < space ? len : space;
+      final shift = len - take;
+      acc = (acc << take) | ((code >> shift) & ((1 << take) - 1));
+      nbits += take;
+      len -= take;
+      code &= (1 << len) - 1;
+      if (nbits == 8) {
+        out.addByte(acc);
+        acc = 0;
+        nbits = 0;
+      }
     }
   }
   if (nbits > 0) {
     final pad = 8 - nbits;
     acc = (acc << pad) | ((1 << pad) - 1);
-    out.addByte(acc & 0xff);
+    out.addByte(acc);
   }
   return out.takeBytes();
 }
@@ -414,14 +423,23 @@ Result<Uint8List, PqTransportError> hpackHuffmanDecode(Uint8List wire) {
   return Result.success(out.takeBytes());
 }
 
-Map<int, int>? _huffRev;
+List<Map<int, int>>? _huffByLen;
 
 int? _huffLookup(int acc, int nbits) {
-  _huffRev ??= {
-    for (var s = 0; s < _huffCode.length; s++)
-      (_huffBits[s] << 32) | _huffCode[s]: s,
-  };
-  return _huffRev![(nbits << 32) | acc];
+  final table = _huffByLen ??= _buildHuffByLen();
+  if (nbits <= 0 || nbits >= table.length) return null;
+  return table[nbits][acc];
+}
+
+List<Map<int, int>> _buildHuffByLen() {
+  final tables = List<Map<int, int>>.generate(
+    hpackHuffmanMaxCodeBits + 1,
+    (_) => <int, int>{},
+  );
+  for (var s = 0; s < _huffCode.length; s++) {
+    tables[_huffBits[s]][_huffCode[s]] = s;
+  }
+  return tables;
 }
 
 // RFC 7541 Appendix B. Index 256 is EOS (30 ones).

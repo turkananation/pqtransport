@@ -37,7 +37,9 @@
   and fatal miss. Live GET and POST over `PqTlsSocket` with ALPN `h2`.
   Default handshake still selects `http/1.1`. Prefer-h2 refuses silent
   downgrade. HPACK index 0 / truncated int / table-size 4097 fail
-  closed.
+  closed. Huffman encode/decode is dart2js-safe (no 64-bit `<< 32`
+  lookup keys; bit accumulator stays inside 8-bit leftover). Round-trip
+  of all 256 octets.
 - RFC 9204 Appendix B.1–B.5 QPACK vectors. Static GET/200 pins.
   Dynamic-table self-interop. Blocked RIC and oversized capacity
   fail closed. STREAM decode (no-OFF, no-LEN, FIN). Offset reassembly.
