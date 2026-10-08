@@ -46,5 +46,5 @@ with OpenSSL."
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
 
-Only after the TLS wire is honest. Do not grow HTTP/3 QPACK on a QUIC
-sketch that cannot carry TLS.
+Only after the TLS wire is honest. HTTP/2 (0.5.3) and HTTP/3+QPACK on
+QUIC STREAM (0.5.4) are Done. Remaining 0.5 work is production DoH/DoT.

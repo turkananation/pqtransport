@@ -38,15 +38,18 @@ final class PqTlsServer {
     PqTransportCrypto? crypto,
     this.group = HybridGroup.x25519MlKem768,
     PqTlsServerIdentity? identity,
+    List<String>? alpnProtocols,
     this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        identity =
            identity ??
-           PqTlsServerIdentity.generate(crypto ?? const PqTransportCrypto());
+           PqTlsServerIdentity.generate(crypto ?? const PqTransportCrypto()),
+       alpnProtocols = alpnProtocols ?? const [httpAlpnH1];
 
   final PqTransportCrypto crypto;
   final HybridGroup group;
   final PqTlsServerIdentity identity;
+  final List<String> alpnProtocols;
 
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
@@ -59,6 +62,7 @@ final class PqTlsServer {
   Uint8List? _hrrCookie;
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
+  String? selectedAlpn;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -215,7 +219,13 @@ final class PqTlsServer {
         handshakeTranscriptHash: transcript.snapshot(),
       );
       records = TlsRecordLayer(crypto, schedule);
-      final ee = encodeEncryptedExtensions();
+      final alpn = selectAlpn(
+        offered: hello.alpnProtocols,
+        supported: alpnProtocols,
+      );
+      if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
+      selectedAlpn = alpn.valueOrNull;
+      final ee = encodeEncryptedExtensions(alpnProtocol: selectedAlpn);
       transcript.add(ee);
       final cert = encodeCertificate(identity.publicKey);
       transcript.add(cert);

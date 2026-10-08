@@ -23,12 +23,13 @@ not exist — `pqtransport_io.dart` only adds a datagram driver.
 | In-memory TLS (`MemoryByteSocket` + `PqTlsSocket`) | Yes | Yes | Yes | Yes |
 | ChaCha20-Poly1305 (`0x1303`) | Yes | Yes | Yes | Yes (pqforge 0.4.5 Dart engine). AES-GCM `0x1302` is the default suite. |
 | HTTP/1.1 codec over that TLS | Yes | Yes | Yes | Yes |
+| HTTP/2 over that TLS (ALPN `h2`) | Yes | Yes | Yes | Yes |
 | DNS wire codec / cache / breaker | Yes | Yes | Yes | Yes |
 | Encrypted UDP (memory network) | Yes | Yes | Yes | Yes |
 | Encrypted UDP (real NIC) | Yes (`IoDatagramChannel`) | Yes | Yes | **No** |
 | mDNS probe/announce (memory flood) | Yes | Yes | Yes | Yes |
 | mDNS on a real LAN | Yes (`joinMulticast` on 224.0.0.251 / ff02::fb) | Yes | Yes | **No** |
-| QUIC / HTTP/3 | Sketch only (all platforms) | Sketch | Sketch | Sketch (and no raw UDP) |
+| QUIC / HTTP/3 | Self-interop on `PqQuicConn` (all platforms); no raw browser UDP | Self-interop | Self-interop | No raw UDP |
 | Platform `SecureSocket` / `HttpClient` TLS | Not used on the PQ path | Not used | Not used | Not used |
 
 ## Web

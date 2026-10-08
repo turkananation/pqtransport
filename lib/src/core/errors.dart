@@ -84,6 +84,12 @@ final class PqTransportError implements Exception {
     message: 'unsupported: $why',
   );
 
+  factory PqTransportError.noApplicationProtocol() => PqTransportError._(
+    code: PqTransportErrorCode.handshakeFailure,
+    message: 'handshake_failure: no_application_protocol',
+    alert: tlsAlertNoApplicationProtocol,
+  );
+
   final PqTransportErrorCode code;
   final String message;
   final int? alert;
@@ -142,6 +148,13 @@ enum PqLengthLabel {
   tlsCipherSuite,
   tlsSessionId,
   tlsCookie,
+  http2Frame,
+  http2Preface,
+  hpack,
+  qpack,
+  http3Frame,
+  quicStream,
 }
 
 const int tlsAlertDecodeError = 50;
+const int tlsAlertNoApplicationProtocol = 120;

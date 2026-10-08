@@ -104,13 +104,22 @@ void main() {
     final ee = encodeEncryptedExtensions();
     final decoded = decodeEncryptedExtensions(ee);
     expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
-    expect(decoded.valueOrNull, tlsCertTypeRawPublicKey);
+    expect(decoded.valueOrNull!.serverCertificateType, tlsCertTypeRawPublicKey);
+    expect(decoded.valueOrNull!.alpnProtocol, isNull);
     expect(
       decodeEncryptedExtensions(
         encodeHandshake(tlsHsEncryptedExtensions, Uint8List(0)),
       ).isFailure,
       isTrue,
     );
+  });
+
+  test('EncryptedExtensions carries selected ALPN h2', () {
+    final ee = encodeEncryptedExtensions(alpnProtocol: httpAlpnH2);
+    final decoded = decodeEncryptedExtensions(ee);
+    expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
+    expect(decoded.valueOrNull!.alpnProtocol, httpAlpnH2);
+    expect(decoded.valueOrNull!.serverCertificateType, tlsCertTypeRawPublicKey);
   });
 
   test('OPEN-04 ClientHello requires server_certificate_type RawPublicKey', () {

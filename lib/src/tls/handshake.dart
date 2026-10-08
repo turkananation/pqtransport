@@ -20,7 +20,7 @@ final class ClientHello {
     this.legacySessionId = const [],
     this.cipherSuites = tlsDefaultOfferedCipherSuites,
     this.serverName = 'localhost',
-    this.alpnProtocols = const ['http/1.1'],
+    this.alpnProtocols = const [httpAlpnH1],
     this.supportedGroups,
     this.cookie,
   });
@@ -406,17 +406,38 @@ Result<Uint8List, PqTransportError> decodeFinished(
 
 Uint8List encodeEncryptedExtensions({
   int serverCertificateType = tlsCertTypeRawPublicKey,
+  String? alpnProtocol,
 }) {
-  final ext = _ext(
-    tlsExtServerCertificateType,
-    Uint8List.fromList([serverCertificateType]),
+  final parts = BytesBuilder(copy: false);
+  parts.add(
+    _ext(
+      tlsExtServerCertificateType,
+      Uint8List.fromList([serverCertificateType]),
+    ),
   );
+  if (alpnProtocol != null) {
+    parts.add(_extAlpn([alpnProtocol]));
+  }
   final b = BytesBuilder(copy: false);
-  writeOpaque16(b, ext);
+  writeOpaque16(b, parts.takeBytes());
   return encodeHandshake(tlsHsEncryptedExtensions, b.takeBytes());
 }
 
-Result<int, PqTransportError> decodeEncryptedExtensions(Uint8List handshake) {
+/// RFC 8446 EncryptedExtensions. Always carries RFC 7250 RawPublicKey
+/// (OPEN-04). Optional ALPN is the single selected protocol (RFC 7301).
+final class EncryptedExtensions {
+  const EncryptedExtensions({
+    this.serverCertificateType = tlsCertTypeRawPublicKey,
+    this.alpnProtocol,
+  });
+
+  final int serverCertificateType;
+  final String? alpnProtocol;
+}
+
+Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
+  Uint8List handshake,
+) {
   final hs = decodeHandshake(handshake);
   if (hs.isFailure) return Result.failure(hs.errorOrNull!);
   final (type, body) = hs.valueOrNull!;
@@ -435,7 +456,8 @@ Result<int, PqTransportError> decodeEncryptedExtensions(Uint8List handshake) {
   }
   final exts = _parseExtensions(extBlock.valueOrNull!);
   if (exts.isFailure) return Result.failure(exts.errorOrNull!);
-  final data = exts.valueOrNull![tlsExtServerCertificateType];
+  final map = exts.valueOrNull!;
+  final data = map[tlsExtServerCertificateType];
   if (data == null || data.length != 1) {
     return Result.failure(
       PqTransportError.decodeFailure(
@@ -448,7 +470,33 @@ Result<int, PqTransportError> decodeEncryptedExtensions(Uint8List handshake) {
       PqTransportError.unsupported('server_certificate_type ${data[0]}'),
     );
   }
-  return Result.success(data[0]);
+  final alpn = _parseAlpn(map);
+  if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
+  final protocols = alpn.valueOrNull;
+  if (protocols != null && protocols.length != 1) {
+    return Result.failure(
+      PqTransportError.decodeFailure('EncryptedExtensions ALPN not singleton'),
+    );
+  }
+  return Result.success(
+    EncryptedExtensions(
+      serverCertificateType: data[0],
+      alpnProtocol: protocols?.first,
+    ),
+  );
+}
+
+/// RFC 7301: first client-offered protocol that the server supports.
+/// Empty offer means no ALPN. Non-empty offer with no overlap is fatal.
+Result<String?, PqTransportError> selectAlpn({
+  required List<String> offered,
+  required List<String> supported,
+}) {
+  if (offered.isEmpty) return const Result.success(null);
+  for (final p in offered) {
+    if (supported.contains(p)) return Result.success(p);
+  }
+  return Result.failure(PqTransportError.noApplicationProtocol());
 }
 
 /// RFC 8446 §4.1.3: HelloRetryRequest.random is SHA-256("HelloRetryRequest").

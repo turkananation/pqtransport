@@ -23,6 +23,7 @@ final class PqTlsSocket {
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<HybridGroup>? offeredGroups,
     List<int>? offeredCipherSuites,
+    List<String>? alpnProtocols,
   }) => PqTlsSocket._(
     inner,
     PqTlsClient(
@@ -30,6 +31,7 @@ final class PqTlsSocket {
       group: group,
       offeredGroups: offeredGroups,
       offeredCipherSuites: offeredCipherSuites,
+      alpnProtocols: alpnProtocols,
     ),
     null,
   );
@@ -39,10 +41,16 @@ final class PqTlsSocket {
     PqTransportCrypto? crypto,
     PqTlsServerIdentity? identity,
     HybridGroup group = HybridGroup.x25519MlKem768,
+    List<String>? alpnProtocols,
   }) => PqTlsSocket._(
     inner,
     null,
-    PqTlsServer(crypto: crypto, identity: identity, group: group),
+    PqTlsServer(
+      crypto: crypto,
+      identity: identity,
+      group: group,
+      alpnProtocols: alpnProtocols,
+    ),
   );
 
   final PqTransportSocket _inner;
@@ -59,6 +67,9 @@ final class PqTlsSocket {
       _client?.state ?? _server?.state ?? TlsState.uninitialized;
 
   bool get isComplete => _client?.isComplete ?? _server?.isComplete ?? false;
+
+  /// RFC 7301 protocol selected in EncryptedExtensions. Null if omitted.
+  String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
 
   Future<Result<void, PqTransportError>> handshake({
     Duration timeout = const Duration(seconds: 20),

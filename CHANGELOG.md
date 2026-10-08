@@ -2,6 +2,20 @@
 
 ### Added
 
+- HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
+  SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.
+  RFC 7541 HPACK (static table, dynamic table, Huffman encode/decode).
+  ALPN `h2` is selected in EncryptedExtensions (RFC 7301). Default
+  ClientHello ALPN stays `http/1.1`. `PqHttpClient.roundTrip` uses
+  negotiated ALPN; silent h2→h1 is refused unless `allowDowngrade`.
+- HTTP/3 on `PqQuicConn` (OPEN-07 / slice 0.5.4). RFC 9114 control
+  stream SETTINGS, request HEADERS/DATA on QUIC STREAM. RFC 9204 QPACK
+  (99-entry static table, dynamic table, encoder/decoder streams,
+  Appendix B.1–B.5). RFC 9000 STREAM decode (OFF/LEN/FIN, offset
+  reassembly, FIN). ALPN `h3`. `PqHttpClient.roundTripH3`. Silent
+  h3→h1 is refused. Not loss recovery, not nghttp3/curl.
+- `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` take `alpnProtocols`.
+  No overlap is `no_application_protocol` (alert 120).
 - RFC 9001 TLS-in-QUIC (OPEN-06). Handshake messages travel in CRYPTO
   frames with **no TLS record layer** (`PqTlsClient`/`PqTlsServer`
   `quic: true`, `QuicTlsHandshake`). Live X25519MLKEM768 encapsulate,
@@ -18,6 +32,20 @@
 
 ### Tests
 
+- RFC 7541 C.2.1–C.2.3, C.3.1–C.3.3 (no Huffman), C.4.1 (Huffman).
+  HTTP/2 frame header, SETTINGS, pad overflow. `selectAlpn` overlap
+  and fatal miss. Live GET and POST over `PqTlsSocket` with ALPN `h2`.
+  Default handshake still selects `http/1.1`. Prefer-h2 refuses silent
+  downgrade. HPACK index 0 / truncated int / table-size 4097 fail
+  closed. Huffman encode/decode is dart2js-safe (no 64-bit `<< 32`
+  lookup keys; bit accumulator stays inside 8-bit leftover). Round-trip
+  of all 256 octets.
+- RFC 9204 Appendix B.1–B.5 QPACK vectors. Static GET/200 pins.
+  Dynamic-table self-interop. Blocked RIC and oversized capacity
+  fail closed. STREAM decode (no-OFF, no-LEN, FIN). Offset reassembly.
+  Conflicting FIN fail closed. Live HTTP/3 GET/POST over `PqQuicConn`
+  ALPN `h3`. `roundTripH3` refuses incomplete QUIC and non-h3 ALPN.
+
 - RFC 9001 Appendix A.1 Initial secrets; Appendix A.2 client Initial
   packet (HP sample, mask, 1200-byte datagram). FIPS 197 C.1 AES-128
   and C.3 AES-256 blocks (HP). Live CRYPTO ClientHello (non-zero
@@ -27,7 +55,7 @@
   frames reassemble into handshake messages. Initial packets carry
   the live handshake with ≥1200-byte client datagrams; 1-RTT keys
   from TLS application traffic secrets round-trip. ChaCha HP and
-  STREAM / ACK-ECN payload types fail closed.
+  ACK-ECN payload types fail closed. STREAM frames decode.
 
 ## 0.1.0
 

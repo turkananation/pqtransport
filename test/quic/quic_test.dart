@@ -584,14 +584,20 @@ void main() {
     );
   });
 
-  test('STREAM and ACK-ECN frames fail closed in decodeQuicPayload', () {
+  test('STREAM frames decode; ACK-ECN still fail closed', () {
     final stream = QuicStreamFrame(
       id: 0,
       offset: 0,
       data: Uint8List.fromList([1]),
     ).encode();
-    expect(decodeQuicPayload(stream).isFailure, isTrue);
-    expect(decodeQuicPayload(Uint8List.fromList([0x03])).isFailure, isTrue);
+    final parsed = decodeQuicPayload(stream);
+    expect(parsed.isSuccess, isTrue, reason: '${parsed.errorOrNull}');
+    expect(parsed.valueOrNull!.streams.single.id, 0);
+    expect(parsed.valueOrNull!.streams.single.data, [1]);
+    expect(
+      decodeQuicPayload(Uint8List.fromList([quicFrameAckEcn])).isFailure,
+      isTrue,
+    );
   });
 
   test('CRYPTO frames out of order still complete TLS-in-QUIC', () async {

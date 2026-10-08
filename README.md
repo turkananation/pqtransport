@@ -21,7 +21,7 @@ Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exch
 [![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](doc/API.md)
 [![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-153_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-214_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -130,11 +130,13 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **174 tests**, **90.7% line coverage** of `lib/`.
+`dart analyze` is clean. **214 tests**, **90.7% line coverage** of `lib/`.
 Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
 TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
 IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,
 `checkEncapsulationKey` on a bad modulus, HTTP/1.1 GET over `PqTlsSocket`,
+HTTP/2 GET/POST over `PqTlsSocket` (ALPN `h2`, RFC 7541 C.2–C.4),
+HTTP/3 GET/POST over `PqQuicConn` (ALPN `h3`, RFC 9204 B.1–B.5),
 DNS circuit-breaker + TTL cache, mDNS probe/announce/browse, ML-DSA-65 TXT,
 QUIC RFC 9001 A.1/A.2 + live TLS-in-QUIC, `dart:io` UDP.
 

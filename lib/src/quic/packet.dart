@@ -127,8 +127,8 @@ final class QuicCryptoFrame {
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
     b.addByte(quicFrameCrypto);
-    _varint(b, offset);
-    _varint(b, data.length);
+    writeQuicVarint(b, offset);
+    writeQuicVarint(b, data.length);
     b.add(data);
     return b.takeBytes();
   }
@@ -161,20 +161,86 @@ final class QuicStreamFrame {
     required this.offset,
     required this.data,
     this.fin = false,
+    this.hasOffset = true,
+    this.hasLength = true,
   });
   final int id;
   final int offset;
   final Uint8List data;
   final bool fin;
+  final bool hasOffset;
+  final bool hasLength;
+
+  int get typeByte {
+    var t = quicFrameStream;
+    if (hasOffset) t |= quicFrameStreamOffBit;
+    if (hasLength) t |= quicFrameStreamLenBit;
+    if (fin) t |= quicFrameStreamFinBit;
+    return t;
+  }
 
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
-    b.addByte(quicFrameStream | 0x04 | 0x02 | (fin ? 0x01 : 0));
-    _varint(b, id);
-    _varint(b, offset);
-    _varint(b, data.length);
+    b.addByte(typeByte);
+    writeQuicVarint(b, id);
+    if (hasOffset) writeQuicVarint(b, offset);
+    if (hasLength) writeQuicVarint(b, data.length);
     b.add(data);
     return b.takeBytes();
+  }
+
+  static Result<QuicStreamFrame, PqTransportError> decode(Uint8List wire) =>
+      read(ByteReader(wire), remainingIsData: true);
+
+  static Result<QuicStreamFrame, PqTransportError> read(
+    ByteReader r, {
+    required bool remainingIsData,
+  }) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final t = type.valueOrNull!;
+    if ((t & quicFrameStreamTypeMask) != quicFrameStream) {
+      return Result.failure(PqTransportError.decodeFailure('not STREAM frame'));
+    }
+    final hasOff = (t & quicFrameStreamOffBit) != 0;
+    final hasLen = (t & quicFrameStreamLenBit) != 0;
+    final fin = (t & quicFrameStreamFinBit) != 0;
+    final id = readVarint(r);
+    if (id < 0) {
+      return Result.failure(PqTransportError.decodeFailure('stream id'));
+    }
+    var offset = 0;
+    if (hasOff) {
+      offset = readVarint(r);
+      if (offset < 0) {
+        return Result.failure(PqTransportError.decodeFailure('stream offset'));
+      }
+    }
+    int len;
+    if (hasLen) {
+      len = readVarint(r);
+      if (len < 0) {
+        return Result.failure(PqTransportError.decodeFailure('stream len'));
+      }
+    } else if (remainingIsData) {
+      len = r.remaining;
+    } else {
+      return Result.failure(
+        PqTransportError.decodeFailure('stream missing len'),
+      );
+    }
+    final data = r.take(len, PqLengthLabel.quicStream);
+    if (data.isFailure) return Result.failure(data.errorOrNull!);
+    return Result.success(
+      QuicStreamFrame(
+        id: id,
+        offset: offset,
+        data: data.valueOrNull!,
+        fin: fin,
+        hasOffset: hasOff,
+        hasLength: hasLen,
+      ),
+    );
   }
 }
 
@@ -214,13 +280,13 @@ final class QuicAckFrame {
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
     b.addByte(quicFrameAck);
-    _varint(b, largest);
-    _varint(b, delay);
-    _varint(b, additional.length);
-    _varint(b, firstRange);
+    writeQuicVarint(b, largest);
+    writeQuicVarint(b, delay);
+    writeQuicVarint(b, additional.length);
+    writeQuicVarint(b, firstRange);
     for (final (gap, range) in additional) {
-      _varint(b, gap);
-      _varint(b, range);
+      writeQuicVarint(b, gap);
+      writeQuicVarint(b, range);
     }
     return b.takeBytes();
   }
@@ -318,19 +384,25 @@ final class QuicAckProcessor {
   }
 }
 
-/// CRYPTO + ACK frames from a QUIC packet payload. PADDING and PING are
-/// skipped. Unknown types fail closed.
+/// CRYPTO + ACK + STREAM frames from a QUIC packet payload. PADDING and PING
+/// are skipped. ACK-ECN and unknown types fail closed.
 final class QuicPayload {
-  const QuicPayload({this.crypto = const [], this.acks = const []});
+  const QuicPayload({
+    this.crypto = const [],
+    this.acks = const [],
+    this.streams = const [],
+  });
 
   final List<QuicCryptoFrame> crypto;
   final List<QuicAckFrame> acks;
+  final List<QuicStreamFrame> streams;
 }
 
 Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final r = ByteReader(payload);
   final crypto = <QuicCryptoFrame>[];
   final acks = <QuicAckFrame>[];
+  final streams = <QuicStreamFrame>[];
   while (r.remaining > 0) {
     final type = r.bytes[r.offset];
     if (type == quicFramePadding || type == quicFramePing) {
@@ -349,32 +421,50 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       acks.add(f.valueOrNull!);
       continue;
     }
+    if ((type & quicFrameStreamTypeMask) == quicFrameStream) {
+      final hasLen = (type & quicFrameStreamLenBit) != 0;
+      final f = QuicStreamFrame.read(r, remainingIsData: !hasLen);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      streams.add(f.valueOrNull!);
+      continue;
+    }
     return Result.failure(
       PqTransportError.decodeFailure(
         'unsupported quic frame 0x${type.toRadixString(16)}',
       ),
     );
   }
-  return Result.success(QuicPayload(crypto: crypto, acks: acks));
+  return Result.success(
+    QuicPayload(crypto: crypto, acks: acks, streams: streams),
+  );
 }
 
-void _varint(BytesBuilder b, int v) {
-  if (v < 64) {
+void writeQuicVarint(BytesBuilder b, int v) {
+  if (v < 0) {
+    b.addByte(0);
+    return;
+  }
+  if (v <= quicVarintMax1) {
     b.addByte(v);
-  } else if (v < 16384) {
-    writeUint16(b, v | 0x4000);
+  } else if (v <= quicVarintMax2) {
+    writeUint16(b, v | quicVarint2Prefix);
+  } else if (v <= quicVarintMax4) {
+    writeUint32(b, v | quicVarint4Prefix);
   } else {
-    writeUint32(b, v | 0x80000000);
+    b.addByte(quicVarint8Prefix | ((v >> 56) & quicVarintPrefixMask));
+    for (var i = 6; i >= 0; i--) {
+      b.addByte((v >> (8 * i)) & 0xff);
+    }
   }
 }
 
 int readVarint(ByteReader r) {
   if (r.remaining < 1) return -1;
   final first = r.bytes[r.offset];
-  final prefix = first >> 6;
+  final prefix = first >> quicVarintPrefixShift;
   final len = 1 << prefix;
   if (r.remaining < len) return -1;
-  var v = first & 0x3f;
+  var v = first & quicVarintPrefixMask;
   r.offset++;
   for (var i = 1; i < len; i++) {
     v = (v << 8) | r.bytes[r.offset++];

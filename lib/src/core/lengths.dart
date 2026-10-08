@@ -286,11 +286,32 @@ const String quicLabelHp = 'quic hp';
 const int quicFramePadding = 0x00;
 const int quicFramePing = 0x01;
 const int quicFrameAck = 0x02;
+const int quicFrameAckEcn = 0x03;
 const int quicFrameCrypto = 0x06;
 const int quicFrameStream = 0x08;
+const int quicFrameStreamTypeMask = 0xF8;
+const int quicFrameStreamOffBit = 0x04;
+const int quicFrameStreamLenBit = 0x02;
+const int quicFrameStreamFinBit = 0x01;
 const int quicFrameMaxData = 0x10;
 const int quicFrameMaxStreamData = 0x11;
 const int quicFrameConnectionClose = 0x1c;
+
+const int quicStreamIdTypeMask = 0x03;
+const int quicStreamIdClientBidi = 0x00;
+const int quicStreamIdServerBidi = 0x01;
+const int quicStreamIdClientUni = 0x02;
+const int quicStreamIdServerUni = 0x03;
+const int quicStreamIdIncrement = 4;
+
+const int quicVarintMax1 = 63;
+const int quicVarintMax2 = 16383;
+const int quicVarintMax4 = 1073741823;
+const int quicVarint2Prefix = 0x4000;
+const int quicVarint4Prefix = 0x80000000;
+const int quicVarint8Prefix = 0xC0;
+const int quicVarintPrefixShift = 6;
+const int quicVarintPrefixMask = 0x3f;
 
 // ---------------------------------------------------------------------------
 // HTTP
@@ -298,5 +319,106 @@ const int quicFrameConnectionClose = 0x1c;
 
 const int http3FrameData = 0x00;
 const int http3FrameHeaders = 0x01;
+const int http3FrameCancelPush = 0x03;
 const int http3FrameSettings = 0x04;
+const int http3FramePushPromise = 0x05;
+const int http3FrameGoaway = 0x07;
+const int http3FrameMaxPushId = 0x0d;
 const int httpMaxHeaderBytes = 65536;
+
+const int http3StreamTypeControl = 0x00;
+const int http3StreamTypePush = 0x01;
+const int http3StreamTypeQpackEncoder = 0x02;
+const int http3StreamTypeQpackDecoder = 0x03;
+
+const int http3SettingsQpackMaxTableCapacity = 0x01;
+const int http3SettingsMaxFieldSectionSize = 0x06;
+const int http3SettingsQpackBlockedStreams = 0x07;
+const int http3DefaultQpackMaxTableCapacity = 4096;
+const int http3DefaultQpackBlockedStreams = 16;
+
+const String httpAlpnH1 = 'http/1.1';
+const String httpAlpnH2 = 'h2';
+const String httpAlpnH3 = 'h3';
+
+/// RFC 9113 §3.4 connection preface. ASCII, 24 bytes.
+const String http2ConnectionPreface = 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n';
+const int http2PrefaceBytes = 24;
+const int http2FrameHeaderBytes = 9;
+const int http2DefaultMaxFrameSize = 16384;
+const int http2MinMaxFrameSize = 16384;
+const int http2MaxMaxFrameSize = 16777215;
+const int http2DefaultHeaderTableSize = 4096;
+const int http2DefaultInitialWindowSize = 65535;
+const int http2MaxWindowSize = 0x7fffffff;
+const int http2DefaultMaxConcurrentStreams = 100;
+const int http2SettingEntryBytes = 6;
+const int http2PriorityPayloadBytes = 5;
+const int http2PingPayloadBytes = 8;
+const int http2RstStreamPayloadBytes = 4;
+const int http2WindowUpdatePayloadBytes = 4;
+const int http2GoawayMinPayloadBytes = 8;
+const int http2StreamIdMask = 0x7fffffff;
+const int http2ClientInitialStreamId = 1;
+
+const int http2FrameData = 0x00;
+const int http2FrameHeaders = 0x01;
+const int http2FramePriority = 0x02;
+const int http2FrameRstStream = 0x03;
+const int http2FrameSettings = 0x04;
+const int http2FramePushPromise = 0x05;
+const int http2FramePing = 0x06;
+const int http2FrameGoaway = 0x07;
+const int http2FrameWindowUpdate = 0x08;
+const int http2FrameContinuation = 0x09;
+
+const int http2FlagEndStream = 0x01;
+const int http2FlagAck = 0x01;
+const int http2FlagEndHeaders = 0x04;
+const int http2FlagPadded = 0x08;
+const int http2FlagPriority = 0x20;
+
+const int http2SettingsHeaderTableSize = 0x01;
+const int http2SettingsEnablePush = 0x02;
+const int http2SettingsMaxConcurrentStreams = 0x03;
+const int http2SettingsInitialWindowSize = 0x04;
+const int http2SettingsMaxFrameSize = 0x05;
+const int http2SettingsMaxHeaderListSize = 0x06;
+
+const int hpackStaticTableLength = 61;
+const int hpackEntryOverheadBytes = 32;
+const int hpackIndexedMask = 0x80;
+const int hpackLiteralIncremental = 0x40;
+const int hpackLiteralIncrementalMask = 0xc0;
+const int hpackTableSizeUpdate = 0x20;
+const int hpackTableSizeUpdateMask = 0xe0;
+const int hpackLiteralNever = 0x10;
+const int hpackLiteralNeverMask = 0xf0;
+const int hpackLiteralWithoutMask = 0xf0;
+const int hpackHuffmanBit = 0x80;
+const int hpackIntContinuation = 0x80;
+const int hpackMaxIntegerShift = 28;
+const int hpackHuffmanEosBits = 30;
+const int hpackHuffmanMaxCodeBits = 30;
+
+const int qpackStaticTableLength = 99;
+const int qpackDefaultMaxTableCapacity = 0;
+const int qpackIndexedMask = 0x80;
+const int qpackLiteralNameRef = 0x40;
+const int qpackLiteralNameRefMask = 0xc0;
+const int qpackLiteralName = 0x20;
+const int qpackLiteralNameMask = 0xe0;
+const int qpackIndexedPostBase = 0x10;
+const int qpackIndexedPostBaseMask = 0xf0;
+const int qpackLiteralPostBase = 0x00;
+const int qpackLiteralPostBaseMask = 0xf0;
+const int qpackEncoderCapacity = 0x20;
+const int qpackEncoderCapacityMask = 0xe0;
+const int qpackEncoderInsertNameRef = 0x80;
+const int qpackEncoderInsertLiteral = 0x40;
+const int qpackEncoderInsertLiteralMask = 0xc0;
+const int qpackEncoderDuplicateMask = 0xe0;
+const int qpackDecoderSectionAck = 0x80;
+const int qpackDecoderStreamCancel = 0x40;
+const int qpackDecoderStreamCancelMask = 0xc0;
+const int qpackDecoderInsertCountIncMask = 0xc0;

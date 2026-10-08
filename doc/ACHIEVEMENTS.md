@@ -14,7 +14,7 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.6` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 153 passed | `dart test` |
+| Tests | 214 passed | `dart test` |
 | Coverage | 90.7% of `lib/` (`2466/2720`) | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
@@ -34,9 +34,11 @@ Build order from the skill was respected:
 | 4 DNS | Wire codec for v1 RRs including PTR/NS; CircuitBreaker; TTL Cache; DoH/DoT helpers | `test/dns/wire_test.dart` |
 | 5 mDNS | Probe/announce/browse; ML-DSA-65 TXT sign/verify | `test/mdns/mdns_test.dart` |
 | 6 HTTP/1.1 | Encoder/decoder; GET over a completed `PqTlsSocket` | `test/tls/socket_http_test.dart` |
-| 7 QUIC (minimum) | 1-RTT protect, CRYPTO/STREAM frames, flow control | `test/quic/quic_test.dart` |
+| 6b HTTP/2 | RFC 9113 + RFC 7541 HPACK on `PqTlsSocket` (ALPN `h2`) | `test/http/http_test.dart`, `test/tls/socket_http_test.dart` |
+| 6c HTTP/3 | RFC 9114 + RFC 9204 QPACK on `PqQuicConn` (ALPN `h3`) | `test/http/http3_test.dart` |
+| 7 QUIC (minimum) | 1-RTT protect, CRYPTO/STREAM frames, flow control, `PqQuicConn` | `test/quic/quic_test.dart`, `test/http/http3_test.dart` |
 
-HTTP/2 was **not** implemented (blueprint phase 6 second half). HTTP/3 is frames only.
+HTTP/2 is **Done** (slice 0.5.3). HTTP/3+QPACK+STREAM is **Done** (slice 0.5.4).
 
 ## Hybrid (the #1 interop bug, pinned)
 
@@ -110,6 +112,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
+| HTTP/2 GET over mock TLS (ALPN `h2`) | Done |
 | OpenSSL interop fixture | **Not a 0.1.0 claim** |
 
 ## What this release does *not* achieve
@@ -118,7 +121,7 @@ Recorded so achievements cannot be misread:
 
 - OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped with IANA `0x1302`/`0x1303`).
 - X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
-- Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC are in tree;
-  still no congestion control, loss recovery, or HTTP/3 stream mapping).
+- Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC + STREAM mapping
+  are in tree; still no congestion control or loss recovery).
 - Production DoH/DoT with ALPN.
 - CMVP / FIPS 140 module validation.

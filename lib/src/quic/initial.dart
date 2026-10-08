@@ -113,10 +113,10 @@ final class QuicInitialCodec {
     headerNoPn.add(dcid);
     headerNoPn.addByte(scid.length);
     headerNoPn.add(scid);
-    _varint(headerNoPn, tok.length);
+    writeQuicVarint(headerNoPn, tok.length);
     headerNoPn.add(tok);
     final bodyLen = packetNumberLength + payload.length + aeadTagBytes;
-    _varint(headerNoPn, bodyLen);
+    writeQuicVarint(headerNoPn, bodyLen);
     final prefix = headerNoPn.takeBytes();
     final pn = BytesBuilder(copy: false);
     writePacketNumber(pn, packetNumber, packetNumberLength);
@@ -234,15 +234,5 @@ final class QuicInitialCodec {
       return Result.failure(PqTransportError.decodeFailure('length varint'));
     }
     return Result.success(r.offset);
-  }
-}
-
-void _varint(BytesBuilder b, int v) {
-  if (v < 64) {
-    b.addByte(v);
-  } else if (v < 16384) {
-    writeUint16(b, v | 0x4000);
-  } else {
-    writeUint32(b, v | 0x80000000);
   }
 }
