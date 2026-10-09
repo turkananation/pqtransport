@@ -15,7 +15,7 @@ Sister evidence:
 ## Package floor (verify live before a pub.dev cut)
 
 | Package | Floor | Role |
-|---|---|---|
+| --- | --- | --- |
 | pqcrypto | 0.4.1 (via pqforge, not a direct dep) | FIPS 203/204/205 primitives, KATs |
 | pqforge | **0.4.5** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
@@ -52,7 +52,7 @@ constant-time execution, or hard memory erasure are forbidden.
 Use instead:
 
 | Do not claim | Use instead |
-|---|---|
+| --- | --- |
 | Module validation under FIPS 140 | "not a FIPS 140 module" |
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
@@ -71,7 +71,7 @@ Also forbidden in meaning, even if the substring differs:
 ## RFC claim map
 
 | Need | Cite | 0.1.0 honesty |
-|---|---|---|
+| --- | --- | --- |
 | TLS 1.3 record + handshake + key schedule | RFC 8446 | Schedule structure yes; hellos RFC 8446-shaped; `0x1302` is SHA-384; `0x1303` is SHA-256+ChaCha |
 | Hybrid KEX framework in TLS 1.3 | RFC 9954 | Concat is group-dependent; X25519 name order is **not** followed |
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
@@ -92,7 +92,7 @@ follow RFC 9954 §3.2 naming order. Shares and shared secrets are
 Default enterprise profile is **hybrid**:
 
 | Primitive | Set | Size |
-|---|---|---|
+| --- | --- | --- |
 | Classical KEX | X25519 (or P-256 / P-384 when that group is selected) | 32-byte ss (P-256 x-coordinate); 48-byte ss (P-384 x-coordinate) |
 | Lattice KEM | ML-KEM-768 (balanced) | pk=1184, ct=1088, sk=2400, ss=32 |
 | Lattice KEM (maximum / P-384 group) | ML-KEM-1024 | pk=1568, ct=1568, sk=3168, ss=32 |

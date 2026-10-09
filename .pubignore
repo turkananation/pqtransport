@@ -8,7 +8,7 @@
 coverage/
 wiki/
 site/
-tool/agent_framework/
+tool/
 **/*.iml
 **/*.lcov
 **/*.vm.json

@@ -16,7 +16,7 @@ the owner cuts a release). See [ACHIEVEMENTS.md](ACHIEVEMENTS.md) and
 These do not get a version number:
 
 | Item | Why |
-|---|---|
+| --- | --- |
 | CMVP / FIPS 140 module | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 | Hard constant-time execution / hard erasure | VM, dart2js, dart2wasm cannot guarantee either |
 | Browser raw UDP / mDNS / QUIC sockets | Browsers do not expose them. [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
@@ -30,7 +30,7 @@ These do not get a version number:
 Unblock OpenSSL parsing **without** waiting on pqforge ECDH.
 
 | # | Work | Closes |
-|---|---|---|
+| --- | --- | --- |
 | 0.2.1 | ~~Real ClientHello / ServerHello: `legacy_version`, `cipher_suites`, `supported_versions`, `supported_groups`, `key_share`, SNI, ALPN~~ | **Done** (OPEN-01). Compact 0.1 body retired. |
 | 0.2.2 | ~~EncryptedExtensions as a real message; Certificate as X.509 or an explicit raw-public-key extension~~ | **Done** (OPEN-04). RFC 7250 RawPublicKey negotiated. Payload is still raw ML-DSA-65, not X.509. |
 | 0.2.3 | ~~HelloRetryRequest on the wire with cookie; keep the existing once-only machine edge~~ | **Done** (OPEN-05) |
@@ -50,7 +50,7 @@ pqforge 0.4.4 unblocked this slice. Live KEX is **done**. IANA
 cipher-suite honesty (OPEN-02, OPEN-13) is **done**.
 
 | # | Work | Closes | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 0.3.1 | Consume `p256SharedSecret` / `p384SharedSecret` | BLK-01 | **Done** |
 | 0.3.2 | Live SecP256r1MLKEM768 handshake + encrypted UDP | BLK-01 | **Done** |
 | 0.3.3 | Live SecP384r1MLKEM1024 handshake | BLK-01, OPEN-03 | **Done** (`maximum` only) |
@@ -69,7 +69,7 @@ Exit gate: live handshake tests for **all three** RFC 10024 groups —
 ## Slice 0.4 — OpenSSL 3.5+ / BoringSSL fixture
 
 | # | Work | Closes |
-|---|---|---|
+| --- | --- | --- |
 | 0.4.1 | Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server/s_client | LIM-01 |
 | 0.4.2 | Same for SecP256r1MLKEM768 once OPEN-01 hellos exist | LIM-01 |
 | 0.4.3 | Documented failure modes (wrong concat, SHA-256 vs SHA-384, missing key_share) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
@@ -86,7 +86,7 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 (already present) and RFC 9001.
 
 | # | Work | Closes |
-|---|---|---|
+| --- | --- | --- |
 | 0.5.1 | `IoDatagramChannel.joinMulticast` on 224.0.0.251 / ff02::fb | OPEN-09 **Done** |
 | 0.5.2 | QUIC header protection, ACK processing, RFC 9001 TLS-in-QUIC | OPEN-06 **Done** |
 | 0.5.3 | HTTP/2 on `PqTlsSocket` (ALPN `h2`) | OPEN-07 **Done** |

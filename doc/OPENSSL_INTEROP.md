@@ -14,7 +14,7 @@ Tracked as LIM-01. Slice 0.4 in [ROADMAP.md](ROADMAP.md).
 ## Why a 0.1.0 peer will not handshake
 
 | Layer | What we send | What OpenSSL 3.5+ expects |
-|---|---|---|
+| --- | --- | --- |
 | Record | Compact length-prefixed handshake bytes inside AES-256-GCM | RFC 8446 TLSPlaintext / TLSCiphertext |
 | ClientHello | RFC 8446-shaped (`legacy_version` 0x0303, extensions, `key_share`). IANA `0x1302` / `0x1303` | Same shape; typically `TLS_AES_256_GCM_SHA384` (0x1302) |
 | ServerHello | RFC 8446-shaped + `key_share` + `supported_versions` | RFC 8446 ServerHello + `key_share` |

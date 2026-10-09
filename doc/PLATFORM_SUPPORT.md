@@ -9,7 +9,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 ## Barrels
 
 | Import | Platforms | Provides |
-|---|---|---|
+| --- | --- | --- |
 | `package:pqtransport/pqtransport.dart` | VM, Flutter, web (dart2js / dart2wasm) | TLS, HTTP/1.1 codec, DNS codec, hybrid, memory sockets, QUIC sketch |
 | `package:pqtransport/pqtransport_io.dart` | Dart VM, Flutter mobile/desktop | Everything above plus `IoDatagramChannel` (`dart:io` `RawDatagramSocket`) |
 
@@ -19,7 +19,7 @@ not exist — `pqtransport_io.dart` only adds a datagram driver.
 ## Matrix
 
 | Capability | Dart VM (Linux/macOS/Windows) | Flutter iOS/Android | Flutter desktop | Web |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | In-memory TLS (`MemoryByteSocket` + `PqTlsSocket`) | Yes | Yes | Yes | Yes |
 | ChaCha20-Poly1305 (`0x1303`) | Yes | Yes | Yes | Yes (pqforge 0.4.5 Dart engine). AES-GCM `0x1302` is the default suite. |
 | HTTP/1.1 codec over that TLS | Yes | Yes | Yes | Yes |
@@ -75,7 +75,7 @@ Browsers have no raw UDP (LIM-04).
 ## Verified in this tree
 
 | Gate | Where |
-|---|---|
+| --- | --- |
 | Web-safe barrel import | `test/core/barrel_test.dart` |
 | `dart:io` UDP bind/send | `test/io/io_channel_test.dart` |
 | Analyzer on both barrels | `dart analyze` clean |

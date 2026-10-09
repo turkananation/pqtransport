@@ -28,7 +28,7 @@ until directed.
 ## pqforge 0.4.4 consumption (done this turn)
 
 | ID | Pri | Item | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | IMP-01 | P1 | Refuse profile/group mismatch | **Done** (OPEN-03 / `requireGroup`) |
 | IMP-07 | P0 | Live SecP256r1MLKEM768 + SecP384r1MLKEM1024 | **Done** (BLK-01) |
 | IMP-08 | P1 | Replace local `hkdfExpand` with pqforge Expand | **Done** (BLK-02 SHA-256) |
@@ -41,7 +41,7 @@ until directed.
 ## Still this package (exports exist)
 
 | ID | Pri | Item | Tracks |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | IMP-09 | P1 | SHA-384 schedule, then and only then IANA 0x1302 | **Done** OPEN-02 |
 | IMP-10 | P2 | Sync ChaCha records (IANA 0x1303) | **Done** OPEN-13 |
 
@@ -50,7 +50,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ## Do after 0.2 hellos exist
 
 | ID | Pri | Item | Why |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | IMP-12 | P1 | OpenSSL 3.5+ fixture | LIM-01; wording stays honest until green |
 | IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | **Done** OPEN-09 |
 | IMP-14 | P2 | QUIC header protection + ACK + RFC 9001 | **Done** OPEN-06 |
@@ -61,7 +61,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ## Process / repo hygiene
 
 | ID | Pri | Item | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | IMP-18 | P3 | `dart format` + `dart compile js` + `dart pub publish --dry-run` as a release gate | Needed before first pub.dev cut |
 | IMP-19 | P3 | CI workflow (analyze, test, invariants, coverage floor) | Not in this sandbox tree |
 | IMP-20 | P3 | pub.dev release of 0.1.0 | Owner decision; package is unpublished |
@@ -71,7 +71,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 ## Explicitly not improvements
 
 | Idea | Why not |
-|---|---|
+| --- | --- |
 | Lower SDK to `>=3.8.0` | Both foundations are `^3.12.0` (FIX-01) |
 | Use `PqForgeCombiner.combine()` as the TLS combiner | Reverses X25519MLKEM768 (FIX-02, BLK-04) |
 | `SecureSocket` "just for HTTP" | Abandons the package |
