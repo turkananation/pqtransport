@@ -17,7 +17,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 
 | Item | Value |
 | --- | --- |
-| Package | `pqtransport 0.1.0` (unpublished on pub.dev until the owner cuts a release) |
+| Package | `pqtransport 0.1.0` (published on pub.dev) |
 | SDK | `>=3.12.0 <4.0.0` |
 | Crypto | `pqforge ^0.4.6` |
 | Infra | `swissarmyknife ^0.1.0` |

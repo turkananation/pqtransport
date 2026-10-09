@@ -58,7 +58,7 @@ of the forbidden shortcuts come back.
 ## Source
 
 | Path | Role |
-|---|---|
+| --- | --- |
 | [`site/pubspec.yaml`](../site/pubspec.yaml) | Jaspr static app, `publish_to: none`, `resolution: workspace` |
 | [`site/lib/main.server.dart`](../site/lib/main.server.dart) | `ContentApp` + `DocsLayout` + PQ theme |
 | [`site/lib/components/site_header.dart`](../site/lib/components/site_header.dart) | Header, theme toggle, GitHub button |

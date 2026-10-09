@@ -43,7 +43,7 @@ A numeric literal for a protocol size anywhere else is a defect.
 ## Barrels
 
 | Import | Contains | Must not contain |
-|---|---|---|
+| --- | --- | --- |
 | `package:pqtransport/pqtransport.dart` | Codecs, machines, hybrid, TLS, DNS, HTTP, memory sockets | `dart:io`, `dart:ffi`, `SecureSocket` |
 | `package:pqtransport/pqtransport_io.dart` | Everything above plus `IoDatagramChannel` | Crypto of its own |
 

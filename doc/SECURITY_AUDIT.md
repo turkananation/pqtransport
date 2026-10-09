@@ -13,7 +13,7 @@ production hardening.
 ## Summary
 
 | Rating | Count | Notes |
-|---|---|---|
+| --- | --- | --- |
 | P0 stop-ship for the *claimed* 0.1.0 surface | 0 | Self-interop, all three RFC 10024 groups |
 | P1 wrong-on-the-wire or fail-open | 0 | OPEN-02 Fixed |
 | P2 incomplete protocol | 1 | OPEN-10 |
@@ -108,7 +108,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 ## Positive controls (keep)
 
 | Control | Where |
-|---|---|
+| --- | --- |
 | Length filter before crypto | `requireLength` / `PqLengthLabel` |
 | Group-dependent concat, not `PqForgeCombiner` | `hybrid.dart` |
 | All-zero classical ss rejected | hybrid combine |
@@ -123,7 +123,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 ## Threats we do not currently mitigate
 
 | Threat | Status |
-|---|---|
+| --- | --- |
 | Cross-implementation TLS interop confusion | Accepted until 0.4 |
 | Downgrade to TLS 1.2 / classical-only | Compact encoding has no 1.2 path; still add `supported_versions` in 0.2 |
 | HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |

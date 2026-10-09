@@ -19,7 +19,7 @@ This file records what we consume and what is still not wired. IDs:
 ## What 0.4.6 already gives us (do not re-export)
 
 | Job | API we call |
-|---|---|
+| --- | --- |
 | Profile | `PqForgeProfile.balanced` (768/65), `.maximum` (1024/87), `.compact` (512/44) |
 | ML-KEM | `PqKemPrimitives.generateKeyPair` / `encapsulate` / `decapsulate` |
 | ML-DSA | `PqSignaturePrimitives.generateKeyPair` / `sign` / `verify` |
@@ -53,14 +53,14 @@ This file records what we consume and what is still not wired. IDs:
 
 | ID | Export | Why it waits |
 |---|---|---|
-| Expand-Label | — | Stays in pqtransport (TLS framing: `tls13 ` + label + context). |
+| Expand-Label | — | Stays in pqtransport (TLS framing: `tls13` + label + context). |
 
 OPEN-02 and OPEN-13 are **Fixed**.
 
 ## What pqtransport will never ask pqforge for
 
 | Ask | Why not |
-|---|---|
+| --- | --- |
 | RFC 8446 ClientHello codec | Protocol layer |
 | DNS / QUIC / HTTP codecs | Protocol layer |
 | `StateMachine` / `CircuitBreaker` | swissarmyknife |

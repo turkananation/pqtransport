@@ -19,7 +19,7 @@ Chrome job `Web-portable tests (Chrome)` on PR #32 originally:
 `133 tests passed, 2 failed.`
 
 | Test | Failure |
-|---|---|
+| --- | --- |
 | `ChaCha-only offer selects 0x1303 and exporters match` | `PqTransportError(handshakeFailure: handshake_failure: kex PlatformException)` at `pq_tls_server.dart` server ingest of ClientHello |
 | `ChaCha AEAD round-trip; bit-flip fails (OPEN-13)` | `full width integer not supported on this platform` from `pointycastle` `Platform.assertFullWidthInteger` → `Poly1305()` → pqforge 0.4.4 `PqSymmetricPrimitives._chacha20Poly1305` |
 
@@ -65,7 +65,7 @@ broken. It was **not** the crypto fix. Crypto stays in pqforge.
 ## 4. Professional fix (landed)
 
 | Step | Where | What |
-|---|---|---|
+| --- | --- | --- |
 | 1 | pqforge 0.4.5 | Sync helper uses `package:cryptography`'s Dart engine (`DartChacha20.poly1305Aead`, 32-bit Poly1305). Same signatures, same RFC 8439 `ciphertext \|\| tag` layout, caller nonce. Chrome pin in pqforge. |
 | 2 | pqforge 0.4.5 | `PqSymmetricPrimitives.supportsChaCha20Poly1305` — always `true`. |
 | 3 | this package | Floor `pqforge: ^0.4.5`. Drive `PqTransportCrypto.supportsChaCha20Poly1305` from that export. Delete `transportHasFullWidthInteger`, `chachaUnavailableMessage`, `select(chachaOk:)`, `tlsOfferedCipherSuitesForRuntime`. Default offer `[0x1302, 0x1303]` on every runtime. |
@@ -93,7 +93,7 @@ Forbidden:
 ## 6. Verdict
 
 | Question | Answer |
-|---|---|
+| --- | --- |
 | Was Chrome CI a flake? | No |
 | Was the protocol guard correct at the time? | Yes. Fail closed, honest, tests not skipped |
 | Is OPEN-13 still Fixed? | Yes — now on every runtime this package targets |
