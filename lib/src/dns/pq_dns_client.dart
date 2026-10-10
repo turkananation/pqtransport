@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/errors.dart';
+import '../core/lengths.dart';
 import '../socket/pq_transport_socket.dart';
+import 'doh_dot.dart';
 import 'records.dart';
 import 'wire.dart';
 
@@ -97,26 +99,69 @@ final class PqDnsResolver {
   }
 }
 
-/// DNS-over-HTTPS POST `application/dns-message` over a byte HTTP exchange.
+/// DNS-over-HTTPS POST body hook. Production clients use [DohClient],
+/// which builds the RFC 8484 request (media type, URI template, ALPN).
 final class DohExchange {
   DohExchange(this.post);
   final Future<Uint8List> Function(Uint8List body) post;
   Future<Uint8List> call(Uint8List query) => post(query);
 }
 
-/// Placeholder DoT: wrap a connected [PqTransportSocket] (already PQ-TLS).
+/// Length-prefixed DNS over an already connected byte pipe (RFC 1035 §4.2.2).
+/// Production DoT on a completed handshake is [DotClient] (ALPN `dot`).
 final class DotExchange {
   DotExchange(this.socket);
   final PqTransportSocket socket;
+  final DnsTcpReader _reader = DnsTcpReader();
+  StreamSubscription<Uint8List>? _sub;
+  final List<Completer<Uint8List>> _waiters = [];
+
+  void _ensureListen() {
+    if (_sub != null) return;
+    _sub = socket.incoming.listen((chunk) {
+      _reader.add(chunk);
+      if (_reader.error != null) {
+        _fail(_reader.error!);
+        return;
+      }
+      while (true) {
+        final msg = _reader.next();
+        if (_reader.error != null) {
+          _fail(_reader.error!);
+          return;
+        }
+        if (msg == null || _waiters.isEmpty) return;
+        _waiters.removeAt(0).complete(msg);
+      }
+    }, onError: (Object e) => _fail(PqTransportError.closed('$e')));
+  }
+
+  Future<void> close() async {
+    await _sub?.cancel();
+    _sub = null;
+    _fail(PqTransportError.closed('dot closed'));
+  }
+
+  void _fail(PqTransportError err) {
+    final pending = List<Completer<Uint8List>>.of(_waiters);
+    _waiters.clear();
+    for (final c in pending) {
+      if (!c.isCompleted) c.completeError(err);
+    }
+  }
+
   Future<Uint8List> call(Uint8List query) async {
-    final framed = BytesBuilder(copy: false)
-      ..addByte((query.length >> 8) & 0xff)
-      ..addByte(query.length & 0xff)
-      ..add(query);
-    await socket.send(framed.takeBytes());
-    final reply = await socket.incoming.first;
-    if (reply.length < 2) return reply;
-    final len = (reply[0] << 8) | reply[1];
-    return reply.sublist(2, 2 + len);
+    if (query.isEmpty || query.length > dnsMessageMaxBytes) {
+      throw PqTransportError.decodeFailure('dot query len');
+    }
+    _ensureListen();
+    final waiter = Completer<Uint8List>();
+    _waiters.add(waiter);
+    final sent = await socket.send(encodeDnsTcp(query));
+    if (sent.isFailure) {
+      _waiters.remove(waiter);
+      throw sent.errorOrNull!;
+    }
+    return waiter.future.timeout(const Duration(seconds: 10));
   }
 }

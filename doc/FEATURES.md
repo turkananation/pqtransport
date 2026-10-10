@@ -59,9 +59,10 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Compression pointer cycle rejection | Done | |
 | TTL cache (injected clock) | Done | |
 | CircuitBreaker around exchange | Done | Opens after `failureThreshold` |
-| Resolver failover DoH → DoT → UDP | Partial | Independent clients; skip-on-open |
-| DoH POST `application/dns-message` | Partial | `DohExchange` helper, not a full HTTP client |
-| DoT length-prefix framing | Partial | `DotExchange` over an already-PQ `PqTransportSocket` |
+| Resolver failover DoH → DoT → UDP | Done | Independent clients; a failed hop opens its own breaker |
+| DoH POST and GET `application/dns-message` | Done | RFC 8484. `DohClient.h2` / `DohClient.h3`. URI template `{?dns}`, unpadded base64url. Wrong media type fails closed. |
+| DoT length-prefix framing | Done | RFC 7858. `DotClient` requires ALPN `dot` and reassembles split TCP frames. A non-`dot` ALPN fails closed. |
+| nghttp2/curl and nghttp3 QPACK | Done | `tool/interop`. HTTP/2 prior-knowledge DoH via curl. QPACK both ways vs libnghttp3 1.11.0. Not live `curl --http3` (hybrid QUIC vs classical TLS). |
 | DNSSEC (RRSIG/DS verify) | Not started | Types reserved in `lengths.dart` only |
 | Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 

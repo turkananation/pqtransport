@@ -136,3 +136,26 @@ jobs:
 
       - name: Run portable tests under dart2js
         run: dart test -p chrome
+
+  interop:
+    name: nghttp2/curl and nghttp3 QPACK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential ca-certificates curl
+
+      - name: Install workspace dependencies
+        run: dart pub get
+
+      - name: Run peer interops
+        run: bash tool/interop/run_all.sh
+

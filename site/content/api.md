@@ -62,7 +62,7 @@ import 'package:pqtransport/pqtransport_io.dart';
 | Type | Role |
 | --- | --- |
 | `PqDnsClient` / `PqDnsResolver` | Lookup + cache + breaker |
-| `DohExchange` / `DotExchange` | Thin adapters |
+| `DohClient` / `DotClient` | RFC 8484 DoH (ALPN `h2`/`h3`, `{?dns}`) and RFC 7858 DoT (ALPN `dot`) |
 | `PqMdnsClient` / `PqMdnsServer` | Probe / announce / browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
 | `PqHttpClient` | HTTP/1.1 and HTTP/2 over TLS; HTTP/3 over `PqQuicConn` |

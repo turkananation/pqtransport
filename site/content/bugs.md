@@ -15,9 +15,8 @@ Canonical tracker:
 
 ## Open
 
-| ID | Sev | Summary |
-| --- | --- | --- |
-| OPEN-10 | P2 | DoH/DoT are thin adapters |
+None. OPEN-10 (production DoH/DoT) is fixed. The classical-peer
+handshake gap is LIM-01.
 
 ## Blocked on pqforge
 

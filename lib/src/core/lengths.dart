@@ -341,6 +341,18 @@ const String httpAlpnH1 = 'http/1.1';
 const String httpAlpnH2 = 'h2';
 const String httpAlpnH3 = 'h3';
 
+/// RFC 7858 DNS-over-TLS ALPN.
+const String dnsAlpnDot = 'dot';
+
+/// RFC 7858 default port.
+const int dnsDotPort = 853;
+
+/// RFC 8484 media type for the DNS wire format on HTTP.
+const String dnsMessageMediaType = 'application/dns-message';
+
+/// RFC 8484 URI template expression. Only this form is expanded.
+const String dohTemplateQuery = '{?dns}';
+
 /// RFC 9113 §3.4 connection preface. ASCII, 24 bytes.
 const String http2ConnectionPreface = 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n';
 const int http2PrefaceBytes = 24;
