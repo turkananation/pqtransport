@@ -2,6 +2,7 @@
 
 ### Added
 
+- `peerAuthenticated` on `PqTlsClient` and `PqTlsSocket` (IMP-22). True only after CertificateVerify succeeded. `allowUnauthenticated` is documented as not authentication and leaves the bit false. A server socket stays false (no client auth).
 - HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
   SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.
   RFC 7541 HPACK (static table, dynamic table, Huffman encode/decode).

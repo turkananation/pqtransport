@@ -24,6 +24,7 @@ final class PqTlsSocket {
     List<HybridGroup>? offeredGroups,
     List<int>? offeredCipherSuites,
     List<String>? alpnProtocols,
+    bool allowUnauthenticated = false,
   }) => PqTlsSocket._(
     inner,
     PqTlsClient(
@@ -32,6 +33,7 @@ final class PqTlsSocket {
       offeredGroups: offeredGroups,
       offeredCipherSuites: offeredCipherSuites,
       alpnProtocols: alpnProtocols,
+      allowUnauthenticated: allowUnauthenticated,
     ),
     null,
   );
@@ -67,6 +69,13 @@ final class PqTlsSocket {
       _client?.state ?? _server?.state ?? TlsState.uninitialized;
 
   bool get isComplete => _client?.isComplete ?? _server?.isComplete ?? false;
+
+  /// True only when the client checked CertificateVerify.
+  ///
+  /// A server socket is false: this stack does not authenticate the
+  /// client. [allowUnauthenticated] on [PqTlsSocket.client] leaves this
+  /// false after a completed handshake. That flag is not authentication.
+  bool get peerAuthenticated => _client?.peerAuthenticated ?? false;
 
   /// RFC 7301 protocol selected in EncryptedExtensions. Null if omitted.
   String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;

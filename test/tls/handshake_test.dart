@@ -31,6 +31,8 @@ void main() {
     expect(afterHs.isSuccess, isTrue, reason: '${afterHs.errorOrNull}');
     expect(afterHs.valueOrNull!, hasLength(1));
     expect(client.isComplete, isTrue);
+    expect(client.peerAuthenticated, isTrue);
+    expect(client.allowUnauthenticated, isFalse);
 
     final done = await server.ingest(afterHs.valueOrNull![0]);
     expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
@@ -159,7 +161,99 @@ void main() {
     final r = await client.ingest(Uint8List(tlsRecordHeaderBytes + 1));
     expect(r.isFailure, isTrue);
     expect(client.state, TlsState.failed);
+    expect(client.peerAuthenticated, isFalse);
   });
+
+  test('IMP-22: allowUnauthenticated is not authentication', () async {
+    final identity = PqTlsServerIdentity.generate(crypto);
+    final client = PqTlsClient(crypto: crypto, allowUnauthenticated: true);
+    final server = PqTlsServer(crypto: crypto, identity: identity);
+    expect(client.peerAuthenticated, isFalse);
+
+    final ch = await client.startHandshake();
+    final flight = await server.ingest(ch.valueOrNull!);
+    await client.ingest(flight.valueOrNull![0]);
+    final done = await client.ingest(flight.valueOrNull![1]);
+    expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
+    expect(client.isComplete, isTrue);
+    expect(client.peerAuthenticated, isFalse);
+    expect(client.allowUnauthenticated, isTrue);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  test(
+    'IMP-22: bad signature fails closed when authentication is required',
+    () async {
+      final identity = PqTlsServerIdentity.generate(crypto);
+      final client = PqTlsClient(crypto: crypto);
+      final server = PqTlsServer(crypto: crypto, identity: identity);
+      final ch = await client.startHandshake();
+      final flight = await server.ingest(ch.valueOrNull!);
+      final sh = await client.ingest(flight.valueOrNull![0]);
+      expect(sh.isSuccess, isTrue, reason: '${sh.errorOrNull}');
+
+      final scratch = TlsRecordLayer(crypto, client.schedule);
+      final opened = scratch.openWith(
+        trafficSecret: client.schedule.serverHandshakeTraffic,
+        iv: client.schedule.serverHandshakeIv,
+        wire: flight.valueOrNull![1],
+      );
+      expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+      final plain = Uint8List.fromList(opened.valueOrNull!.payload);
+      expect(_flipCertVerify(plain), isTrue);
+      final resealed = TlsRecordLayer(crypto, client.schedule).protectWith(
+        trafficSecret: client.schedule.serverHandshakeTraffic,
+        iv: client.schedule.serverHandshakeIv,
+        inner: TlsRecord(type: tlsContentHandshake, payload: plain),
+      );
+      final done = await client.ingest(resealed);
+      expect(done.isFailure, isTrue);
+      expect(done.errorOrNull!.message, contains('ml-dsa verify failed'));
+      expect(client.isComplete, isFalse);
+      expect(client.peerAuthenticated, isFalse);
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
+    'IMP-22: socket reports peerAuthenticated only after a checked handshake',
+    () async {
+      final identity = PqTlsServerIdentity.generate(crypto);
+      final (checkedA, checkedB) = MemoryByteSocket.pair();
+      final checked = PqTlsSocket.client(checkedA, crypto: crypto);
+      final checkedServer = PqTlsSocket.server(
+        checkedB,
+        crypto: crypto,
+        identity: identity,
+      );
+      final checkedOk = await Future.wait([
+        checked.handshake(),
+        checkedServer.handshake(),
+      ]);
+      expect(checkedOk.every((r) => r.isSuccess), isTrue);
+      expect(checked.peerAuthenticated, isTrue);
+      expect(checkedServer.peerAuthenticated, isFalse);
+
+      final (openA, openB) = MemoryByteSocket.pair();
+      final open = PqTlsSocket.client(
+        openA,
+        crypto: crypto,
+        allowUnauthenticated: true,
+      );
+      final openServer = PqTlsSocket.server(
+        openB,
+        crypto: crypto,
+        identity: identity,
+      );
+      final openOk = await Future.wait([
+        open.handshake(),
+        openServer.handshake(),
+      ]);
+      expect(openOk.every((r) => r.isSuccess), isTrue);
+      expect(open.isComplete, isTrue);
+      expect(open.peerAuthenticated, isFalse);
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 }
 
 Future<void> _liveHandshake(PqTransportCrypto crypto, HybridGroup group) async {
@@ -181,6 +275,7 @@ Future<void> _liveHandshake(PqTransportCrypto crypto, HybridGroup group) async {
   expect(afterHs.isSuccess, isTrue, reason: '${afterHs.errorOrNull}');
   expect(afterHs.valueOrNull!, hasLength(1));
   expect(client.isComplete, isTrue);
+  expect(client.peerAuthenticated, isTrue);
 
   final done = await server.ingest(afterHs.valueOrNull![0]);
   expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
@@ -188,4 +283,19 @@ Future<void> _liveHandshake(PqTransportCrypto crypto, HybridGroup group) async {
 
   final ctx = Uint8List.fromList([1, 2, 3]);
   expect(client.exporter('test', ctx, 32), server.exporter('test', ctx, 32));
+}
+
+bool _flipCertVerify(Uint8List handshake) {
+  var offset = 0;
+  while (offset + tlsHandshakeHeaderBytes <= handshake.length) {
+    final len = readUint24(handshake, offset + 1);
+    final end = offset + tlsHandshakeHeaderBytes + len;
+    if (end > handshake.length) return false;
+    if (handshake[offset] == tlsHsCertificateVerify && len > 0) {
+      handshake[end - 1] ^= 0x01;
+      return true;
+    }
+    offset = end;
+  }
+  return false;
 }
