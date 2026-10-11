@@ -55,7 +55,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | **Done** OPEN-09 |
 | IMP-14 | P2 | QUIC header protection + ACK + RFC 9001 | **Done** OPEN-06 |
 | IMP-15 | P2 | HTTP/2; then HTTP/3+QPACK | **Done** OPEN-07 (0.5.3 + 0.5.4) |
-| IMP-16 | P2 | Production DoH/DoT (ALPN, URI template) | OPEN-10 |
+| IMP-16 | P2 | Production DoH/DoT (ALPN, URI template) | **Done** (OPEN-10) |
 | IMP-17 | P2 | DNS rdata name pointers into the outer message | **Done** OPEN-08 |
 
 ## Process / repo hygiene
@@ -84,7 +84,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
 OPEN-04, OPEN-05, OPEN-06, OPEN-07, OPEN-08, OPEN-09, OPEN-12, OPEN-13
-are done. Remaining transport defect is OPEN-10 (DoH/DoT). ChaCha on
+are done. OPEN-10 (DoH/DoT) is done. ChaCha on
 dart2js is **done** in pqforge 0.4.5; QUIC HP uses pqforge 0.4.6
 `aesEncryptBlock`. Do not vendor ChaCha or AES. See
 [CHACHA_DART2JS.md](CHACHA_DART2JS.md).

@@ -13,7 +13,17 @@
   (99-entry static table, dynamic table, encoder/decoder streams,
   Appendix B.1–B.5). RFC 9000 STREAM decode (OFF/LEN/FIN, offset
   reassembly, FIN). ALPN `h3`. `PqHttpClient.roundTripH3`. Silent
-  h3→h1 is refused. Not loss recovery, not nghttp3/curl.
+  h3→h1 is refused. Not loss recovery. Live `curl --http3` is not
+  claimed: our QUIC handshake is hybrid, and curl's HTTP/3 is
+  classical TLS. QPACK bytes are checked against libnghttp3 in
+  `tool/interop/nghttp3-qpack`. HTTP/2 prior-knowledge DoH is checked
+  against curl's libnghttp2 in `tool/interop/nghttp2-curl`.
+- DNS-over-HTTPS and DNS-over-TLS (OPEN-10 / slice 0.5.5). RFC 8484
+  URI template `{?dns}` (unpadded base64url), POST and GET
+  `application/dns-message`, `DohClient.h2` (ALPN `h2`) and
+  `DohClient.h3` (ALPN `h3`). RFC 7858 `DotClient` requires ALPN
+  `dot` and reassembles the 2-byte length prefix. Wrong media type,
+  padded base64url, and a non-`dot` ALPN fail closed.
 - `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` take `alpnProtocols`.
   No overlap is `no_application_protocol` (alert 120).
 - RFC 9001 TLS-in-QUIC (OPEN-06). Handshake messages travel in CRYPTO

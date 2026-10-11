@@ -44,9 +44,11 @@ Dart. Web callers:
    (AES-256-GCM). IANA `0x1303` (ChaCha) is offered and completes on
    dart2js via pqforge 0.4.5. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md).
 
-DoH in a browser is an HTTPS POST of `application/dns-message`. 0.1.0
-`DohExchange` is a helper, not a `fetch` wrapper — the caller provides
-the HTTP round-trip.
+DoH in a browser is an HTTPS POST or GET of `application/dns-message`
+(RFC 8484). `DohClient` speaks that over `PqTlsSocket` (ALPN `h2`) or
+`PqQuicConn` (ALPN `h3`). A browser `fetch` wrapper is still the
+caller's job: pass the response bytes into `decodeDnsMessage`. There
+is no `dart:html` import in the library.
 
 ## IO datagrams
 

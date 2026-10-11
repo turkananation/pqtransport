@@ -18,9 +18,8 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 ## Open bugs
 
-| ID | Sev | Component | Summary | Evidence / next step |
-|---|---|---|---|---|
-| OPEN-10 | P2 | DoH/DoT | `DohExchange` / `DotExchange` are thin adapters. No ALPN `dot`/`h2`, no production URI template. | `lib/src/dns/pq_dns_client.dart` |
+None. OPEN-10 (production DoH/DoT) is **Fixed**. The remaining
+handshake gap with a classical peer is LIM-01, not an open defect.
 
 ## Blocked on pqforge
 
@@ -72,3 +71,4 @@ Do not vendor ChaCha or ECDH.
 | OPEN-06 | QUIC | No header protection, ACK, or RFC 9001 TLS-in-QUIC. Zero CRYPTO share. | AES-ECB HP (pqforge 0.4.6), ACK processor, CRYPTO stream (offset + handshake-message reassembly), `QuicTlsHandshake` (`quic: true`). RFC 9001 A.1 + A.2 pins. Live encapsulate. ChaCha HP fails closed. `test/quic/quic_test.dart`. |
 | OPEN-07 HTTP/2 | HTTP | HTTP/2 missing on `PqTlsSocket`. | RFC 9113 frames + RFC 7541 HPACK (static, dynamic, Huffman). ALPN `h2` in EncryptedExtensions. GET/POST over `PqTlsSocket`. Default ALPN stays `http/1.1`. Silent h2→h1 refused. `test/http/http_test.dart`, `test/tls/socket_http_test.dart`. |
 | OPEN-07 HTTP/3 | HTTP / QUIC | HTTP/3 frames without QPACK or STREAM mapping. | RFC 9000 STREAM decode + reassembly. RFC 9204 QPACK (static 99, dynamic, B.1–B.5). RFC 9114 session on `PqQuicConn` ALPN `h3`. GET/POST. Silent h3→h1 refused. `test/http/http3_test.dart`. |
+| OPEN-10 | DoH / DoT | `DohExchange` / `DotExchange` were thin adapters. No ALPN `dot`/`h2`, no URI template. | RFC 8484 `DohClient` POST and GET (`{?dns}`, unpadded base64url) on ALPN `h2` and `h3`. RFC 7858 `DotClient` requires ALPN `dot` and reassembles the length prefix. `test/dns/doh_dot_test.dart`. curl/nghttp2 and nghttp3 QPACK: `tool/interop`. |

@@ -13,6 +13,7 @@ export 'src/core/lengths.dart';
 export 'src/core/transcript.dart';
 export 'src/core/zeroize.dart';
 export 'src/dns/pq_dns_client.dart';
+export 'src/dns/doh_dot.dart';
 export 'src/dns/records.dart';
 export 'src/dns/wire.dart';
 export 'src/http/pq_http_client.dart';

@@ -80,7 +80,7 @@ Also forbidden in meaning, even if the substring differs:
 | QUIC | RFC 9000, 9001, 9002 | Self-interop packets, STREAM, TLS-in-QUIC. Not loss recovery. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
-| DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire + helpers; production ALPN not done |
+| DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |
 | X25519 | RFC 7748 | Via pqforge |
 
 RFC 10024 note (normative): the group name `X25519MLKEM768` does **not**

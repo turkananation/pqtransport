@@ -86,7 +86,12 @@ final key = client.exporter('app', Uint8List(0), 32);
 | Type | Role |
 |---|---|
 | `PqDnsClient` / `PqDnsResolver` | Lookup + cache + breaker |
-| `DohExchange` / `DotExchange` | Thin adapters |
+| `DohClient` | RFC 8484. `DohClient.h2` / `DohClient.h3`. Template `{?dns}` or a plain POST URI. GET is unpadded base64url. |
+| `DohUriTemplate.parse` | Accepts only a trailing `{?dns}`. Other expressions fail closed. |
+| `dohQueryFromRequest` / `dohResponse` | Server-side extract and `application/dns-message` response. |
+| `DotClient` | RFC 7858 on a completed `PqTlsSocket` whose ALPN is `dot`. |
+| `DnsTcpReader` / `encodeDnsTcp` | 2-byte length prefix. Split chunks reassemble. Zero length fails. |
+| `DohExchange` / `DotExchange` | Byte hooks under the clients. Not the production API. |
 | `DnsMessage` + `DnsA` … `DnsNs` | Records |
 | `encodeDnsMessage` / `decodeDnsMessage` | Wire |
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
