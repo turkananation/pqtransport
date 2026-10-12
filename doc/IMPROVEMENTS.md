@@ -66,7 +66,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | IMP-19 | P3 | CI workflow (analyze, test, invariants, coverage floor) | Not in this sandbox tree |
 | IMP-20 | P3 | pub.dev release of 0.1.0 | Owner decision; package is unpublished |
 | IMP-21 | P3 | Example that does **not** look like an OpenSSL peer | Current examples are in-memory; keep them honest |
-| IMP-22 | P3 | Optional `allowUnauthenticated` lint / dartdoc warning | Easy to copy-paste into production |
+| IMP-22 | P3 | Optional `allowUnauthenticated` lint / dartdoc warning | **Done** — dartdoc says this is not authentication; `peerAuthenticated` stays false |
 
 ## Explicitly not improvements
 

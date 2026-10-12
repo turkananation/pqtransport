@@ -25,6 +25,14 @@ final class PqTlsClient {
     List<HybridGroup>? offeredGroups,
     List<int>? offeredCipherSuites,
     List<String>? alpnProtocols,
+
+    /// Skip ML-DSA CertificateVerify. This is not authentication.
+    ///
+    /// Production callers leave this false. True lets the handshake finish
+    /// without checking the peer signature. Finished is still checked.
+    /// [peerAuthenticated] stays false for the life of the session, so the
+    /// skip cannot be forgotten. A raw public key, an X.509 certificate,
+    /// or a caller verify hook is a substitute. This flag is not.
     this.allowUnauthenticated = false,
     this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
@@ -38,6 +46,11 @@ final class PqTlsClient {
   final List<HybridGroup> offeredGroups;
   final List<int> offeredCipherSuites;
   final List<String> alpnProtocols;
+
+  /// Skip ML-DSA CertificateVerify. This is not authentication.
+  ///
+  /// See the constructor parameter. [peerAuthenticated] stays false when
+  /// this is true.
   final bool allowUnauthenticated;
 
   /// RFC 9001: handshake messages without the TLS record layer.
@@ -56,10 +69,18 @@ final class PqTlsClient {
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
   String? selectedAlpn;
+  var _peerAuthenticated = false;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
   TlsCipherSuite get cipherSuite => _suite;
+
+  /// True only when this client checked CertificateVerify and the
+  /// handshake then completed.
+  ///
+  /// False before completion, false after a fatal alert, and false when
+  /// [allowUnauthenticated] skipped the check. Finished is not this bit.
+  bool get peerAuthenticated => _peerAuthenticated && isComplete;
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
     final compatible = crypto.requireGroup(group);
@@ -238,6 +259,7 @@ final class PqTlsClient {
             signatureBytes: sig.valueOrNull!,
           );
           if (!ok) return _fail('ml-dsa verify failed');
+          _peerAuthenticated = true;
         }
         transcript.add(msg);
       } else if (type == tlsHsFinished) {
@@ -372,6 +394,7 @@ final class PqTlsClient {
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {
+    _peerAuthenticated = false;
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
   }
