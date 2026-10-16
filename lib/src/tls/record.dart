@@ -135,18 +135,22 @@ final class TlsRecordLayer {
       inner.payload,
       Uint8List.fromList([inner.type]),
     ]);
+    final sealedLen = innerBytes.length + aeadTagBytes;
+    final aad = BytesBuilder(copy: false)..addByte(tlsContentApplicationData);
+    writeUint16(aad, tlsLegacyVersion);
+    writeUint16(aad, sealedLen);
+    final header = aad.takeBytes();
     final sealed = crypto.aeadSeal(
       key: key,
       nonce: nonce,
       plaintext: innerBytes,
+      aad: header,
       aead: schedule.aead,
     );
-    final b = BytesBuilder(copy: false);
-    b.addByte(tlsContentApplicationData);
-    writeUint16(b, tlsLegacyVersion);
-    writeUint16(b, sealed.length);
-    b.add(sealed);
-    return b.takeBytes();
+    if (sealed.length != sealedLen) {
+      throw StateError('AEAD length ${sealed.length} != $sealedLen');
+    }
+    return concatBytes([header, sealed]);
   }
 
   Result<TlsRecord, PqTransportError> openWith({
@@ -164,14 +168,16 @@ final class TlsRecordLayer {
         key: key,
         nonce: nonce,
         ciphertextWithTag: rec.valueOrNull!.payload,
+        aad: slice(wire, 0, tlsRecordHeaderBytes),
         aead: schedule.aead,
       );
-      if (plain.isEmpty) {
+      final contentEnd = _innerContentEnd(plain);
+      if (contentEnd < 1) {
         return Result.failure(PqTransportError.decodeFailure('empty inner'));
       }
-      final type = plain.last;
+      final type = plain[contentEnd - 1];
       return Result.success(
-        TlsRecord(type: type, payload: slice(plain, 0, plain.length - 1)),
+        TlsRecord(type: type, payload: slice(plain, 0, contentEnd - 1)),
       );
     } on Object catch (e) {
       return Result.failure(
@@ -179,4 +185,30 @@ final class TlsRecordLayer {
       );
     }
   }
+}
+
+/// RFC 8446 §5. Unencrypted `change_cipher_spec` of `{0x01}` is ignored.
+Result<void, PqTransportError> ignoreCompatibleChangeCipherSpec(
+  Uint8List wire,
+) {
+  final rec = decodePlainRecord(wire);
+  if (rec.isFailure) return Result.failure(rec.errorOrNull!);
+  final record = rec.valueOrNull!;
+  final payload = record.payload;
+  if (record.type != tlsContentChangeCipherSpec ||
+      payload.length != 1 ||
+      payload[0] != 1) {
+    return Result.failure(
+      PqTransportError.unexpectedMessage('change_cipher_spec'),
+    );
+  }
+  return const Result.success(null);
+}
+
+int _innerContentEnd(Uint8List plain) {
+  var end = plain.length;
+  while (end > 0 && plain[end - 1] == 0) {
+    end--;
+  }
+  return end;
 }
