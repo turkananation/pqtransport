@@ -342,11 +342,142 @@ final class ServerHello {
   }
 }
 
+Uint8List encodeMlDsa65Spki(Uint8List rawPublicKey) {
+  final oidLast = switch (rawPublicKey.length) {
+    mlDsa65PublicKeyBytes => 0x12,
+    mlDsa87PublicKeyBytes => 0x13,
+    _ => null,
+  };
+  if (oidLast == null) {
+    throw ArgumentError.value(
+      rawPublicKey.length,
+      'rawPublicKey',
+      'not an ML-DSA-65 or ML-DSA-87 public key',
+    );
+  }
+  const oidHead = [
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, //
+  ];
+  final algorithm = BytesBuilder(copy: false)
+    ..addByte(0x30)
+    ..addByte(oidHead.length + 1)
+    ..add(oidHead)
+    ..addByte(oidLast);
+  final bitBody = rawPublicKey.length + 1;
+  final bitString = BytesBuilder(copy: false)
+    ..addByte(0x03)
+    ..add(_derLength(bitBody))
+    ..addByte(0x00)
+    ..add(rawPublicKey);
+  final seq = concatBytes([algorithm.takeBytes(), bitString.takeBytes()]);
+  final out = BytesBuilder(copy: false)
+    ..addByte(0x30)
+    ..add(_derLength(seq.length))
+    ..add(seq);
+  return out.takeBytes();
+}
+
+Result<Uint8List, PqTransportError> decodeMlDsa65Spki(Uint8List spki) {
+  if (spki.isEmpty || spki[0] != 0x30) {
+    return Result.failure(PqTransportError.decodeFailure('ML-DSA SPKI'));
+  }
+  final r = ByteReader(spki);
+  r.u8();
+  final seqLen = _readDerLength(r);
+  if (seqLen.isFailure) return Result.failure(seqLen.errorOrNull!);
+  final seq = r.take(seqLen.valueOrNull!, PqLengthLabel.mlDsa65PublicKey);
+  if (seq.isFailure) return Result.failure(seq.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(PqTransportError.decodeFailure('trailing SPKI'));
+  }
+  final inner = ByteReader(seq.valueOrNull!);
+  final algTag = inner.u8();
+  if (algTag.isFailure || algTag.valueOrNull != 0x30) {
+    return Result.failure(PqTransportError.decodeFailure('ML-DSA SPKI alg'));
+  }
+  final algLen = _readDerLength(inner);
+  if (algLen.isFailure) return Result.failure(algLen.errorOrNull!);
+  final alg = inner.take(algLen.valueOrNull!, PqLengthLabel.tlsExtension);
+  if (alg.isFailure) return Result.failure(alg.errorOrNull!);
+  const oidHead = [0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03];
+  final oid = alg.valueOrNull!;
+  if (oid.length != oidHead.length + 1) {
+    return Result.failure(PqTransportError.decodeFailure('ML-DSA OID'));
+  }
+  for (var i = 0; i < oidHead.length; i++) {
+    if (oid[i] != oidHead[i]) {
+      return Result.failure(PqTransportError.decodeFailure('ML-DSA OID'));
+    }
+  }
+  final expectKey = switch (oid.last) {
+    0x12 => mlDsa65PublicKeyBytes,
+    0x13 => mlDsa87PublicKeyBytes,
+    _ => -1,
+  };
+  if (expectKey < 0) {
+    return Result.failure(
+      PqTransportError.unsupported('ML-DSA OID ${oid.last}'),
+    );
+  }
+  final bitTag = inner.u8();
+  if (bitTag.isFailure || bitTag.valueOrNull != 0x03) {
+    return Result.failure(PqTransportError.decodeFailure('ML-DSA bit string'));
+  }
+  final bitLen = _readDerLength(inner);
+  if (bitLen.isFailure) return Result.failure(bitLen.errorOrNull!);
+  final bits = inner.take(bitLen.valueOrNull!, PqLengthLabel.mlDsa65PublicKey);
+  if (bits.isFailure) return Result.failure(bits.errorOrNull!);
+  if (!inner.isDone) {
+    return Result.failure(PqTransportError.decodeFailure('trailing SPKI'));
+  }
+  final raw = bits.valueOrNull!;
+  if (raw.isEmpty || raw[0] != 0 || raw.length != expectKey + 1) {
+    return Result.failure(
+      PqTransportError.illegalParameter(
+        PqLengthLabel.mlDsa65PublicKey,
+        raw.isEmpty ? 0 : raw.length - 1,
+        expectKey,
+      ),
+    );
+  }
+  return Result.success(slice(raw, 1, raw.length));
+}
+
+Result<int, PqTransportError> _readDerLength(ByteReader r) {
+  final first = r.u8();
+  if (first.isFailure) return Result.failure(first.errorOrNull!);
+  final lead = first.valueOrNull!;
+  if (lead < 0x80) return Result.success(lead);
+  final n = lead & 0x7f;
+  if (n == 0 || n > 2) {
+    return Result.failure(PqTransportError.decodeFailure('DER length'));
+  }
+  var value = 0;
+  for (var i = 0; i < n; i++) {
+    final b = r.u8();
+    if (b.isFailure) return Result.failure(b.errorOrNull!);
+    value = (value << 8) | b.valueOrNull!;
+  }
+  return Result.success(value);
+}
+
+Uint8List _derLength(int length) {
+  if (length < 128) return Uint8List.fromList([length]);
+  return Uint8List.fromList([(0x80 | 2), (length >> 8) & 0xff, length & 0xff]);
+}
+
 Uint8List encodeCertificate(Uint8List mlDsaPublicKey) {
-  final b = BytesBuilder(copy: false);
-  writeUint16(b, mlDsaPublicKey.length);
-  b.add(mlDsaPublicKey);
-  return encodeHandshake(tlsHsCertificate, b.takeBytes());
+  final spki = encodeMlDsa65Spki(mlDsaPublicKey);
+  final entry = BytesBuilder(copy: false);
+  writeUint24(entry, spki.length);
+  entry.add(spki);
+  writeUint16(entry, 0);
+  final list = entry.takeBytes();
+  final body = BytesBuilder(copy: false);
+  body.addByte(0);
+  writeUint24(body, list.length);
+  body.add(list);
+  return encodeHandshake(tlsHsCertificate, body.takeBytes());
 }
 
 Result<Uint8List, PqTransportError> decodeCertificate(Uint8List handshake) {
@@ -359,13 +490,67 @@ Result<Uint8List, PqTransportError> decodeCertificate(Uint8List handshake) {
     );
   }
   final r = ByteReader(body);
-  final len = r.u16();
-  if (len.isFailure) return Result.failure(len.errorOrNull!);
-  return r.take(len.valueOrNull!, PqLengthLabel.mlDsa65PublicKey);
+  final contextLen = r.u8();
+  if (contextLen.isFailure) return Result.failure(contextLen.errorOrNull!);
+  if (contextLen.valueOrNull != 0) {
+    return Result.failure(
+      PqTransportError.decodeFailure('server certificate context'),
+    );
+  }
+  final listLen = r.u24();
+  if (listLen.isFailure) return Result.failure(listLen.errorOrNull!);
+  final list = r.take(listLen.valueOrNull!, PqLengthLabel.tlsExtension);
+  if (list.isFailure) return Result.failure(list.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('trailing certificate'),
+    );
+  }
+  final entry = ByteReader(list.valueOrNull!);
+  final spkiLen = entry.u24();
+  if (spkiLen.isFailure) return Result.failure(spkiLen.errorOrNull!);
+  final spki = entry.take(spkiLen.valueOrNull!, PqLengthLabel.mlDsa65PublicKey);
+  if (spki.isFailure) return Result.failure(spki.errorOrNull!);
+  final extLen = entry.u16();
+  if (extLen.isFailure) return Result.failure(extLen.errorOrNull!);
+  final exts = entry.take(extLen.valueOrNull!, PqLengthLabel.tlsExtension);
+  if (exts.isFailure) return Result.failure(exts.errorOrNull!);
+  if (!entry.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('trailing certificate entry'),
+    );
+  }
+  return decodeMlDsa65Spki(spki.valueOrNull!);
+}
+
+/// RFC 8446 §4.4.3 content for a server CertificateVerify.
+///
+/// 64 bytes of 0x20, the context string, a 0 separator, then the
+/// transcript hash. ML-DSA signs this message with an empty context.
+Uint8List tls13ServerCertVerifyContent(Uint8List transcriptHash) {
+  final b = BytesBuilder(copy: false);
+  b.add(Uint8List(64)..fillRange(0, 64, 0x20));
+  b.add(ascii.encode('TLS 1.3, server CertificateVerify'));
+  b.addByte(0);
+  b.add(transcriptHash);
+  return b.takeBytes();
 }
 
 Uint8List encodeCertVerify(Uint8List signature) {
+  final scheme = switch (signature.length) {
+    mlDsa65SignatureBytes => tlsSignatureMldsa65,
+    mlDsa87SignatureBytes => tlsSignatureMldsa87,
+    _ => null,
+  };
+  if (scheme == null) {
+    throw ArgumentError.value(
+      signature.length,
+      'signature',
+      'not an ML-DSA-65 or ML-DSA-87 signature',
+    );
+  }
   final b = BytesBuilder(copy: false);
+  writeUint16(b, scheme);
   writeUint16(b, signature.length);
   b.add(signature);
   return encodeHandshake(tlsHsCertificateVerify, b.takeBytes());
@@ -381,9 +566,37 @@ Result<Uint8List, PqTransportError> decodeCertVerify(Uint8List handshake) {
     );
   }
   final r = ByteReader(body);
+  final scheme = r.u16();
+  if (scheme.isFailure) return Result.failure(scheme.errorOrNull!);
+  final expected = switch (scheme.valueOrNull) {
+    tlsSignatureMldsa65 => mlDsa65SignatureBytes,
+    tlsSignatureMldsa87 => mlDsa87SignatureBytes,
+    _ => -1,
+  };
+  if (expected < 0) {
+    return Result.failure(
+      PqTransportError.unsupported('signature_scheme ${scheme.valueOrNull}'),
+    );
+  }
   final len = r.u16();
   if (len.isFailure) return Result.failure(len.errorOrNull!);
-  return r.take(len.valueOrNull!, PqLengthLabel.mlDsa65Signature);
+  if (len.valueOrNull != expected) {
+    return Result.failure(
+      PqTransportError.illegalParameter(
+        PqLengthLabel.mlDsa65Signature,
+        len.valueOrNull!,
+        expected,
+      ),
+    );
+  }
+  final sig = r.take(len.valueOrNull!, PqLengthLabel.mlDsa65Signature);
+  if (sig.isFailure) return Result.failure(sig.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('trailing certificate verify'),
+    );
+  }
+  return sig;
 }
 
 Uint8List encodeFinished(Uint8List verifyData) =>

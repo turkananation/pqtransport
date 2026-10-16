@@ -229,7 +229,7 @@ final class PqTlsServer {
       transcript.add(ee);
       final cert = encodeCertificate(identity.publicKey);
       transcript.add(cert);
-      final toSign = transcript.snapshot();
+      final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
       final sig = crypto.mlDsaSign(
         secretKey: identity.secretKey,
         message: toSign,

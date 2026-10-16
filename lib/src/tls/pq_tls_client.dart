@@ -246,7 +246,7 @@ final class PqTlsClient {
         certPk = cert.valueOrNull;
         transcript.add(msg);
       } else if (type == tlsHsCertificateVerify) {
-        final toSign = transcript.snapshot();
+        final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
         final d = driveTls(machine, TlsEvent.receiveCertVerify);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         final sig = decodeCertVerify(msg);
