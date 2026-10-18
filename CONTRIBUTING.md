@@ -44,9 +44,10 @@ Pure Dart. No native bindings. No `dart:ffi`.
 - **Fail closed.** Profile/group mismatches (`requireGroup`) must not
   silently drop the classical share. Parses return `Result`. All three
   RFC 10024 groups are live; do not re-introduce fail-closed ECDH.
-- **Claim boundary.** This is not a FIPS 140 module, not OpenSSL-interop
-  in 0.1.0, and not IANA `0x1302` on a SHA-256 schedule (the `0x1302`
-  path is SHA-384).
+- **Claim boundary.** This is not a FIPS 140 module. The only OpenSSL
+  sentence is handshake interop with OpenSSL 3.5.9 on the
+  X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk). Not X.509.
+  Not BoringSSL. IANA `0x1302` is SHA-384, not SHA-256.
 
 ## 3. Branching and commits
 

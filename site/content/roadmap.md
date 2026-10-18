@@ -27,8 +27,9 @@ on the wire is IANA `0x1302` / `0x1303`; private-use `0xFF00` is retired
 with cookie (OPEN-05 **done**). Leftover error-path coverage is done
 (OPEN-12 **done**). Slice 0.2 is complete.
 
-OpenSSL **parsing** of hellos is unblocked. Handshake completion still
-needs a recorded fixture (LIM-01 / 0.4).
+OpenSSL parsing of hellos is done. Handshake interop with OpenSSL
+3.5.9 on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk) is
+slice 0.4.1. X.509 paths and BoringSSL are not that fixture.
 
 ## 0.3 remaining — honest cipher suite
 

@@ -137,7 +137,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 - No pentest report.
 - No side-channel measurement.
 - No FIPS 140 module boundary.
-- No OpenSSL handshake.
+- OpenSSL claim is only the 3.5.9 X25519MLKEM768 raw-pk fixture. No X.509 path. No BoringSSL.
 
 Re-audit triggers: any change to `hybrid.dart`, `key_schedule.dart`,
 `record.dart`, datagram replay, or a new pqforge major/minor that

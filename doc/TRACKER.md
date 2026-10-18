@@ -113,7 +113,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 | ID | Summary | Roadmap slice |
 | --- | --- | --- |
-| LIM-01 | OpenSSL / BoringSSL handshake | 0.4, after OPEN-01 |
+| LIM-01 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk | Fixture done. X.509 and BoringSSL are not this row. |
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
 | LIM-04 | Browser raw UDP / mDNS | Never (browser platform) |
@@ -126,12 +126,12 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
-| 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| 0.4 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk | 0.2 hellos + honest IANA suites | **Done** — [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-10 **Fixed** |
 
 OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. OPEN-10 (DoH/DoT)
-is **Fixed**. Do not vendor P-256 ECDH. Next coding turn: LIM-01
-OpenSSL fixture.
+is **Fixed**. Do not vendor P-256 ECDH. LIM-01 X25519MLKEM768 raw-pk
+against OpenSSL 3.5.9 is the fixture in `tool/interop/openssl`.
 
 ## Verification commands
 

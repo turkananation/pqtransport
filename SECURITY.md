@@ -54,9 +54,10 @@ In particular:
 - **TLS hellos are RFC 8446-shaped** (`legacy_version`, `key_share`,
   `supported_versions`, SNI, ALPN). Certificate is still a raw ML-DSA-65
   public key. Cipher suite is IANA `0x1302` (SHA-384 AES-GCM) by default,
-  `0x1303` (ChaCha) if offered. OpenSSL will not complete a handshake until
-  a recorded fixture exists. See
-  [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md).
+  `0x1303` (ChaCha) if offered. Handshake interop with OpenSSL 3.5.9
+  on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk) is
+  [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). That is not an
+  X.509 path and not BoringSSL.
 - **Record protection follows the suite.** `0x1302` is AES-256-GCM with
   HKDF-SHA-384. `0x1303` is ChaCha20-Poly1305 with HKDF-SHA-256.
 - **Best-effort side-channel resistance.** Pure Dart compiled to the VM,
@@ -82,8 +83,8 @@ Primitive KATs (ML-KEM / ML-DSA / SLH-DSA) belong in
 - Requests for CMVP / FIPS 140 certification (a separate, formal process).
 - Theoretical side-channel concerns already documented in
   [doc/SECURITY_AUDIT.md](doc/SECURITY_AUDIT.md) without a concrete exploit.
-- Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-  (2026-10-17, auth mode raw-pk) is LIM-01. X.509 paths and BoringSSL
-  are still absent. Reports that a truncated share or a Finished
-  forgery is accepted are in scope.
+- X.509 path validation and BoringSSL. The only OpenSSL claim is
+  Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
+  (2026-10-17, auth mode raw-pk). Reports that a truncated share or a
+  Finished forgery is accepted are in scope.
 - Vendoring cryptographic primitives inside this package. Consume pqforge.

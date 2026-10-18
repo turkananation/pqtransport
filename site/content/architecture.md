@@ -81,7 +81,9 @@ RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
 (ChaCha20-Poly1305 + HKDF-SHA-256). Private-use `0xFF00` is retired.
 Handshake vs application epochs reset the record sequence. Finished is
 HMAC over the transcript (SHA-384 for `0x1302`, SHA-256 for `0x1303`).
-Certificate is a raw ML-DSA-65 public key (OPEN-04).
+Certificate is one RFC 7250 ML-DSA SubjectPublicKeyInfo inside an
+RFC 8446 Certificate message (OPEN-04). Not an X.509 path.
 
-Wording stays "RFC 10024-aligned hybrid share encoding with unit-tested
-concatenation," not "OpenSSL interop."
+Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
+(2026-10-17, auth mode raw-pk). Not BoringSSL. Not the other hybrid
+groups against that peer.
