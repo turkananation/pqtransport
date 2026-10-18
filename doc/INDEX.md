@@ -33,7 +33,7 @@ upgrade a claim this layer is not allowed to make. See
 | Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
 | TLS wire | RFC 8446 ClientHello/ServerHello (OPEN-01). Raw-pk negotiated (OPEN-04). HRR + cookie (OPEN-05). IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered. `0xFF00` retired. |
 | Tests | `dart analyze` clean; **214** tests pass; **90.7%** line coverage of `lib/` |
-| OpenSSL interop | Not started. Do not claim it. [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| OpenSSL 3.5.9 | Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk). [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | CMVP / FIPS 140 | Not claimed. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 
 ## Read this first

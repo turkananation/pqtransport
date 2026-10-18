@@ -76,8 +76,6 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
     final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = probe.port;
     await probe.close();
-    final keylog = File('${dir.path}/keylog.txt');
-    env['SSLKEYLOGFILE'] = keylog.path;
     final server = await Process.start(opensslBin, [
       's_server',
       '-accept',
@@ -95,8 +93,6 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       '-naccept',
       '1',
       '-state',
-      '-keylogfile',
-      keylog.path,
     ], environment: env);
     final errBuf = StringBuffer();
     server.stderr.transform(utf8.decoder).listen(errBuf.write);
@@ -117,51 +113,14 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       }
       socket.add(hello.valueOrNull!);
       await socket.flush();
-      final ch = hello.valueOrNull!;
-      final chHs = Uint8List.sublistView(ch, tlsRecordHeaderBytes);
-      Uint8List? shHs;
 
       while (!client.isComplete) {
         final rec = await records.next();
         if (rec == null) {
           throw StateError('peer closed before Finished\n$errBuf');
         }
-        if (rec[0] == 20) continue;
-        if (rec[0] == 21) {
-          throw StateError('alert ${rec.sublist(5)}');
-        }
-        if (rec[0] == 22) {
-          shHs = Uint8List.sublistView(rec, tlsRecordHeaderBytes);
-        }
-        stderr.writeln(
-          'rec type=${rec[0]} len=${rec.length} head=${hex(Uint8List.sublistView(rec, 0, rec.length < 8 ? rec.length : 8))}',
-        );
         final out = await client.ingest(rec);
         if (out.isFailure) {
-          final tr = client.transcript.bytes;
-          final sh = shHs ?? Uint8List(0);
-          final glued = Uint8List(chHs.length + sh.length)
-            ..setRange(0, chHs.length, chHs)
-            ..setRange(chHs.length, chHs.length + sh.length, sh);
-          stderr.writeln(
-            'tr ${tr.length} glued ${glued.length} equal ${_eqFull(tr, glued)}',
-          );
-          stderr.writeln('hash ${hex(client.transcript.snapshot())}');
-          stderr.writeln(
-            'ours s_hs ${hex(client.schedule.serverHandshakeTraffic)}',
-          );
-          stderr.writeln(
-            'keylog\n${keylog.existsSync() ? keylog.readAsStringSync() : "missing"}',
-          );
-          final peerLine = keylog
-              .readAsStringSync()
-              .split('\n')
-              .firstWhere(
-                (l) => l.startsWith('SERVER_HANDSHAKE_TRAFFIC_SECRET '),
-              );
-          final peer = _unhex(peerLine.split(' ').last);
-          final opened = _tryPeerSecret(crypto, peer, rec);
-          stderr.writeln('peer secret opens record: $opened');
           throw StateError('ingest: ${out.errorOrNull}\n$errBuf');
         }
         for (final flight in out.valueOrNull!) {
@@ -175,6 +134,14 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       if (client.cipherSuite != TlsCipherSuite.aes256GcmSha384) {
         throw StateError('suite ${client.cipherSuite}');
       }
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!errBuf.toString().contains('read finished') &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      if (!errBuf.toString().contains('read finished')) {
+        throw StateError('OpenSSL did not accept Finished:\n$errBuf');
+      }
       await socket.close();
       socket = null;
     } finally {
@@ -183,13 +150,6 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       await server.exitCode.timeout(
         const Duration(seconds: 5),
         onTimeout: () => -1,
-      );
-    }
-    final text = errBuf.toString();
-    if (!text.contains('TLS_AES_256_GCM_SHA384') &&
-        !text.contains('X25519MLKEM768')) {
-      throw StateError(
-        'OpenSSL did not report the expected suite/group:\n$text',
       );
     }
   } finally {
@@ -202,60 +162,6 @@ String _libDir(String bin) {
   final extra = Platform.environment['LD_LIBRARY_PATH'];
   if (!lib.existsSync()) return extra ?? '';
   return extra == null || extra.isEmpty ? lib.path : '${lib.path}:$extra';
-}
-
-String hex(Uint8List b) =>
-    b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
-
-Uint8List _unhex(String s) {
-  final out = Uint8List(s.length ~/ 2);
-  for (var i = 0; i < out.length; i++) {
-    out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
-  }
-  return out;
-}
-
-String _tryPeerSecret(
-  PqTransportCrypto crypto,
-  Uint8List secret,
-  Uint8List rec,
-) {
-  try {
-    final key = _label(crypto, secret, 'key', 32);
-    final iv = _label(crypto, secret, 'iv', 12);
-    final plain = crypto.aeadOpen(
-      key: key,
-      nonce: iv,
-      ciphertextWithTag: Uint8List.sublistView(rec, tlsRecordHeaderBytes),
-      aad: Uint8List.sublistView(rec, 0, tlsRecordHeaderBytes),
-    );
-    return 'ok len=${plain.length} type=${plain.isEmpty ? -1 : plain.last}';
-  } on Object catch (e) {
-    return '$e';
-  }
-}
-
-Uint8List _label(
-  PqTransportCrypto crypto,
-  Uint8List secret,
-  String label,
-  int length,
-) {
-  final labelBytes = utf8.encode('tls13 $label');
-  final b = BytesBuilder(copy: false);
-  writeUint16(b, length);
-  b.addByte(labelBytes.length);
-  b.add(labelBytes);
-  b.addByte(0);
-  return crypto.hkdfExpandSha384(secret, b.takeBytes(), length);
-}
-
-bool _eqFull(Uint8List a, Uint8List b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }
 
 Future<Socket> _connect(int port) async {

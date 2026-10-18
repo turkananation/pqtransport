@@ -23,7 +23,8 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   v0.1.0 is a self-interop vertical slice. 214 tests pass, 90.7% line coverage
   of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
   groups**. RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303`
-  ChaCha). Not OpenSSL interop. Not a FIPS 140 module.
+  ChaCha). Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768
+  fixture (2026-10-17, auth mode raw-pk). Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -37,7 +38,7 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](features)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](hybrid)
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](claim-boundary)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](claim-boundary)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](claim-boundary)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](platform)
 
 ```dart

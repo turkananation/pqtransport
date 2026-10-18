@@ -96,6 +96,19 @@ void main() {
     );
   });
 
+  test('a 0x1302 hello whose Hash is SHA-256 aborts', () {
+    final suite = TlsCipherSuite.byCodepoint(tlsCipherAes256GcmSha384);
+    expect(suite, TlsCipherSuite.aes256GcmSha384);
+    expect(suite!.usesSha384, isTrue);
+    expect(suite.hashBytes, sha384HashBytes);
+    final sha256Finished = encodeFinished(Uint8List(sha256HashBytes));
+    final decoded = decodeFinished(
+      sha256Finished,
+      verifyDataLength: suite.hashBytes,
+    );
+    expect(decoded.isFailure, isTrue);
+  });
+
   test('SHA-384 Extract/Expand is not SHA-256 (OPEN-02)', () {
     final salt = Uint8List(sha384HashBytes);
     final ikm = Uint8List.fromList(List<int>.filled(22, 0x0b));

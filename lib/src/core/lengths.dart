@@ -144,6 +144,7 @@ const int tlsLegacyVersion = 0x0303; // recorded on the wire
 const int tls13Version = 0x0304;
 const int tlsRecordHeaderBytes = 5;
 const int tlsMaxPlaintextBytes = 16384;
+const int tlsHandshakeReassemblyMaxBytes = 65536;
 const int tlsHandshakeHeaderBytes = 4;
 const int tlsFinishedLabelBytes = 32;
 const int tlsCipherChaCha20Poly1305Sha256 = 0x1303;

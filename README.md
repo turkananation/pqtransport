@@ -37,8 +37,8 @@ Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exch
 ## Claim boundary
 
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
-[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446_hellos_(not_OpenSSL)-bf8700?style=for-the-badge)](doc/ROADMAP.md)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446-2f855a?style=for-the-badge)](doc/ROADMAP.md)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
 [![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
@@ -75,8 +75,11 @@ TLS record protection defaults to AES-256-GCM with HKDF-SHA-384
 (IANA `TLS_AES_256_GCM_SHA384`, `0x1302`). The client also offers
 `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`), which completes on VM,
 dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
-Concatenation is RFC 10024-aligned and unit-tested — this release does **not**
-claim OpenSSL interop.
+Concatenation is RFC 10024-aligned and unit-tested. Handshake interop
+with OpenSSL 3.5.9 on the X25519MLKEM768 fixture in
+`tool/interop/openssl` (2026-10-17, auth mode raw-pk). That is not an
+X.509 path, not BoringSSL, and not the other hybrid groups against
+that peer.
 
 ## Install
 

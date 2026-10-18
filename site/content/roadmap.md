@@ -37,12 +37,11 @@ Live NIST groups, HKDF-SHA-256 Expand, and `checkEncapsulationKey` are
 and sync ChaCha as `0x1303` (OPEN-13) are **done**. Do not put `0x1302`
 on a SHA-256 schedule.
 
-## 0.4 — OpenSSL 3.5+ / BoringSSL fixture
+## 0.4 — OpenSSL 3.5.9 fixture
 
-Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server /
-s_client. Requires OPEN-01 hellos and honest IANA suites. Until that is
-green, wording stays "unit-tested concatenation," not "interoperable
-with OpenSSL."
+Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture in
+`tool/interop/openssl` (2026-10-17, auth mode raw-pk). BoringSSL and
+X.509 path validation are not this slice. Do not widen the sentence.
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
 
