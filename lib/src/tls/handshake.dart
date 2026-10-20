@@ -768,6 +768,7 @@ Uint8List _extSupportedGroups(List<int> codepoints) {
 Uint8List _extSignatureAlgorithms() {
   final list = BytesBuilder(copy: false);
   writeUint16(list, tlsSignatureMldsa65);
+  writeUint16(list, tlsSignatureMldsa87);
   return _ext(tlsExtSignatureAlgorithms, _u16Vector(list.takeBytes()));
 }
 

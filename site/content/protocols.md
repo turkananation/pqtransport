@@ -31,8 +31,8 @@ for IANA `0x1303`. Private-use `0xFF00` is retired.
 HelloRetryRequest is on the wire with cookie extension 44 and
 `selected_group` (OPEN-05). Once-only; a second HRR fails closed.
 X.509 chains are not parsed. Handshake interop with OpenSSL 3.5.9 on
-the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk) is the only
-OpenSSL claim. ChaCha records are Done
+X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(2026-10-20, auth mode raw-pk) is the OpenSSL claim. ChaCha records are Done
 (`0x1303`) on VM, dart2wasm, and dart2js (pqforge 0.4.5 Dart engine).
 
 ## DNS / DoH / DoT

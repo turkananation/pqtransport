@@ -9,6 +9,6 @@ This page is a pointer. The canonical claim boundary is
 - RFC 8446-shaped ClientHello: yes (OPEN-01). Certificate still raw (OPEN-04)
 - IANA `TLS_AES_256_GCM_SHA384` (0x1302): yes (SHA-384 schedule, OPEN-02 Fixed)
 - IANA `TLS_CHACHA20_POLY1305_SHA256` (0x1303): yes (OPEN-13 Fixed; dart2js via pqforge 0.4.5)
-- Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk). Not X.509. Not BoringSSL.
+- Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk). Not X.509. Not BoringSSL.
 - FIPS 140 / CMVP module: no
 - `dart:ffi` / platform `SecureSocket` on the PQ path: no

@@ -55,7 +55,8 @@ In particular:
   `supported_versions`, SNI, ALPN). Certificate is still a raw ML-DSA-65
   public key. Cipher suite is IANA `0x1302` (SHA-384 AES-GCM) by default,
   `0x1303` (ChaCha) if offered. Handshake interop with OpenSSL 3.5.9
-  on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk) is
+  on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+  (2026-10-20, auth mode raw-pk) is
   [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). That is not an
   X.509 path and not BoringSSL.
 - **Record protection follows the suite.** `0x1302` is AES-256-GCM with
@@ -84,7 +85,8 @@ Primitive KATs (ML-KEM / ML-DSA / SLH-DSA) belong in
 - Theoretical side-channel concerns already documented in
   [doc/SECURITY_AUDIT.md](doc/SECURITY_AUDIT.md) without a concrete exploit.
 - X.509 path validation and BoringSSL. The only OpenSSL claim is
-  Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-  (2026-10-17, auth mode raw-pk). Reports that a truncated share or a
+  Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+  raw-pk). Reports that a truncated share or a
   Finished forgery is accepted are in scope.
 - Vendoring cryptographic primitives inside this package. Consume pqforge.

@@ -23,8 +23,9 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   v0.1.0 is a self-interop vertical slice. 214 tests pass, 90.7% line coverage
   of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
   groups**. RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303`
-  ChaCha). Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768
-  fixture (2026-10-17, auth mode raw-pk). Not a FIPS 140 module.
+  ChaCha). Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+  raw-pk). Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -116,8 +117,9 @@ This layer may not invent a stronger claim than pqcrypto / pqforge.
 - Not a FIPS 140 module. No CMVP listing.
 - Best-effort side-channel posture in Dart. Best-effort zeroization.
 - RFC 10024-aligned hybrid encoding with unit-tested concatenation.
-  Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-  (2026-10-17, auth mode raw-pk). Not X.509. Not BoringSSL. Not
+  Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024
+  (2026-10-20, auth mode raw-pk). Not X.509. Not BoringSSL. Not
   "interoperable with OpenSSL" with no version, group, or auth mode.
 - Live KEX in 0.1.0 is all three RFC 10024 groups.
 - TLS default suite is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, SHA-384).

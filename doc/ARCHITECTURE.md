@@ -135,8 +135,9 @@ Cipher suite on the wire is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, default)
 or `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`). Private-use `0xFF00` is retired.
 Compact 0.1 hello body is retired.
 
-Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-(2026-10-17, auth mode raw-pk) is `tool/interop/openssl`. The peer
+Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+raw-pk) is `tool/interop/openssl`. The peer
 sends one RFC 7250 SPKI, not an X.509 path. BoringSSL is not that
 fixture. Records use the 5-byte header as AEAD additional data.
 ChangeCipherSpec is ignored. A handshake message may span records.

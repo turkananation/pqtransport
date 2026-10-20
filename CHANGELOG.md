@@ -2,13 +2,16 @@
 
 ### Added
 
-- Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-  in `tool/interop/openssl` (2026-10-17, auth mode raw-pk). RFC 8446
-  Certificate carries one RFC 7250 ML-DSA SubjectPublicKeyInfo.
+- Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+  (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
+  RFC 8446 Certificate carries one RFC 7250 ML-DSA SubjectPublicKeyInfo.
   CertificateVerify carries the signature scheme and the 64-byte
   context. TLS records use the header as AEAD additional data.
-  Handshake messages may span records. X.509 path validation is not
-  implemented. BoringSSL is not this fixture.
+  Handshake messages may span records. Peer ML-DSA verification follows
+  the key and signature sizes (ML-DSA-65 or ML-DSA-87), not the local
+  profile. X.509 path validation is not implemented. BoringSSL is not
+  this fixture.
 - `peerAuthenticated` on `PqTlsClient` and `PqTlsSocket` (IMP-22). True only after CertificateVerify succeeded. `allowUnauthenticated` is documented as not authentication and leaves the bit false. A server socket stays false (no client auth).
 - HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
   SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.

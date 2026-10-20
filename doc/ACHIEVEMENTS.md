@@ -113,14 +113,14 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
 | HTTP/2 GET over mock TLS (ALPN `h2`) | Done |
-| OpenSSL 3.5.9 X25519MLKEM768 raw-pk | Done — `tool/interop/openssl`. Not X.509. Not BoringSSL. |
+| OpenSSL 3.5.9 RFC 10024 raw-pk | Done — all three groups in `tool/interop/openssl`. Not X.509. Not BoringSSL. |
 
 ## What this release does *not* achieve
 
 Recorded so achievements cannot be misread:
 
 - X.509 certificate chains. The OpenSSL fixture is RFC 7250 raw-pk only.
-- BoringSSL, and the other RFC 10024 groups against OpenSSL.
+- BoringSSL.
 - Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC + STREAM mapping
   are in tree; still no congestion control or loss recovery).
 - Production DoH/DoT with ALPN.

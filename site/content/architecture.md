@@ -84,6 +84,6 @@ HMAC over the transcript (SHA-384 for `0x1302`, SHA-256 for `0x1303`).
 Certificate is one RFC 7250 ML-DSA SubjectPublicKeyInfo inside an
 RFC 8446 Certificate message (OPEN-04). Not an X.509 path.
 
-Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture
-(2026-10-17, auth mode raw-pk). Not BoringSSL. Not the other hybrid
-groups against that peer.
+Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+raw-pk). Not X.509. Not BoringSSL.

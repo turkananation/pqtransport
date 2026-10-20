@@ -26,7 +26,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
-| OpenSSL 3.5.9 X25519MLKEM768 raw-pk | Handshake interop with OpenSSL 3.5.9 on `tool/interop/openssl` (2026-10-17, auth mode raw-pk) |
+| OpenSSL 3.5.9 RFC 10024 raw-pk | Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk) |
 | CMVP / FIPS 140 | Not claimed |
 
 ## What 0.1.0 closed
@@ -71,7 +71,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-18 | Packet protect round trip; bit-flip fails | Done |
 | GATE-19 | Flow control violation is an error | Done |
 | GATE-20 | HTTP/1.1 GET over mock TLS | Done |
-| GATE-21 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk fixture | **Done** — `tool/interop/openssl/run.sh` (LIM-01). Not X.509. Not BoringSSL. |
+| GATE-21 | OpenSSL 3.5.9 RFC 10024 raw-pk fixtures | **Done** — `tool/interop/openssl/run.sh` (LIM-01). All three groups. Not X.509. Not BoringSSL. |
 | GATE-22 | HTTP/2 GET over mock TLS (ALPN `h2`) | **Done** — RFC 7541 C.2–C.4 + live GET/POST (OPEN-07 HTTP/2) |
 | GATE-23 | HTTP/3 GET over `PqQuicConn` (ALPN `h3`) | **Done** — RFC 9204 B.1–B.5 + live GET/POST (OPEN-07 HTTP/3) |
 

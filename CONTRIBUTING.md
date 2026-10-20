@@ -46,7 +46,8 @@ Pure Dart. No native bindings. No `dart:ffi`.
   RFC 10024 groups are live; do not re-introduce fail-closed ECDH.
 - **Claim boundary.** This is not a FIPS 140 module. The only OpenSSL
   sentence is handshake interop with OpenSSL 3.5.9 on the
-  X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk). Not X.509.
+  X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+  (2026-10-20, auth mode raw-pk). Not X.509.
   Not BoringSSL. IANA `0x1302` is SHA-384, not SHA-256.
 
 ## 3. Branching and commits

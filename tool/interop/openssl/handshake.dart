@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:pqforge/pqforge.dart';
 import 'package:pqtransport/pqtransport.dart';
 
 Future<void> main(List<String> args) async {
@@ -14,16 +15,33 @@ Future<void> main(List<String> args) async {
     return;
   }
   await handshakeX25519MlKem768(args.single);
-  stdout.writeln('OpenSSL 3.5 X25519MLKEM768 handshake complete');
+  await handshakeSecP256r1MlKem768(args.single);
+  await handshakeSecP384r1MlKem1024(args.single);
+  stdout.writeln(
+    'OpenSSL 3.5 hybrid handshakes complete '
+    '(X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024)',
+  );
 }
+
+/// X25519MLKEM768 (`0x11EC`). ML-KEM then X25519. Balanced profile.
+Future<void> handshakeX25519MlKem768(String opensslBin) =>
+    _handshake(opensslBin, HybridGroup.x25519MlKem768);
+
+/// SecP256r1MLKEM768 (`0x11EB`). ECDHE then ML-KEM. Balanced profile.
+Future<void> handshakeSecP256r1MlKem768(String opensslBin) =>
+    _handshake(opensslBin, HybridGroup.secP256r1MlKem768);
+
+/// SecP384r1MLKEM1024 (`0x11ED`). ECDHE then ML-KEM. `maximum` profile.
+Future<void> handshakeSecP384r1MlKem1024(String opensslBin) =>
+    _handshake(opensslBin, HybridGroup.secP384r1MlKem1024);
 
 /// Completes one TLS 1.3 handshake with OpenSSL `s_server`.
 ///
 /// Auth mode: RFC 7250 raw public key, ML-DSA-65. The server certificate
 /// is an ML-DSA-65 X.509 certificate; `-enable_server_rpk` makes OpenSSL
-/// send the SubjectPublicKeyInfo instead of the certificate. Group is
-/// X25519MLKEM768. Suite is TLS_AES_256_GCM_SHA384 (`0x1302`).
-Future<void> handshakeX25519MlKem768(String opensslBin) async {
+/// send the SubjectPublicKeyInfo instead of the certificate. Suite is
+/// TLS_AES_256_GCM_SHA384 (`0x1302`).
+Future<void> _handshake(String opensslBin, HybridGroup group) async {
   final dir = await Directory.systemTemp.createTemp('pq-openssl-');
   final conf =
       Platform.environment['OPENSSL_CONF'] ??
@@ -87,7 +105,7 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       '${dir.path}/key.pem',
       '-enable_server_rpk',
       '-groups',
-      'X25519MLKEM768',
+      _opensslGroup(group),
       '-ciphersuites',
       'TLS_AES_256_GCM_SHA384',
       '-naccept',
@@ -95,12 +113,12 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       '-state',
     ], environment: env);
     final errBuf = StringBuffer();
-    server.stderr.transform(utf8.decoder).listen(errBuf.write);
-    unawaited(server.stdout.drain());
+    final errSub = server.stderr.transform(utf8.decoder).listen(errBuf.write);
+    final outSub = server.stdout.listen((_) {});
 
-    final crypto = PqTransportCrypto();
     final client = PqTlsClient(
-      crypto: crypto,
+      crypto: _cryptoFor(group),
+      group: group,
       offeredCipherSuites: const [tlsCipherAes256GcmSha384],
     );
     Socket? socket;
@@ -109,7 +127,7 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       final records = _Records(socket);
       final hello = await client.startHandshake();
       if (hello.isFailure) {
-        throw StateError('start: ${hello.errorOrNull}');
+        throw StateError('${_opensslGroup(group)} start: ${hello.errorOrNull}');
       }
       socket.add(hello.valueOrNull!);
       await socket.flush();
@@ -117,11 +135,15 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
       while (!client.isComplete) {
         final rec = await records.next();
         if (rec == null) {
-          throw StateError('peer closed before Finished\n$errBuf');
+          throw StateError(
+            '${_opensslGroup(group)} peer closed before Finished\n$errBuf',
+          );
         }
         final out = await client.ingest(rec);
         if (out.isFailure) {
-          throw StateError('ingest: ${out.errorOrNull}\n$errBuf');
+          throw StateError(
+            '${_opensslGroup(group)} ingest: ${out.errorOrNull}\n$errBuf',
+          );
         }
         for (final flight in out.valueOrNull!) {
           socket.add(flight);
@@ -129,7 +151,9 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
         await socket.flush();
       }
       if (!client.peerAuthenticated) {
-        throw StateError('handshake finished without CertificateVerify');
+        throw StateError(
+          '${_opensslGroup(group)} finished without CertificateVerify',
+        );
       }
       if (client.cipherSuite != TlsCipherSuite.aes256GcmSha384) {
         throw StateError('suite ${client.cipherSuite}');
@@ -140,13 +164,17 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
       if (!errBuf.toString().contains('read finished')) {
-        throw StateError('OpenSSL did not accept Finished:\n$errBuf');
+        throw StateError(
+          '${_opensslGroup(group)} did not accept Finished:\n$errBuf',
+        );
       }
       await socket.close();
       socket = null;
     } finally {
       await socket?.close();
-      server.kill();
+      await errSub.cancel();
+      await outSub.cancel();
+      server.kill(ProcessSignal.sigkill);
       await server.exitCode.timeout(
         const Duration(seconds: 5),
         onTimeout: () => -1,
@@ -156,6 +184,19 @@ Future<void> handshakeX25519MlKem768(String opensslBin) async {
     await dir.delete(recursive: true);
   }
 }
+
+String _opensslGroup(HybridGroup group) => switch (group) {
+  HybridGroup.x25519MlKem768 => 'X25519MLKEM768',
+  HybridGroup.secP256r1MlKem768 => 'SecP256r1MLKEM768',
+  HybridGroup.secP384r1MlKem1024 => 'SecP384r1MLKEM1024',
+};
+
+PqTransportCrypto _cryptoFor(HybridGroup group) => switch (group) {
+  HybridGroup.secP384r1MlKem1024 => const PqTransportCrypto(
+    profile: PqForgeProfile.maximum,
+  ),
+  _ => const PqTransportCrypto(),
+};
 
 String _libDir(String bin) {
   final lib = Directory('${File(bin).parent.parent.path}/lib');

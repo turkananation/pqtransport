@@ -5,5 +5,5 @@ Canonical page:
 |---|---|
 | 0.2 | RFC 8446-shaped hellos (this package) — **Done** |
 | 0.3 remaining | IANA cipher suites — **Done** (OPEN-02 SHA-384 schedule, OPEN-13 ChaCha). Live NIST groups are done. |
-| 0.4 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk — **Done**. Not X.509. Not BoringSSL. |
+| 0.4 | OpenSSL 3.5.9 all three RFC 10024 groups, raw-pk — **Done**. Not X.509. Not BoringSSL. |
 | 0.5 | QUIC / HTTP / DoH production |

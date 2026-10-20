@@ -76,10 +76,10 @@ TLS record protection defaults to AES-256-GCM with HKDF-SHA-384
 `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`), which completes on VM,
 dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
 Concatenation is RFC 10024-aligned and unit-tested. Handshake interop
-with OpenSSL 3.5.9 on the X25519MLKEM768 fixture in
-`tool/interop/openssl` (2026-10-17, auth mode raw-pk). That is not an
-X.509 path, not BoringSSL, and not the other hybrid groups against
-that peer.
+with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and
+SecP384r1MLKEM1024 in `tool/interop/openssl` (2026-10-20, auth mode
+raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`. That is not
+an X.509 path and not BoringSSL.
 
 ## Install
 

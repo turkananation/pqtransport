@@ -28,8 +28,9 @@ with cookie (OPEN-05 **done**). Leftover error-path coverage is done
 (OPEN-12 **done**). Slice 0.2 is complete.
 
 OpenSSL parsing of hellos is done. Handshake interop with OpenSSL
-3.5.9 on the X25519MLKEM768 fixture (2026-10-17, auth mode raw-pk) is
-slice 0.4.1. X.509 paths and BoringSSL are not that fixture.
+3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(2026-10-20, auth mode raw-pk) is slice 0.4. X.509 paths and
+BoringSSL are not that fixture.
 
 ## 0.3 remaining — honest cipher suite
 
@@ -40,8 +41,9 @@ on a SHA-256 schedule.
 
 ## 0.4 — OpenSSL 3.5.9 fixture
 
-Handshake interop with OpenSSL 3.5.9 on the X25519MLKEM768 fixture in
-`tool/interop/openssl` (2026-10-17, auth mode raw-pk). BoringSSL and
+Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+(2026-10-20, auth mode raw-pk). BoringSSL and
 X.509 path validation are not this slice. Do not widen the sentence.
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
