@@ -99,7 +99,8 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |
 | `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK |
 | `PqHttp3Session` / `Http3Frame` / `QpackCodec` | RFC 9114 session + RFC 9204 QPACK |
-| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC + 1-RTT STREAM |
+| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC + 1-RTT STREAM. `driveLossRecovery` runs RFC 9002 when the deadline is due. |
+| `QuicLossRecovery` / `QuicNewReno` / `QuicClock` | RFC 9002 loss detection, PTO, and NewReno. Compose without a connection: peek a packet number, seal, `canSend`, `onPacketSent`, `onAck`, `onLossDetectionTimeout`. |
 | `QuicPacketCodec` / `QuicInitialCodec` / `QuicCryptoFrame` | 1-RTT and Initial HP |
 | `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
 | `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |

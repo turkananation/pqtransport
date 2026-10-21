@@ -25,5 +25,7 @@ void main() {
     expect(QuicTlsHandshake, isNotNull);
     expect(QuicInitialSecrets, isNotNull);
     expect(QuicAckProcessor, isNotNull);
+    expect(QuicLossRecovery, isNotNull);
+    expect(QuicNewReno, isNotNull);
   });
 }

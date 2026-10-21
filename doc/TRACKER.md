@@ -106,6 +106,7 @@ None. OPEN-10 is **Fixed** (row below).
 | OPEN-06 | P2 | **Fixed** | Header protection, ACK, RFC 9001 TLS-in-QUIC (pqforge 0.4.6) |
 | OPEN-07 | P2 | **Fixed** | HTTP/2 on `PqTlsSocket`; HTTP/3+QPACK on `PqQuicConn` STREAM |
 | OPEN-10 | P2 | **Fixed** | RFC 8484 DoH (`DohClient` h2/h3) and RFC 7858 DoT (ALPN `dot`). `tool/interop` for curl/nghttp2 and nghttp3 QPACK |
+| OPEN-15 | P2 | **Fixed** | RFC 9002 loss detection, PTO, NewReno. `test/quic/recovery_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -130,8 +131,9 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-10 **Fixed** |
 
 OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. OPEN-10 (DoH/DoT)
-is **Fixed**. Do not vendor P-256 ECDH. Next coding turn: LIM-01
-OpenSSL fixture.
+is **Fixed**. OPEN-15 (RFC 9002 loss recovery) is **Fixed**. Do not
+vendor P-256 ECDH. Next coding turn: LIM-01 OpenSSL fixture. Do not
+treat loss recovery as `curl --http3` or as Handshake packet protection.
 
 ## Verification commands
 

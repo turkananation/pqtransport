@@ -19,8 +19,49 @@ final class QuicCryptoStream {
   final Map<int, Uint8List> _chunks = {};
   var _read = 0;
 
-  void add(QuicCryptoFrame frame) {
-    _chunks[frame.offset] = Uint8List.fromList(frame.data);
+  /// Contiguous bytes not yet passed to TLS. A retransmission at an
+  /// offset already consumed is ignored so the handshake is not fed twice.
+  Result<void, PqTransportError> add(QuicCryptoFrame frame) {
+    if (frame.data.isEmpty) return const Result.success(null);
+    if (frame.offset + frame.data.length <= _read) {
+      return const Result.success(null);
+    }
+    var offset = frame.offset;
+    var data = frame.data;
+    if (offset < _read) {
+      data = Uint8List.sublistView(data, _read - offset);
+      offset = _read;
+    }
+    final existing = _chunks[offset];
+    if (existing != null) {
+      if (_sameBytes(existing, data)) return const Result.success(null);
+      if (data.length > existing.length && _hasPrefix(data, existing)) {
+        _chunks[offset] = Uint8List.fromList(data);
+        return const Result.success(null);
+      }
+      if (existing.length > data.length && _hasPrefix(existing, data)) {
+        return const Result.success(null);
+      }
+      return Result.failure(PqTransportError.decodeFailure('crypto conflict'));
+    }
+    _chunks[offset] = Uint8List.fromList(data);
+    return const Result.success(null);
+  }
+
+  static bool _sameBytes(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  static bool _hasPrefix(Uint8List bytes, Uint8List prefix) {
+    if (bytes.length < prefix.length) return false;
+    for (var i = 0; i < prefix.length; i++) {
+      if (bytes[i] != prefix[i]) return false;
+    }
+    return true;
   }
 
   /// Contiguous bytes from the current read cursor, or empty if a gap.
@@ -98,7 +139,8 @@ final class QuicTlsHandshake {
   Future<Result<List<QuicCryptoFrame>, PqTransportError>> ingest(
     QuicCryptoFrame frame,
   ) async {
-    inbound.add(frame);
+    final added = inbound.add(frame);
+    if (added.isFailure) return Result.failure(added.errorOrNull!);
     final available = inbound.takeAvailable();
     if (available.isNotEmpty) {
       _partial = concatBytes([_partial, available]);

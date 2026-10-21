@@ -121,7 +121,8 @@ Recorded so achievements cannot be misread:
 
 - OpenSSL 3.5+ / BoringSSL interop (needs a recorded fixture; hellos are RFC 8446-shaped with IANA `0x1302`/`0x1303`).
 - X.509 certificate chains (raw-pk is negotiated; payload is still raw ML-DSA-65).
-- Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC + STREAM mapping
-  are in tree; still no congestion control or loss recovery).
+- Full RFC 9000 connection migration, ECN, multipath, anti-amplification,
+  and Handshake packet protection (loss detection, PTO, and NewReno are
+  in tree; ChaCha HP still fails closed).
 - Production DoH/DoT with ALPN.
 - CMVP / FIPS 140 module validation.

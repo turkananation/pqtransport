@@ -68,7 +68,8 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `PqHttpClient` | HTTP/1.1 and HTTP/2 over TLS; HTTP/3 over `PqQuicConn` |
 | `PqHttp2Session` / `HpackCodec` | RFC 9113 + RFC 7541 |
 | `PqHttp3Session` / `QpackCodec` | RFC 9114 + RFC 9204 |
-| `PqQuicConn` / `QuicStreamFrame` | TLS-in-QUIC + 1-RTT STREAM |
+| `PqQuicConn` / `QuicStreamFrame` | TLS-in-QUIC + 1-RTT STREAM, RFC 9002 recovery |
+| `QuicLossRecovery` / `QuicNewReno` | Loss detection, PTO, congestion window |
 | `QuicPacketCodec` / `QuicCryptoFrame` | QUIC Initial / 1-RTT |
 
 ## Errors

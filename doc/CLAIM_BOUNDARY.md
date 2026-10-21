@@ -77,7 +77,7 @@ Also forbidden in meaning, even if the substring differs:
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |
 | ML-KEM / ML-DSA / SLH-DSA | FIPS 203 / 204 / 205 | Via pqforge → pqcrypto |
-| QUIC | RFC 9000, 9001, 9002 | Self-interop packets, STREAM, TLS-in-QUIC. Not loss recovery. |
+| QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Not ECN, migration, multipath, anti-amplification, or `max_idle_timeout` (a local PTO budget stops a silent peer). Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha header protection fails closed. Not 0-RTT. Not `curl --http3`. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
 | DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |

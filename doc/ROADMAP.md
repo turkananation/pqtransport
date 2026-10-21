@@ -97,6 +97,15 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 HTTP/3 must not silently downgrade to HTTP/1.1 (`allowDowngrade: false`
 stays the default).
 
+## Slice 0.6 — certificates, loss recovery, DNSSEC
+
+| # | Work | Closes |
+| --- | --- | --- |
+| 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
+
+X.509, ChaCha header protection, QUIC flow-control frames, and DNSSEC
+are not this slice. 0-RTT stays LIM-05.
+
 ## Parallelism (safe vs forbidden)
 
 Safe after 0.1 constants exist:
