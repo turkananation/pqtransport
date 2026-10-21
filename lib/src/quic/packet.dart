@@ -327,7 +327,12 @@ final class QuicAckFrame {
   }
 }
 
-/// Tracks received packet numbers and in-flight sent packets (RFC 9000 ACK).
+/// Tracks received packet numbers and which sent numbers an acknowledgement
+/// has not yet removed (RFC 9000 §19.3).
+///
+/// Loss, the probe timeout, and the congestion window are not this type.
+/// [QuicLossRecovery] keeps one processor per packet number space and uses
+/// [applyAck] as the newly-acknowledged set.
 final class QuicAckProcessor {
   final Set<int> received = <int>{};
   final Map<int, Uint8List> inFlight = {};
@@ -385,17 +390,21 @@ final class QuicAckProcessor {
 }
 
 /// CRYPTO + ACK + STREAM frames from a QUIC packet payload. PADDING and PING
-/// are skipped. ACK-ECN and unknown types fail closed.
+/// are skipped. [ackEliciting] is set when a PING, CRYPTO, or STREAM frame
+/// was present (RFC 9002: anything except ACK, PADDING, and CONNECTION_CLOSE).
+/// ACK-ECN and unknown types fail closed.
 final class QuicPayload {
   const QuicPayload({
     this.crypto = const [],
     this.acks = const [],
     this.streams = const [],
+    this.ackEliciting = false,
   });
 
   final List<QuicCryptoFrame> crypto;
   final List<QuicAckFrame> acks;
   final List<QuicStreamFrame> streams;
+  final bool ackEliciting;
 }
 
 Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
@@ -403,9 +412,15 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final crypto = <QuicCryptoFrame>[];
   final acks = <QuicAckFrame>[];
   final streams = <QuicStreamFrame>[];
+  var ackEliciting = false;
   while (r.remaining > 0) {
     final type = r.bytes[r.offset];
-    if (type == quicFramePadding || type == quicFramePing) {
+    if (type == quicFramePadding) {
+      r.offset++;
+      continue;
+    }
+    if (type == quicFramePing) {
+      ackEliciting = true;
       r.offset++;
       continue;
     }
@@ -413,6 +428,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       final f = QuicCryptoFrame.read(r);
       if (f.isFailure) return Result.failure(f.errorOrNull!);
       crypto.add(f.valueOrNull!);
+      ackEliciting = true;
       continue;
     }
     if (type == quicFrameAck) {
@@ -426,6 +442,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       final f = QuicStreamFrame.read(r, remainingIsData: !hasLen);
       if (f.isFailure) return Result.failure(f.errorOrNull!);
       streams.add(f.valueOrNull!);
+      ackEliciting = true;
       continue;
     }
     return Result.failure(
@@ -435,7 +452,12 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
     );
   }
   return Result.success(
-    QuicPayload(crypto: crypto, acks: acks, streams: streams),
+    QuicPayload(
+      crypto: crypto,
+      acks: acks,
+      streams: streams,
+      ackEliciting: ackEliciting,
+    ),
   );
 }
 

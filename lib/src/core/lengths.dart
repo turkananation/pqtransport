@@ -314,6 +314,150 @@ const int quicVarintPrefixShift = 6;
 const int quicVarintPrefixMask = 0x3f;
 
 // ---------------------------------------------------------------------------
+// QUIC loss recovery (RFC 9002) and the RFC 9000 constants it depends on.
+// Protocol sizes stay here. recovery.dart / congestion.dart consume the names.
+// ---------------------------------------------------------------------------
+
+/// RFC 9002 §6.1.1. Packets this many numbers older than the largest
+/// acknowledged packet are lost.
+const int quicPacketThreshold = 3;
+
+/// RFC 9002 §6.1.2. Time threshold is 9/8 of the larger RTT sample.
+const int quicTimeThresholdNumerator = 9;
+const int quicTimeThresholdDenominator = 8;
+
+/// RFC 9002 §6.1.2. Timer granularity, one millisecond, in microseconds.
+const int quicGranularityMicros = 1000;
+
+/// RFC 9002 §5.3. `smoothed_rtt` is 7/8 of the previous estimate plus 1/8
+/// of the adjusted sample. `rttvar` is 3/4 of the previous variance plus
+/// 1/4 of the absolute residual. The PTO period uses `4 * rttvar`.
+const int quicRttSmoothNumerator = 7;
+const int quicRttSmoothDenominator = 8;
+const int quicRttVarNumerator = 3;
+const int quicRttVarDenominator = 4;
+const int quicRttVarPtoMultiplier = 4;
+
+/// RFC 9002 §6.2.2. RTT used until the first sample (333 milliseconds).
+const int quicInitialRttMicros = 333000;
+
+/// RFC 9000 §18.2. Default `max_ack_delay` (25 milliseconds).
+const int quicMaxAckDelayMicros = 25000;
+
+/// RFC 9000 §18.2. Default `ack_delay_exponent` (delay × 2^3 microseconds).
+const int quicAckDelayExponentDefault = 3;
+
+/// RFC 9002 §7.2. Recommended initial window, in maximum datagrams.
+const int quicInitialWindowDatagrams = 10;
+
+/// RFC 9002 §7.2. Minimum congestion window, in maximum datagrams.
+const int quicMinimumWindowDatagrams = 2;
+
+/// RFC 9002 §7.2. Byte cap on the initial window (RFC 6928 raised for UDP).
+const int quicInitialWindowFloorBytes = 14720;
+
+/// RFC 9002 §7.6.1. Persistent congestion is this many PTO periods.
+const int quicPersistentCongestionThreshold = 3;
+
+/// RFC 9002 §7. Multiplicative decrease is 1/2.
+const int quicLossReductionNumerator = 1;
+const int quicLossReductionDenominator = 2;
+
+/// Local probe budget (OPEN-15). Not an RFC 9002 constant.
+///
+/// `max_idle_timeout` (RFC 9000 §10.1) is not negotiated, so without this
+/// cap a peer that never ACKs would arm PTO forever.
+const int quicMaxPtoCount = 8;
+
+/// RFC 9002 §6.2.4. A PTO sends one ack-eliciting probe and may send a
+/// second. Both ignore the congestion window (Section 7.5).
+const int quicPtoProbePackets = 2;
+
+/// Appendix B.3 slow-start threshold before the first loss.
+const int quicSsthreshInfinite = 0x7fffffffffffffff;
+
+/// 1-RTT short header counted in `bytes_in_flight`: flags, DCID, 4-byte
+/// packet number, AEAD tag. The payload is not included.
+const int quicShortHeaderOverhead =
+    1 + quicShortDcidBytes + quicPacketNumberMaxBytes + aeadTagBytes;
+
+/// Initial long header for an 8-byte DCID, 8-byte SCID, empty token, and a
+/// 2-byte length varint, plus the 4-byte packet number and AEAD tag.
+const int quicInitialHeaderOverhead =
+    1 +
+    4 +
+    1 +
+    quicShortDcidBytes +
+    1 +
+    quicShortDcidBytes +
+    1 +
+    2 +
+    quicPacketNumberMaxBytes +
+    aeadTagBytes;
+
+/// RFC 9002 §7.2 initial congestion window in bytes.
+///
+/// `min(10 × maxDatagramSize, max(14720, 2 × maxDatagramSize))`.
+int quicInitialCongestionWindow(int maxDatagramSize) {
+  final ten = quicInitialWindowDatagrams * maxDatagramSize;
+  final twice = quicMinimumWindowDatagrams * maxDatagramSize;
+  final limit = quicInitialWindowFloorBytes > twice
+      ? quicInitialWindowFloorBytes
+      : twice;
+  return ten < limit ? ten : limit;
+}
+
+/// RFC 9002 §7.2 minimum congestion window in bytes.
+int quicMinimumCongestionWindow(int maxDatagramSize) =>
+    quicMinimumWindowDatagrams * maxDatagramSize;
+
+/// Encoded size of a QUIC variable-length integer (RFC 9000 §16).
+int quicVarintLength(int value) {
+  if (value <= quicVarintMax1) return 1;
+  if (value <= quicVarintMax2) return 2;
+  if (value <= quicVarintMax4) return 4;
+  return 8;
+}
+
+/// Payload bytes that make a client Initial datagram at least
+/// [quicMinClientInitialUdpBytes] (RFC 9000 §14.1, RFC 9002 §6.2.1).
+///
+/// Padding is applied to the UDP datagram, not by inflating the frame
+/// payload to 1200 and then adding the long header on top. [payloadLength]
+/// is what the packet already carries; the return value is never smaller.
+/// An empty token is assumed. The length field's own size is included.
+int quicClientInitialPayloadBytes({
+  required int dcidLength,
+  required int scidLength,
+  required int payloadLength,
+}) {
+  final prefix = 1 + 4 + 1 + dcidLength + 1 + scidLength + 1;
+  var payload = payloadLength < 0 ? 0 : payloadLength;
+  while (true) {
+    final bodyLen = quicPacketNumberMaxBytes + payload + aeadTagBytes;
+    final lengthField = quicVarintLength(bodyLen);
+    final total =
+        prefix +
+        lengthField +
+        quicPacketNumberMaxBytes +
+        payload +
+        aeadTagBytes;
+    if (total >= quicMinClientInitialUdpBytes) {
+      final extra = total - quicMinClientInitialUdpBytes;
+      if (extra > 0 &&
+          payload - extra >= (payloadLength < 0 ? 0 : payloadLength)) {
+        final shrunk = payload - extra;
+        final shrunkLen = quicPacketNumberMaxBytes + shrunk + aeadTagBytes;
+        if (quicVarintLength(shrunkLen) == lengthField) return shrunk;
+      }
+      return payload;
+    }
+    final deficit = quicMinClientInitialUdpBytes - total;
+    payload += deficit > 0 ? deficit : 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
 

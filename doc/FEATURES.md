@@ -86,8 +86,9 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Connection / stream state machines | Partial | Happy + illegal-event tests |
 | TLS in QUIC (RFC 9001) | Done | CRYPTO stream, no TLS records. Initial AES-128-GCM + HP. OPEN-06. |
 | Header protection | Done | AES-ECB (pqforge `aesEncryptBlock`). ChaCha HP not implemented. |
-| ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3 |
-| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair; not loss recovery |
+| ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
+| Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
+| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |
 | 0-RTT | Not started | Explicit non-goal for v1 |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
