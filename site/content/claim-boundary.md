@@ -45,7 +45,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | "unit-tested concatenation" until a fixture is green |
+| Interoperable with OpenSSL | "Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk)." Nothing wider. |
 
 Canonical file:
 [`doc/CLAIM_BOUNDARY.md`](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md).

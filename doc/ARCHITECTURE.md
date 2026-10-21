@@ -122,8 +122,12 @@ ClientHello  = HS(1) || legacy_version(0x0303) || random(32) ||
 ServerHello  = HS(2) || legacy_version(0x0303) || random(32) ||
                session_id echo || cipher_suite || compression_null ||
                extensions (supported_versions, key_share)
-Certificate  = HS(11) || pk_len(u16) || ml-dsa-65 public key   // OPEN-04
-CertVerify   = HS(15) || sig_len(u16) || ml-dsa-65 signature
+Certificate  = HS(11) || context<0..255> ||
+               certificate_list<0..2^24-1>
+               entry = SPKI<1..2^24-1> || extensions<0..2^16-1>
+               SPKI is RFC 7250 SubjectPublicKeyInfo for ML-DSA-65 or ML-DSA-87
+CertVerify   = HS(15) || signature_scheme(u16) || sig_len(u16) || signature
+               signed content is 64 bytes of 0x20, "TLS 1.3, server CertificateVerify", 0x00, Hash
 Finished     = HS(20) || verify_data(Hash.length)
 ```
 
@@ -131,8 +135,12 @@ Cipher suite on the wire is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, default)
 or `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`). Private-use `0xFF00` is retired.
 Compact 0.1 hello body is retired.
 
-This is enough for self-interop. OpenSSL still needs a recorded fixture
-(LIM-01): raw ML-DSA cert (raw-pk is negotiated), no X.509 chain.
+Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+raw-pk) is `tool/interop/openssl`. The peer
+sends one RFC 7250 SPKI, not an X.509 path. BoringSSL is not that
+fixture. Records use the 5-byte header as AEAD additional data.
+ChangeCipherSpec is ignored. A handshake message may span records.
 
 Record protection: `TLSInnerPlaintext` = `payload || content_type`, sealed
 with AES-256-GCM (`0x1302`) or ChaCha20-Poly1305 (`0x1303`), outer type

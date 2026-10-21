@@ -25,8 +25,9 @@ None. pqforge **0.4.4** shipped BLK-01 … BLK-05. OPEN-02 (SHA-384 schedule /
 
 ## Honest limits (won't fix in 0.1)
 
-LIM-01 OpenSSL handshake (hellos, raw-pk, HRR, and IANA `0x1302`/`0x1303`
-are on the wire; still needs a recorded transcript). LIM-02 CMVP / FIPS
+LIM-01 OpenSSL 3.5.9 X25519MLKEM768 raw-pk handshake is the fixture in
+`tool/interop/openssl`. X.509 paths and BoringSSL are not that fixture.
+LIM-02 CMVP / FIPS
 140. LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
 mDNS. LIM-05 QUIC 0-RTT.
 

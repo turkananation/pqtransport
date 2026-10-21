@@ -247,6 +247,23 @@ void main() {
       expect(ours.sublist(32), x);
     });
 
+    test('swapped X25519MLKEM768 concatenation is not the peer order', () {
+      final kem = _filled(32, 0x11);
+      final x = _filled(32, 0x22);
+      final peer = combineSharedSecret(
+        group: HybridGroup.x25519MlKem768,
+        kemSharedSecret: kem,
+        classicalSharedSecret: x,
+      ).valueOrNull!;
+      final swapped = PqForgeCombiner.concatenateSharedSecrets(
+        classicalSharedSecret: x,
+        postQuantumSharedSecret: kem,
+        order: PqHybridConcatOrder.classicalThenPq,
+      );
+      expect(peer, isNot(equals(swapped)));
+      expect(peer.sublist(0, 32), isNot(equals(x)));
+    });
+
     test('P-256 order matches PqHybridConcatOrder.classicalThenPq', () {
       final kem = _filled(32, 0x11);
       final p256 = _filled(32, 0x33);

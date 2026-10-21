@@ -159,18 +159,34 @@ final class PqTransportCrypto {
     context: context,
   );
 
+  /// Verifies an ML-DSA signature.
+  ///
+  /// The algorithm is the one the peer used: ML-DSA-65 or ML-DSA-87 from
+  /// the public-key and signature sizes. The local [profile] chooses what
+  /// this stack signs with. It does not reject a longer or shorter peer
+  /// algorithm that we already decode.
   bool mlDsaVerify({
     required Uint8List publicKey,
     required Uint8List message,
     required Uint8List signatureBytes,
     Uint8List? context,
-  }) => PqSignaturePrimitives.verify(
-    signature,
-    publicKey,
-    message,
-    signatureBytes,
-    context: context,
-  );
+  }) {
+    final algorithm = switch ((publicKey.length, signatureBytes.length)) {
+      (mlDsa65PublicKeyBytes, mlDsa65SignatureBytes) =>
+        PqSignatureAlgorithm.mlDsa65,
+      (mlDsa87PublicKeyBytes, mlDsa87SignatureBytes) =>
+        PqSignatureAlgorithm.mlDsa87,
+      _ => null,
+    };
+    if (algorithm == null) return false;
+    return PqSignaturePrimitives.verify(
+      algorithm,
+      publicKey,
+      message,
+      signatureBytes,
+      context: context,
+    );
+  }
 
   Uint8List hmac(Uint8List key, Uint8List data) =>
       PqBytes.hmacSha256(key: key, data: data);

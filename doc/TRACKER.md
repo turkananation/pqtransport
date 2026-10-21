@@ -26,7 +26,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
-| OpenSSL interop | Not started |
+| OpenSSL 3.5.9 RFC 10024 raw-pk | Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk) |
 | CMVP / FIPS 140 | Not claimed |
 
 ## What 0.1.0 closed
@@ -71,7 +71,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | GATE-18 | Packet protect round trip; bit-flip fails | Done |
 | GATE-19 | Flow control violation is an error | Done |
 | GATE-20 | HTTP/1.1 GET over mock TLS | Done |
-| GATE-21 | OpenSSL interop fixture | Not started (LIM-01) |
+| GATE-21 | OpenSSL 3.5.9 RFC 10024 raw-pk fixtures | **Done** — `tool/interop/openssl/run.sh` (LIM-01). All three groups. Not X.509. Not BoringSSL. |
 | GATE-22 | HTTP/2 GET over mock TLS (ALPN `h2`) | **Done** — RFC 7541 C.2–C.4 + live GET/POST (OPEN-07 HTTP/2) |
 | GATE-23 | HTTP/3 GET over `PqQuicConn` (ALPN `h3`) | **Done** — RFC 9204 B.1–B.5 + live GET/POST (OPEN-07 HTTP/3) |
 
@@ -113,7 +113,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 | ID | Summary | Roadmap slice |
 | --- | --- | --- |
-| LIM-01 | OpenSSL / BoringSSL handshake | 0.4, after OPEN-01 |
+| LIM-01 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk | Fixture done. X.509 and BoringSSL are not this row. |
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
 | LIM-04 | Browser raw UDP / mDNS | Never (browser platform) |
@@ -126,12 +126,12 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.1.0 | Self-interop vertical slice + live NIST groups | pqforge 0.4.4 | Shipped in tree (unpublished) |
 | 0.2 | RFC 8446-shaped hellos | **Done** (OPEN-01 / OPEN-04 / OPEN-05 / OPEN-11 / OPEN-12) | — |
 | 0.3 remaining | IANA cipher suites | **Done** (OPEN-02, OPEN-13) | — |
-| 0.4 | OpenSSL 3.5+ fixture | 0.2 hellos + honest IANA suites | LIM-01, [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| 0.4 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk | 0.2 hellos + honest IANA suites | **Done** — [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-10 **Fixed** |
 
 OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. OPEN-10 (DoH/DoT)
-is **Fixed**. Do not vendor P-256 ECDH. Next coding turn: LIM-01
-OpenSSL fixture.
+is **Fixed**. Do not vendor P-256 ECDH. LIM-01 X25519MLKEM768 raw-pk
+against OpenSSL 3.5.9 is the fixture in `tool/interop/openssl`.
 
 ## Verification commands
 

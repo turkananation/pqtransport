@@ -121,6 +121,15 @@ void main() {
     },
   );
 
+  test('encapsulation key truncated to 1183 bytes is illegal_parameter', () {
+    const truncatedEncapsulationKey = 1183;
+    final share = Uint8List(truncatedEncapsulationKey + 32);
+    final r = decodeClientShare(HybridGroup.x25519MlKem768, share);
+    expect(r.isFailure, isTrue);
+    expect(r.errorOrNull!.code, PqTransportErrorCode.illegalParameter);
+    expect(r.errorOrNull!.alert, tlsAlertIllegalParameter);
+  });
+
   test('wrong-length hybrid client share fails with illegal_parameter', () {
     final g = HybridGroup.x25519MlKem768;
     final r = decodeClientShare(g, Uint8List(g.clientShareBytes - 1));

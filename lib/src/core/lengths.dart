@@ -39,6 +39,8 @@ const int uncompressedPointPrefix = 0x04;
 const int mlDsa65PublicKeyBytes = 1952;
 const int mlDsa65SecretKeyBytes = 4032;
 const int mlDsa65SignatureBytes = 3309;
+const int mlDsa87PublicKeyBytes = 2592;
+const int mlDsa87SignatureBytes = 4627;
 const int mlDsaContextMaxBytes = 255;
 
 // ---------------------------------------------------------------------------
@@ -142,6 +144,7 @@ const int tlsLegacyVersion = 0x0303; // recorded on the wire
 const int tls13Version = 0x0304;
 const int tlsRecordHeaderBytes = 5;
 const int tlsMaxPlaintextBytes = 16384;
+const int tlsHandshakeReassemblyMaxBytes = 65536;
 const int tlsHandshakeHeaderBytes = 4;
 const int tlsFinishedLabelBytes = 32;
 const int tlsCipherChaCha20Poly1305Sha256 = 0x1303;
@@ -176,6 +179,7 @@ const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
 const int tlsServerNameTypeHostName = 0;
 const int tlsSignatureMldsa65 = 0x0905;
+const int tlsSignatureMldsa87 = 0x0906;
 const int tlsCertTypeRawPublicKey = 2;
 const int tlsCompressionNull = 0;
 const int tlsLegacySessionIdMaxBytes = 32;

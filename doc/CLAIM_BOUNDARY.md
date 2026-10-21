@@ -40,7 +40,10 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
 - "Best-effort zeroization in Dart."
 - "Best-effort side-channel posture in Dart (VM / dart2js / dart2wasm
   cannot guarantee constant-time execution)."
-- "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
+- Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+  (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
+  Not X.509. Not BoringSSL.
 
 ## Forbidden wording
 
@@ -57,13 +60,15 @@ Use instead:
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
+| Interoperable with OpenSSL | The one sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk. Nothing wider. |
 
 Also forbidden in meaning, even if the substring differs:
 
 - "certified", "FIPS 140 module" as a positive claim.
 - "Production-ready post-quantum TLS" in the OpenSSL sense.
 - RFC-byte-exact TLS 1.3 interoperability with OpenSSL / BoringSSL
-  **before** the fixture in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) is green.
+  beyond those three raw-pk groups. X.509 paths are not
+  validated.
 - Putting IANA `0x1302` on a SHA-256 schedule (that lie is closed: the
   `0x1302` path is SHA-384).
 - Web UDP / mDNS / raw QUIC when the target is a browser.

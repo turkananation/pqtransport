@@ -32,7 +32,7 @@ Do not vendor ChaCha or ECDH.
 
 | ID | Summary | Why |
 |---|---|---|
-| LIM-01 | OpenSSL / BoringSSL handshake | Needs a recorded transcript. Hellos, raw-pk, HRR, IANA `0x1302`/`0x1303` are on the wire. |
+| LIM-01 | OpenSSL 3.5.9 X25519MLKEM768 raw-pk | Fixture is `tool/interop/openssl`. X.509 paths and BoringSSL are not this row. |
 | LIM-02 | CMVP / FIPS 140 | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). |
 | LIM-03 | Hard constant-time / hard erasure | VM / dart2js / dart2wasm cannot guarantee either. |
 | LIM-04 | Browser raw UDP / mDNS | Browsers do not expose generic UDP or multicast. |
