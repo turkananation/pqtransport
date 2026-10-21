@@ -21,6 +21,7 @@ Future<void> main(List<String> args) async {
     'OpenSSL 3.5 hybrid handshakes complete '
     '(X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024)',
   );
+  exit(0);
 }
 
 /// X25519MLKEM768 (`0x11EC`). ML-KEM then X25519. Balanced profile.
@@ -122,9 +123,10 @@ Future<void> _handshake(String opensslBin, HybridGroup group) async {
       offeredCipherSuites: const [tlsCipherAes256GcmSha384],
     );
     Socket? socket;
+    _Records? records;
     try {
       socket = await _connect(port);
-      final records = _Records(socket);
+      records = _Records(socket);
       final hello = await client.startHandshake();
       if (hello.isFailure) {
         throw StateError('${_opensslGroup(group)} start: ${hello.errorOrNull}');
@@ -171,6 +173,7 @@ Future<void> _handshake(String opensslBin, HybridGroup group) async {
       await socket.close();
       socket = null;
     } finally {
+      await records?.close();
       await socket?.close();
       await errSub.cancel();
       await outSub.cancel();
@@ -239,6 +242,8 @@ final class _Records {
   final Socket _socket;
   final List<int> _pending = [];
   late final StreamIterator<Uint8List> _it = StreamIterator(_socket);
+
+  Future<void> close() => _it.cancel();
 
   Future<Uint8List?> next() async {
     while (true) {
