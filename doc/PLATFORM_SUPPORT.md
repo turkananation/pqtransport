@@ -11,7 +11,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | Import | Platforms | Provides |
 | --- | --- | --- |
 | `package:pqtransport/pqtransport.dart` | VM, Flutter, web (dart2js / dart2wasm) | TLS, HTTP/1.1 codec, DNS codec, hybrid, memory sockets, QUIC sketch |
-| `package:pqtransport/pqtransport_io.dart` | Dart VM, Flutter mobile/desktop | Everything above plus `IoDatagramChannel` (`dart:io` `RawDatagramSocket`) |
+| `package:pqtransport/pqtransport_io.dart` | Dart VM, Flutter mobile/desktop | Everything above plus `IoDatagramChannel` and `IoTcpSocket` / `IoTcpServer` |
 
 The web barrel must not import `dart:io` or `dart:ffi`. IO crypto does
 not exist — `pqtransport_io.dart` only adds a datagram driver.

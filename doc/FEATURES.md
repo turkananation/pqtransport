@@ -74,6 +74,8 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
 | `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |
+| TCP `IoTcpSocket` / `IoTcpServer` | Done | Record reassembly is in `PqTlsSocket` (RFC 8446 §5.1) |
+| ML-DSA identity PEM | Done | RFC 7468 + RFC 5958 + RFC 9881. No encrypted PKCS#8. |
 | SLH-DSA signed records | Not started | Sister profile: archival only, after ML-DSA |
 
 ## QUIC / HTTP

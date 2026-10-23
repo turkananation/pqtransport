@@ -6,6 +6,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/errors.dart';
 import '../core/lengths.dart';
+import '../tls/pq_tls_server.dart';
 import 'pq_transport_socket.dart';
 
 /// `dart:io` UDP driver. Not exported from the web-safe barrel.
@@ -126,5 +127,85 @@ final class IoDatagramChannel implements PqDatagramChannel {
     await _sub?.cancel();
     _socket.close();
     await _controller.close();
+  }
+}
+
+/// TCP byte pipe. Records are reassembled by [PqTlsSocket], not here.
+final class IoTcpSocket implements PqTransportSocket {
+  IoTcpSocket._(this._socket);
+
+  final Socket _socket;
+  var _closed = false;
+
+  /// Connect to [host]:[port].
+  static Future<IoTcpSocket> connect(
+    String host,
+    int port, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    // ignore: close_sinks
+    final socket = await Socket.connect(host, port, timeout: timeout);
+    return IoTcpSocket._(socket);
+  }
+
+  /// Wrap an accepted [Socket].
+  factory IoTcpSocket.from(Socket socket) => IoTcpSocket._(socket);
+
+  @override
+  Stream<Uint8List> get incoming => _socket;
+
+  @override
+  bool get isClosed => _closed;
+
+  @override
+  Future<Result<void, PqTransportError>> send(Uint8List bytes) async {
+    if (_closed) {
+      return Result.failure(PqTransportError.closed('tcp send'));
+    }
+    _socket.add(bytes);
+    await _socket.flush();
+    return const Result.success(null);
+  }
+
+  @override
+  Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    await _socket.close();
+  }
+}
+
+/// TCP accept loop. Each connection is an [IoTcpSocket].
+final class IoTcpServer {
+  IoTcpServer._(this._server);
+
+  final ServerSocket _server;
+
+  static Future<IoTcpServer> bind(Object address, int port) async {
+    final server = await ServerSocket.bind(address, port);
+    return IoTcpServer._(server);
+  }
+
+  Stream<IoTcpSocket> get connections => _server.map(IoTcpSocket.from);
+
+  int get port => _server.port;
+
+  InternetAddress get address => _server.address;
+
+  Future<void> close() => _server.close();
+}
+
+/// Read an RFC 7468 ML-DSA identity from two files.
+Future<Result<PqTlsServerIdentity, PqTransportError>> readMlDsaIdentityPem(
+  String publicKeyPath,
+  String privateKeyPath,
+) async {
+  try {
+    return PqTlsServerIdentity.parsePem(
+      await File(publicKeyPath).readAsString(),
+      await File(privateKeyPath).readAsString(),
+    );
+  } on IOException {
+    return Result.failure(PqTransportError.decodeFailure('identity file'));
   }
 }

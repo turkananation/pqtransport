@@ -40,7 +40,9 @@ const int mlDsa65PublicKeyBytes = 1952;
 const int mlDsa65SecretKeyBytes = 4032;
 const int mlDsa65SignatureBytes = 3309;
 const int mlDsa87PublicKeyBytes = 2592;
+const int mlDsa87SecretKeyBytes = 4896;
 const int mlDsa87SignatureBytes = 4627;
+const int mlDsaSeedBytes = 32;
 const int mlDsaContextMaxBytes = 255;
 
 // ---------------------------------------------------------------------------
@@ -144,6 +146,9 @@ const int tlsLegacyVersion = 0x0303; // recorded on the wire
 const int tls13Version = 0x0304;
 const int tlsRecordHeaderBytes = 5;
 const int tlsMaxPlaintextBytes = 16384;
+
+/// RFC 8446 §5.2: a TLSCiphertext fragment is at most 2^14 + 256 bytes.
+const int tlsMaxCiphertextBytes = 16640;
 const int tlsHandshakeReassemblyMaxBytes = 65536;
 const int tlsHandshakeHeaderBytes = 4;
 const int tlsFinishedLabelBytes = 32;
