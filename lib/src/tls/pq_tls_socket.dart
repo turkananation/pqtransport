@@ -62,6 +62,8 @@ final class PqTlsSocket {
   StreamSubscription<Uint8List>? _sub;
   Future<void> _inbox = Future<void>.value();
   Completer<Result<void, PqTransportError>>? _handshake;
+  final List<int> _recordBytes = [];
+  var _recordDead = false;
 
   Stream<Uint8List> get applicationData => _app.stream;
 
@@ -86,7 +88,7 @@ final class PqTlsSocket {
     final done = Completer<Result<void, PqTransportError>>();
     _handshake = done;
     _sub ??= _inner.incoming.listen((bytes) {
-      _inbox = _inbox.then((_) => _onRecord(bytes));
+      _inbox = _inbox.then((_) => _onBytes(bytes));
     });
     final c = _client;
     if (c != null) {
@@ -103,18 +105,49 @@ final class PqTlsSocket {
     );
   }
 
+  /// RFC 8446 §5.1. TCP delivers an undifferentiated byte stream, so a
+  /// read is not a record. Bytes are held until `5 + length` arrive.
+  /// [length] above 2^14+256 is a decode error.
+  Future<void> _onBytes(Uint8List bytes) async {
+    if (_recordDead) return;
+    _recordBytes.addAll(bytes);
+    while (!_recordDead) {
+      if (_recordBytes.length < tlsRecordHeaderBytes) return;
+      final type = _recordBytes[0];
+      final version = (_recordBytes[1] << 8) | _recordBytes[2];
+      final length = (_recordBytes[3] << 8) | _recordBytes[4];
+      if (version != tlsLegacyVersion ||
+          length > tlsMaxCiphertextBytes ||
+          !_tlsContentType(type)) {
+        _recordDead = true;
+        _recordBytes.clear();
+        _finishHandshake(
+          Result.failure(PqTransportError.decodeFailure('tls record')),
+        );
+        return;
+      }
+      final total = tlsRecordHeaderBytes + length;
+      if (_recordBytes.length < total) return;
+      final record = Uint8List.fromList(_recordBytes.sublist(0, total));
+      _recordBytes.removeRange(0, total);
+      await _onRecord(record);
+    }
+  }
+
   Future<void> _onRecord(Uint8List bytes) async {
     final c = _client;
     final s = _server;
     if (c != null && !c.isComplete) {
       final out = await c.ingest(bytes);
       if (out.isFailure) {
+        _recordDead = true;
         _finishHandshake(Result.failure(out.errorOrNull!));
         return;
       }
       for (final rec in out.valueOrNull!) {
         final sent = await _inner.send(rec);
         if (sent.isFailure) {
+          _recordDead = true;
           _finishHandshake(sent);
           return;
         }
@@ -127,12 +160,14 @@ final class PqTlsSocket {
     if (s != null && !s.isComplete) {
       final out = await s.ingest(bytes);
       if (out.isFailure) {
+        _recordDead = true;
         _finishHandshake(Result.failure(out.errorOrNull!));
         return;
       }
       for (final rec in out.valueOrNull!) {
         final sent = await _inner.send(rec);
         if (sent.isFailure) {
+          _recordDead = true;
           _finishHandshake(sent);
           return;
         }
@@ -213,3 +248,9 @@ final class PqTlsSocket {
     await _inner.close();
   }
 }
+
+bool _tlsContentType(int type) =>
+    type == tlsContentChangeCipherSpec ||
+    type == tlsContentAlert ||
+    type == tlsContentHandshake ||
+    type == tlsContentApplicationData;

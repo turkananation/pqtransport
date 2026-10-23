@@ -94,7 +94,7 @@ dependencies:
 import 'package:pqtransport/pqtransport.dart';
 ```
 
-IO datagrams / multicast: `import 'package:pqtransport/pqtransport_io.dart';`
+IO datagrams, TCP, and multicast: `import 'package:pqtransport/pqtransport_io.dart';`
 
 ## Consume
 
