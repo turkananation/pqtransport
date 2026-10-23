@@ -2,6 +2,13 @@
 
 ### Added
 
+- `IoTcpSocket` and `IoTcpServer` (`package:pqtransport/pqtransport_io.dart`).
+  `PqTlsSocket` reassembles RFC 8446 records from the TCP byte stream
+  and rejects a record whose version is not `0x0303` or whose length
+  exceeds 2^14+256. `PqTlsServerIdentity.parse`, `parsePem`, and
+  `readMlDsaIdentityPem` load an RFC 9881 ML-DSA key from RFC 7468 PEM
+  or RFC 5958 OneAsymmetricKey (seed, expanded key, or both). An
+  encrypted private key is refused.
 - Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
   SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
   (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
