@@ -29,7 +29,8 @@ LIM-01 OpenSSL 3.5.9 X25519MLKEM768 raw-pk handshake is the fixture in
 `tool/interop/openssl`. X.509 paths and BoringSSL are not that fixture.
 LIM-02 CMVP / FIPS
 140. LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
-mDNS. LIM-05 QUIC 0-RTT.
+mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not
+sent.
 
 ## Fixed in 0.1.0
 

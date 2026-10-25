@@ -88,9 +88,10 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Connection / stream state machines | Partial | Happy + illegal-event tests |
 | TLS in QUIC (RFC 9001) | Done | CRYPTO stream, no TLS records. Initial AES-128-GCM + HP. OPEN-06. |
 | Header protection | Done | AES-ECB (pqforge `aesEncryptBlock`). ChaCha HP not implemented. |
-| ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3 |
-| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair; not loss recovery |
-| 0-RTT | Not started | Explicit non-goal for v1 |
+| ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
+| Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
+| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |
+| 0-RTT | Not implemented | LIM-05, issue 55. Permanent. RFC 9000 §12.3 would share the Application Data space with 1-RTT. This stack does not send early data. |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
 | HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |

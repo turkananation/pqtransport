@@ -22,7 +22,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | Crypto | `pqforge ^0.4.6` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
-| Tests | 214 passed |
+| Tests | 258 passed |
 | Coverage | 90.7% of `lib/` (`2466/2720`) |
 | Live handshake | **all three RFC 10024 groups** (X25519, P-256, P-384) |
 | TLS cipher | IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered **and completed** on VM / dart2wasm / dart2js |
@@ -106,6 +106,7 @@ None. OPEN-10 is **Fixed** (row below).
 | OPEN-06 | P2 | **Fixed** | Header protection, ACK, RFC 9001 TLS-in-QUIC (pqforge 0.4.6) |
 | OPEN-07 | P2 | **Fixed** | HTTP/2 on `PqTlsSocket`; HTTP/3+QPACK on `PqQuicConn` STREAM |
 | OPEN-10 | P2 | **Fixed** | RFC 8484 DoH (`DohClient` h2/h3) and RFC 7858 DoT (ALPN `dot`). `tool/interop` for curl/nghttp2 and nghttp3 QPACK |
+| OPEN-15 | P2 | **Fixed** | RFC 9002 loss detection, PTO, NewReno. `test/quic/recovery_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -117,7 +118,7 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
 | LIM-04 | Browser raw UDP / mDNS | Never (browser platform) |
-| LIM-05 | QUIC 0-RTT | Explicit non-goal |
+| LIM-05 | QUIC 0-RTT | Permanent (issue 55). Not implemented. RFC 9000 §12.3 would share Application Data with 1-RTT. This stack does not send early data. Application Data PTO stays off until the handshake is confirmed (RFC 9002 §6.2.1). |
 
 ## Roadmap slices (ownership)
 
@@ -130,8 +131,12 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | 0.5 | QUIC/HTTP/DoH production | 0.2 TLS wire | OPEN-10 **Fixed** |
 
 OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. OPEN-10 (DoH/DoT)
-is **Fixed**. Do not vendor P-256 ECDH. LIM-01 X25519MLKEM768 raw-pk
-against OpenSSL 3.5.9 is the fixture in `tool/interop/openssl`.
+is **Fixed**. OPEN-15 (RFC 9002 loss recovery) is **Fixed**. LIM-01
+handshake interop with OpenSSL 3.5.9 on the three RFC 10024 groups,
+auth mode raw-pk, is the fixture in `tool/interop/openssl`. LIM-05
+(issue 55) stays open: 0-RTT is not implemented. Do not vendor P-256
+ECDH. Do not treat loss recovery as `curl --http3` or as Handshake
+packet protection.
 
 ## Verification commands
 

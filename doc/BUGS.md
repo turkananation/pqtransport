@@ -18,7 +18,7 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 ## Open bugs
 
-None. OPEN-10 (production DoH/DoT) is **Fixed**. The remaining
+None. OPEN-15 (RFC 9002 loss recovery) is **Fixed**. The remaining
 handshake gap with a classical peer is LIM-01, not an open defect.
 
 ## Blocked on pqforge
@@ -36,7 +36,7 @@ Do not vendor ChaCha or ECDH.
 | LIM-02 | CMVP / FIPS 140 | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). |
 | LIM-03 | Hard constant-time / hard erasure | VM / dart2js / dart2wasm cannot guarantee either. |
 | LIM-04 | Browser raw UDP / mDNS | Browsers do not expose generic UDP or multicast. |
-| LIM-05 | QUIC 0-RTT | Explicit non-goal. |
+| LIM-05 | QUIC 0-RTT | Permanent (issue 55). Not implemented. Not a fourth packet number space. |
 
 ## Fixed in 0.1.0
 
@@ -72,3 +72,4 @@ Do not vendor ChaCha or ECDH.
 | OPEN-07 HTTP/2 | HTTP | HTTP/2 missing on `PqTlsSocket`. | RFC 9113 frames + RFC 7541 HPACK (static, dynamic, Huffman). ALPN `h2` in EncryptedExtensions. GET/POST over `PqTlsSocket`. Default ALPN stays `http/1.1`. Silent h2→h1 refused. `test/http/http_test.dart`, `test/tls/socket_http_test.dart`. |
 | OPEN-07 HTTP/3 | HTTP / QUIC | HTTP/3 frames without QPACK or STREAM mapping. | RFC 9000 STREAM decode + reassembly. RFC 9204 QPACK (static 99, dynamic, B.1–B.5). RFC 9114 session on `PqQuicConn` ALPN `h3`. GET/POST. Silent h3→h1 refused. `test/http/http3_test.dart`. |
 | OPEN-10 | DoH / DoT | `DohExchange` / `DotExchange` were thin adapters. No ALPN `dot`/`h2`, no URI template. | RFC 8484 `DohClient` POST and GET (`{?dns}`, unpadded base64url) on ALPN `h2` and `h3`. RFC 7858 `DotClient` requires ALPN `dot` and reassembles the length prefix. `test/dns/doh_dot_test.dart`. curl/nghttp2 and nghttp3 QPACK: `tool/interop`. |
+| OPEN-15 | QUIC | No loss detection, retransmission, or congestion window. `PqQuicConn` was an in-memory pair. | RFC 9002 §5–§7. `QuicLossRecovery` + `QuicNewReno`. Per-space packet and time thresholds, PTO (local budget, no idle timeout), lost STREAM/CRYPTO under a new packet number. Dropped 1-RTT STREAM and dropped server Initial recover. A silent peer stops. ChaCha HP still fails closed. `test/quic/recovery_test.dart`. |

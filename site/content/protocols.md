@@ -57,8 +57,8 @@ SLH-DSA signed records are not the interactive default.
 
 1-RTT short-header HP and Initial long-header HP (AES). CRYPTO frames
 carry a live TLS handshake (RFC 9001, no TLS records). ACK processor
-is present. ChaCha HP is not implemented. QUIC 0-RTT is an explicit
-non-goal.
+is present. ChaCha HP is not implemented. QUIC 0-RTT is not implemented
+(LIM-05, issue 55). It is not a fourth packet number space.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3

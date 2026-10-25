@@ -20,7 +20,7 @@ These do not get a version number:
 | CMVP / FIPS 140 module | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 | Hard constant-time execution / hard erasure | VM, dart2js, dart2wasm cannot guarantee either |
 | Browser raw UDP / mDNS / QUIC sockets | Browsers do not expose them. [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
-| QUIC 0-RTT | Explicit non-goal (LIM-05) |
+| QUIC 0-RTT | Permanent non-goal (LIM-05, issue 55). Not a fourth packet number space. |
 | Classical-only fallback after a PQ hello | Law 3 / law 9 |
 | Direct `pqcrypto` dependency | Crypto stays one stack (`pqforge`) unless a documented exception lands |
 | `dart:ffi` / `SecureSocket` on the PQ path | Law 1 |
@@ -96,6 +96,15 @@ Only after 0.2 TLS is on the wire. QUIC still needs the TLS exporter
 
 HTTP/3 must not silently downgrade to HTTP/1.1 (`allowDowngrade: false`
 stays the default).
+
+## Slice 0.6 — certificates, loss recovery, DNSSEC
+
+| # | Work | Closes |
+| --- | --- | --- |
+| 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
+
+X.509, ChaCha header protection, QUIC flow-control frames, and DNSSEC
+are not this slice. 0-RTT stays LIM-05.
 
 ## Parallelism (safe vs forbidden)
 

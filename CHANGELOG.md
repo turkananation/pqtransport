@@ -31,11 +31,26 @@
   (99-entry static table, dynamic table, encoder/decoder streams,
   Appendix B.1–B.5). RFC 9000 STREAM decode (OFF/LEN/FIN, offset
   reassembly, FIN). ALPN `h3`. `PqHttpClient.roundTripH3`. Silent
-  h3→h1 is refused. Not loss recovery. Live `curl --http3` is not
+  h3→h1 is refused. Live `curl --http3` is not
   claimed: our QUIC handshake is hybrid, and curl's HTTP/3 is
   classical TLS. QPACK bytes are checked against libnghttp3 in
   `tool/interop/nghttp3-qpack`. HTTP/2 prior-knowledge DoH is checked
   against curl's libnghttp2 in `tool/interop/nghttp2-curl`.
+- QUIC loss recovery (OPEN-15). RFC 9002 §5 RTT, §6 loss detection and
+  PTO, §7 NewReno (`QuicNewReno` / `QuicLossRecovery`). Initial and
+  Application Data packet number spaces are separate; Handshake is
+  tracked for a caller that has those keys, which `PqQuicConn` does
+  not mint. Lost STREAM and CRYPTO bytes are sealed again under a new
+  packet number (RFC 9000 §13.3). A client Initial datagram is padded
+  to at least 1200 bytes (RFC 9000 §14.1). The congestion window blocks
+  sends. A peer that never ACKs stops after `quicMaxPtoCount` probes
+  (this stack does not negotiate `max_idle_timeout`). No ECN, migration,
+  multipath, or anti-amplification limit. ChaCha header protection
+  still fails closed. 0-RTT is not implemented (LIM-05, issue 55):
+  it is not a fourth packet number space (RFC 9000 §12.3), and the
+  Application Data PTO stays disarmed until the handshake is
+  confirmed (RFC 9002 §6.2.1).
+  `test/quic/recovery_test.dart`.
 - DNS-over-HTTPS and DNS-over-TLS (OPEN-10 / slice 0.5.5). RFC 8484
   URI template `{?dns}` (unpadded base64url), POST and GET
   `application/dns-message`, `DohClient.h2` (ALPN `h2`) and
@@ -68,6 +83,16 @@
   closed. Huffman encode/decode is dart2js-safe (no 64-bit `<< 32`
   lookup keys; bit accumulator stays inside 8-bit leftover). Round-trip
   of all 256 octets.
+- RFC 9002 loss detection. Packet threshold 3 and the 9/8 time
+  threshold. PTO probes do not declare loss and stop at
+  `quicMaxPtoCount`. NewReno slow start, one-datagram congestion
+  avoidance, a single recovery send, and persistent congestion
+  (§7.6.2, span is newest minus oldest). A dropped 1-RTT STREAM is
+  delivered once, in order, under a new packet number. A dropped
+  server Initial is retransmitted and the handshake finishes. A peer
+  that never ACKs stops. Ack-only packets are not declared lost.
+  Conflicting STREAM and CRYPTO retransmissions fail closed.
+  `test/quic/recovery_test.dart`.
 - RFC 9204 Appendix B.1–B.5 QPACK vectors. Static GET/200 pins.
   Dynamic-table self-interop. Blocked RIC and oversized capacity
   fail closed. STREAM decode (no-OFF, no-LEN, FIN). Offset reassembly.

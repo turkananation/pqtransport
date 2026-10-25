@@ -178,11 +178,17 @@ hits only sockets that called `joinMulticast` for `224.0.0.251` /
 
 ## QUIC / HTTP
 
-QUIC 0.1.0 now has RFC 9001 TLS-in-QUIC (CRYPTO stream, no TLS records),
-AES header protection on Initial (AES-128-GCM) and 1-RTT (AES-256-GCM),
-ACK processing, STREAM decode/reassembly, and an in-memory `PqQuicConn`
-pair. It is still not a full connection: no congestion control, no loss
-recovery. ChaCha HP fails closed. 0-RTT is a non-goal.
+QUIC has RFC 9001 TLS-in-QUIC (CRYPTO stream, no TLS records), AES header
+protection on Initial (AES-128-GCM) and 1-RTT (AES-256-GCM), ACK
+processing, STREAM reassembly, and RFC 9002 loss recovery. `QuicLossRecovery`
+is usable without a socket: packet number spaces, RTT, loss, PTO, and a
+`QuicNewReno` window. `PqQuicConn` seals lost STREAM and CRYPTO bytes
+under a new packet number and pads a client Initial so the UDP datagram
+is at least 1200 bytes. It does not mint Handshake packet-protection
+keys, does not send 0-RTT, and does not implement ECN, migration, or the
+anti-amplification limit. A silent peer stops after `quicMaxPtoCount`
+probes because `max_idle_timeout` is not negotiated. ChaCha HP fails
+closed.
 
 HTTP/1.1 is a real codec used by `PqHttpClient.roundTripH1` over a completed
 `PqTlsSocket`. HTTP/2 (RFC 9113 + RFC 7541) is a real session on ALPN `h2`

@@ -82,8 +82,11 @@ same key.
 ### S7 — QUIC ChaCha HP and 0-RTT (LIM-05 / residual)
 
 AES header protection and RFC 9001 TLS-in-QUIC are **done** (OPEN-06).
-ChaCha20 HP is not implemented and fails closed. 0-RTT remains a
-non-goal. CRYPTO frames carry a live encapsulate.
+ChaCha20 HP is not implemented and fails closed. 0-RTT is not
+implemented (LIM-05, issue 55). RFC 9000 §12.3 would put it in the
+Application Data space; this stack does not send it, and RFC 9002
+§6.2.1 keeps that PTO disarmed until the handshake is confirmed.
+CRYPTO frames carry a live encapsulate.
 
 ### S8 — UDP HKDF extra is shared (by design)
 

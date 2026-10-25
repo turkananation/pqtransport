@@ -14,7 +14,7 @@ file. If a row cannot be cited, it does not belong here.
 | Crypto | `pqforge ^0.4.6` | `pubspec.yaml` |
 | Infra | `swissarmyknife ^0.1.0` | `pubspec.yaml` |
 | Analyzer | clean | `dart analyze` |
-| Tests | 214 passed | `dart test` |
+| Tests | 258 passed | `dart test` |
 | Coverage | 90.7% of `lib/` (`2466/2720`) | `coverage/lcov.info` |
 | FFI | none | `grep` of `lib/` + `test/` |
 | Platform TLS on PQ path | none | web barrel does not import `dart:io` |
@@ -121,7 +121,11 @@ Recorded so achievements cannot be misread:
 
 - X.509 certificate chains. The OpenSSL fixture is RFC 7250 raw-pk only.
 - BoringSSL.
-- Full RFC 9000 QUIC connection (HP + ACK + TLS-in-QUIC + STREAM mapping
-  are in tree; still no congestion control or loss recovery).
+- QUIC 0-RTT (LIM-05, issue 55). Permanent. Not in this tree. RFC 9000
+  §12.3 would put it in the Application Data packet number space; this
+  stack does not send it.
+- Connection migration, ECN, multipath, anti-amplification, and
+  Handshake packet protection. Loss detection, PTO, and NewReno are in
+  tree. ChaCha header protection still fails closed.
 - Production DoH/DoT with ALPN.
 - CMVP / FIPS 140 module validation.
