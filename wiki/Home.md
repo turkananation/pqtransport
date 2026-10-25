@@ -20,7 +20,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-214_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-258_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md)
 
 ## Automation
 
@@ -35,7 +35,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## Claim boundary
 
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](Claim-Boundary)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/OPENSSL_INTEROP.md)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/main/doc/OPENSSL_INTEROP.md)
 [![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446_hellos-bf8700?style=for-the-badge)](Roadmap)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)

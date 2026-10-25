@@ -27,8 +27,10 @@ on the wire is IANA `0x1302` / `0x1303`; private-use `0xFF00` is retired
 with cookie (OPEN-05 **done**). Leftover error-path coverage is done
 (OPEN-12 **done**). Slice 0.2 is complete.
 
-OpenSSL **parsing** of hellos is unblocked. Handshake completion still
-needs a recorded fixture (LIM-01 / 0.4).
+OpenSSL parsing of hellos is done. Handshake interop with OpenSSL
+3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(2026-10-20, auth mode raw-pk) is slice 0.4. X.509 paths and
+BoringSSL are not that fixture.
 
 ## 0.3 remaining — honest cipher suite
 
@@ -37,12 +39,12 @@ Live NIST groups, HKDF-SHA-256 Expand, and `checkEncapsulationKey` are
 and sync ChaCha as `0x1303` (OPEN-13) are **done**. Do not put `0x1302`
 on a SHA-256 schedule.
 
-## 0.4 — OpenSSL 3.5+ / BoringSSL fixture
+## 0.4 — OpenSSL 3.5.9 fixture
 
-Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server /
-s_client. Requires OPEN-01 hellos and honest IANA suites. Until that is
-green, wording stays "unit-tested concatenation," not "interoperable
-with OpenSSL."
+Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+(2026-10-20, auth mode raw-pk). BoringSSL and
+X.509 path validation are not this slice. Do not widen the sentence.
 
 ## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
 

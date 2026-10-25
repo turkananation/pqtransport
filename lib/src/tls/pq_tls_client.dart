@@ -70,6 +70,11 @@ final class PqTlsClient {
   var helloRetryCount = 0;
   String? selectedAlpn;
   var _peerAuthenticated = false;
+  Uint8List? _peerPublicKey;
+
+  /// Handshake bytes that did not finish a message. RFC 8446 permits a
+  /// handshake message to span records. OpenSSL sends one message per record.
+  Uint8List _pendingHandshake = Uint8List(0);
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -100,6 +105,11 @@ final class PqTlsClient {
   Future<Result<List<Uint8List>, PqTransportError>> ingest(
     Uint8List recordBytes,
   ) async {
+    if (!quic &&
+        recordBytes.isNotEmpty &&
+        recordBytes[0] == tlsContentChangeCipherSpec) {
+      return const Result.success([]);
+    }
     if (state == TlsState.clientHelloSent) {
       return _ingestServerHello(recordBytes);
     }
@@ -215,17 +225,22 @@ final class PqTlsClient {
       if (inner.isFailure) return Result.failure(inner.errorOrNull!);
       payload = inner.valueOrNull!.payload;
     }
+    if (_pendingHandshake.isEmpty) {
+      _pendingHandshake = payload;
+    } else {
+      _pendingHandshake = concatBytes([_pendingHandshake, payload]);
+    }
+    if (_pendingHandshake.length > tlsHandshakeReassemblyMaxBytes) {
+      return _fail('handshake too large');
+    }
     var offset = 0;
-    Uint8List? certPk;
     Uint8List? finishedRecord;
-    while (offset < payload.length) {
-      if (payload.length - offset < tlsHandshakeHeaderBytes) {
-        return _fail('truncated hs');
-      }
-      final len = readUint24(payload, offset + 1);
+    final buf = _pendingHandshake;
+    while (buf.length - offset >= tlsHandshakeHeaderBytes) {
+      final len = readUint24(buf, offset + 1);
       final end = offset + tlsHandshakeHeaderBytes + len;
-      if (end > payload.length) return _fail('hs overflow');
-      final msg = slice(payload, offset, end);
+      if (end > buf.length) break;
+      final msg = slice(buf, offset, end);
       final type = msg[0];
       if (type == tlsHsEncryptedExtensions) {
         final ee = decodeEncryptedExtensions(msg);
@@ -243,15 +258,16 @@ final class PqTlsClient {
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         final cert = decodeCertificate(msg);
         if (cert.isFailure) return Result.failure(cert.errorOrNull!);
-        certPk = cert.valueOrNull;
+        _peerPublicKey = cert.valueOrNull;
         transcript.add(msg);
       } else if (type == tlsHsCertificateVerify) {
-        final toSign = transcript.snapshot();
+        final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
         final d = driveTls(machine, TlsEvent.receiveCertVerify);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         final sig = decodeCertVerify(msg);
         if (sig.isFailure) return Result.failure(sig.errorOrNull!);
         if (!allowUnauthenticated) {
+          final certPk = _peerPublicKey;
           if (certPk == null) return _fail('cv without cert');
           final ok = crypto.mlDsaVerify(
             publicKey: certPk,
@@ -302,6 +318,11 @@ final class PqTlsClient {
       }
       offset = end;
     }
+    _pendingHandshake = offset == 0
+        ? buf
+        : (offset == buf.length
+              ? Uint8List(0)
+              : slice(buf, offset, buf.length));
     return Result.success(
       finishedRecord == null ? const <Uint8List>[] : [finishedRecord],
     );
@@ -395,6 +416,8 @@ final class PqTlsClient {
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {
     _peerAuthenticated = false;
+    _peerPublicKey = null;
+    _pendingHandshake = Uint8List(0);
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
   }

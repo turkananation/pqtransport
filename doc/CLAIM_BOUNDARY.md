@@ -40,7 +40,10 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
 - "Best-effort zeroization in Dart."
 - "Best-effort side-channel posture in Dart (VM / dart2js / dart2wasm
   cannot guarantee constant-time execution)."
-- "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
+- Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+  (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
+  Not X.509. Not BoringSSL.
 
 ## Forbidden wording
 
@@ -57,13 +60,15 @@ Use instead:
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
+| Interoperable with OpenSSL | The one sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk. Nothing wider. |
 
 Also forbidden in meaning, even if the substring differs:
 
 - "certified", "FIPS 140 module" as a positive claim.
 - "Production-ready post-quantum TLS" in the OpenSSL sense.
 - RFC-byte-exact TLS 1.3 interoperability with OpenSSL / BoringSSL
-  **before** the fixture in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) is green.
+  beyond those three raw-pk groups. X.509 paths are not
+  validated.
 - Putting IANA `0x1302` on a SHA-256 schedule (that lie is closed: the
   `0x1302` path is SHA-384).
 - Web UDP / mDNS / raw QUIC when the target is a browser.
@@ -77,7 +82,7 @@ Also forbidden in meaning, even if the substring differs:
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |
 | ML-KEM / ML-DSA / SLH-DSA | FIPS 203 / 204 / 205 | Via pqforge → pqcrypto |
-| QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Not ECN, migration, multipath, anti-amplification, or `max_idle_timeout` (a local PTO budget stops a silent peer). Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha header protection fails closed. Not 0-RTT. Not `curl --http3`. |
+| QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Not ECN, migration, multipath, anti-amplification, or `max_idle_timeout` (a local PTO budget stops a silent peer). Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha header protection fails closed. Not 0-RTT (LIM-05, issue 55): early data is not sent, so the Application Data space is 1-RTT only (RFC 9000 §12.3) and its PTO stays disarmed until the handshake is confirmed (RFC 9002 §6.2.1). Not `curl --http3`. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
 | DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |

@@ -20,7 +20,7 @@ These do not get a version number:
 | CMVP / FIPS 140 module | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 | Hard constant-time execution / hard erasure | VM, dart2js, dart2wasm cannot guarantee either |
 | Browser raw UDP / mDNS / QUIC sockets | Browsers do not expose them. [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
-| QUIC 0-RTT | Explicit non-goal (LIM-05) |
+| QUIC 0-RTT | Permanent non-goal (LIM-05, issue 55). Not a fourth packet number space. |
 | Classical-only fallback after a PQ hello | Law 3 / law 9 |
 | Direct `pqcrypto` dependency | Crypto stays one stack (`pqforge`) unless a documented exception lands |
 | `dart:ffi` / `SecureSocket` on the PQ path | Law 1 |
@@ -42,7 +42,9 @@ Compact 0.1 hello body is **retired** (OPEN-01). Private-use `0xFF00` is
 **retired** (OPEN-02). Exit gate for 0.2.1 is met: a recorded ClientHello is
 structurally RFC 8446 (`legacy_version` `0x0303`, extensions present).
 Cipher suite bytes match the transcript hash (`0x1302` SHA-384, `0x1303`
-SHA-256). OpenSSL still needs a recorded fixture (0.4 / LIM-01).
+SHA-256). Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
+raw-pk) is slice 0.4. X.509 paths and BoringSSL are not that fixture.
 
 ## Slice 0.3 — live NIST groups + honest cipher suite
 
@@ -68,17 +70,15 @@ Exit gate: live handshake tests for **all three** RFC 10024 groups —
 
 ## Slice 0.4 — OpenSSL 3.5+ / BoringSSL fixture
 
-| # | Work | Closes |
-| --- | --- | --- |
-| 0.4.1 | Recorded X25519MLKEM768 transcript against OpenSSL 3.5+ s_server/s_client | LIM-01 |
-| 0.4.2 | Same for SecP256r1MLKEM768 once OPEN-01 hellos exist | LIM-01 |
-| 0.4.3 | Documented failure modes (wrong concat, SHA-256 vs SHA-384, missing key_share) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| # | Work | Closes | Status |
+| --- | --- | --- | --- |
+| 0.4.1 | X25519MLKEM768 against OpenSSL 3.5.9 `s_server`, auth mode raw-pk | LIM-01 | **Done** — `tool/interop/openssl` |
+| 0.4.2 | SecP256r1MLKEM768 and SecP384r1MLKEM1024 against the same peer | LIM-01 | **Done** — same driver. P-384 uses `maximum`. |
+| 0.4.3 | Documented failure modes (wrong concat, 1183-byte ek, SHA-256 vs SHA-384) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | **Done** — local tests named in that doc |
 
-Wording until 0.4.1 is green: "RFC 10024-aligned hybrid share encoding
-with unit-tested concatenation," **not** "interoperable with OpenSSL."
-
-Exit gate: a checked-in fixture (or CI job) that completes a handshake
-with a known-good peer. See [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md).
+The only allowed OpenSSL sentence is: Handshake interop with OpenSSL
+3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(2026-10-20, auth mode raw-pk). Not X.509. Not BoringSSL.
 
 ## Slice 0.5 — datagram / HTTP production
 
@@ -116,15 +116,12 @@ Safe after 0.1 constants exist:
 
 Never parallelize:
 
-- OpenSSL fixture before OPEN-04 cert and a recorded transcript
-- HTTP/3 with no QUIC stream mapping / QPACK
 - Live P-256 handshake with a local ECDH vendor
 - Two changes both editing `lengths.dart` / `hybrid.dart`
 
 ## Suggested next coding turn (when directed)
 
-1. LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). Hellos, raw-pk, HRR,
-   and IANA `0x1302`/`0x1303` are on the wire.
+1. X.509 path validation and BoringSSL are not the 0.4 fixture.
 
 Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
 carry a real TLS handshake (OPEN-06). HTTP/2 on `PqTlsSocket` is Done.

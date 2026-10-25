@@ -34,9 +34,9 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
 | HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
 | SNI, ALPN, supported_versions, key_share extensions | Done | ClientHello ALPN default `http/1.1`. EncryptedExtensions carries the selected protocol (RFC 7301). `h2` is selectable. |
-| X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). X.509 chains are a later interop extra. |
+| X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). The OpenSSL fixture uses RFC 7250, not a path. |
 | ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
-| OpenSSL interop | Not started | |
+| OpenSSL 3.5.9 RFC 10024 groups | Done | Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk). P-384 uses `maximum`. Not X.509. Not BoringSSL. |
 
 ## UDP
 
@@ -74,6 +74,8 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
 | `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |
+| TCP `IoTcpSocket` / `IoTcpServer` | Done | Record reassembly is in `PqTlsSocket` (RFC 8446 §5.1) |
+| ML-DSA identity PEM | Done | RFC 7468 + RFC 5958 + RFC 9881. No encrypted PKCS#8. |
 | SLH-DSA signed records | Not started | Sister profile: archival only, after ML-DSA |
 
 ## QUIC / HTTP
@@ -89,7 +91,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
 | `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |
-| 0-RTT | Not started | Explicit non-goal for v1 |
+| 0-RTT | Not implemented | LIM-05, issue 55. Permanent. RFC 9000 §12.3 would share the Application Data space with 1-RTT. This stack does not send early data. |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
 | HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |

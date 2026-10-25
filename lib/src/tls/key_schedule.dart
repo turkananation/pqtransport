@@ -59,8 +59,11 @@ final class TlsKeySchedule {
     required Uint8List applicationTranscriptHash,
   }) {
     final zeros = Uint8List(hashLen);
+    // RFC 8446 §7.1: Derive-Secret(., "derived", "") is
+    // Transcript-Hash(""), Hash of the empty input, not a zero salt.
+    final emptyTranscript = transcriptHash(Uint8List(0));
     final early = _extract(zeros, zeros);
-    final derivedEarly = deriveSecret(early, tlsLabelDerived, zeros);
+    final derivedEarly = deriveSecret(early, tlsLabelDerived, emptyTranscript);
     final handshake = _extract(derivedEarly, hybridSharedSecret);
     clientHandshakeTraffic = deriveSecret(
       handshake,
@@ -72,7 +75,7 @@ final class TlsKeySchedule {
       tlsLabelSHsTraffic,
       handshakeTranscriptHash,
     );
-    final derivedHs = deriveSecret(handshake, tlsLabelDerived, zeros);
+    final derivedHs = deriveSecret(handshake, tlsLabelDerived, emptyTranscript);
     final master = _extract(derivedHs, zeros);
     clientApplicationTraffic = deriveSecret(
       master,
@@ -146,10 +149,11 @@ final class TlsKeySchedule {
     required Uint8List applicationTranscriptHash,
   }) {
     final zeros = Uint8List(hashLen);
+    final emptyTranscript = transcriptHash(Uint8List(0));
     final early = _extract(zeros, zeros);
-    final derivedEarly = deriveSecret(early, tlsLabelDerived, zeros);
+    final derivedEarly = deriveSecret(early, tlsLabelDerived, emptyTranscript);
     final handshake = _extract(derivedEarly, hybridSharedSecret);
-    final derivedHs = deriveSecret(handshake, tlsLabelDerived, zeros);
+    final derivedHs = deriveSecret(handshake, tlsLabelDerived, emptyTranscript);
     final master = _extract(derivedHs, zeros);
     clientApplicationTraffic = deriveSecret(
       master,
@@ -205,14 +209,21 @@ final class TlsKeySchedule {
     return _expand(secret, b.takeBytes(), length);
   }
 
+  /// RFC 8446 §7.5. The inner Derive-Secret uses Transcript-Hash(""),
+  /// and the outer Expand-Label uses Hash(context_value).
   Uint8List exporter(String label, Uint8List context, int length) {
     final derived = expandLabel(
       exporterMaster,
       label,
-      transcriptHash(context),
+      transcriptHash(Uint8List(0)),
       hashLen,
     );
-    return expandLabel(derived, tlsLabelExporter, context, length);
+    return expandLabel(
+      derived,
+      tlsLabelExporter,
+      transcriptHash(context),
+      length,
+    );
   }
 
   Uint8List nonce(Uint8List iv, int sequence) {

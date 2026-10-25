@@ -2,6 +2,23 @@
 
 ### Added
 
+- `IoTcpSocket` and `IoTcpServer` (`package:pqtransport/pqtransport_io.dart`).
+  `PqTlsSocket` reassembles RFC 8446 records from the TCP byte stream
+  and rejects a record whose version is not `0x0303` or whose length
+  exceeds 2^14+256. `PqTlsServerIdentity.parse`, `parsePem`, and
+  `readMlDsaIdentityPem` load an RFC 9881 ML-DSA key from RFC 7468 PEM
+  or RFC 5958 OneAsymmetricKey (seed, expanded key, or both). An
+  encrypted private key is refused.
+- Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
+  (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
+  RFC 8446 Certificate carries one RFC 7250 ML-DSA SubjectPublicKeyInfo.
+  CertificateVerify carries the signature scheme and the 64-byte
+  context. TLS records use the header as AEAD additional data.
+  Handshake messages may span records. Peer ML-DSA verification follows
+  the key and signature sizes (ML-DSA-65 or ML-DSA-87), not the local
+  profile. X.509 path validation is not implemented. BoringSSL is not
+  this fixture.
 - `peerAuthenticated` on `PqTlsClient` and `PqTlsSocket` (IMP-22). True only after CertificateVerify succeeded. `allowUnauthenticated` is documented as not authentication and leaves the bit false. A server socket stays false (no client auth).
 - HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
   SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.
@@ -29,7 +46,10 @@
   sends. A peer that never ACKs stops after `quicMaxPtoCount` probes
   (this stack does not negotiate `max_idle_timeout`). No ECN, migration,
   multipath, or anti-amplification limit. ChaCha header protection
-  still fails closed. 0-RTT is unchanged (LIM-05).
+  still fails closed. 0-RTT is not implemented (LIM-05, issue 55):
+  it is not a fourth packet number space (RFC 9000 §12.3), and the
+  Application Data PTO stays disarmed until the handshake is
+  confirmed (RFC 9002 §6.2.1).
   `test/quic/recovery_test.dart`.
 - DNS-over-HTTPS and DNS-over-TLS (OPEN-10 / slice 0.5.5). RFC 8484
   URI template `{?dns}` (unpadded base64url), POST and GET

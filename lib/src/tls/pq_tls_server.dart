@@ -11,6 +11,7 @@ import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
 import 'handshake.dart';
+import 'identity.dart';
 import 'key_schedule.dart';
 import 'machines.dart';
 import 'record.dart';
@@ -30,6 +31,36 @@ final class PqTlsServerIdentity {
       secretKey: kp.secretKey,
     );
   }
+
+  /// RFC 9881 public key and RFC 5958 private key, PEM or DER.
+  static Result<PqTlsServerIdentity, PqTransportError> parse(
+    Uint8List publicKey,
+    Uint8List privateKey,
+  ) {
+    final decoded = decodeMlDsaIdentity(publicKey, privateKey);
+    if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+    final keys = decoded.valueOrNull!;
+    return Result.success(
+      PqTlsServerIdentity(publicKey: keys.publicKey, secretKey: keys.secretKey),
+    );
+  }
+
+  /// RFC 7468 PEM. Refuses `ENCRYPTED PRIVATE KEY`.
+  static Result<PqTlsServerIdentity, PqTransportError> parsePem(
+    String publicKeyPem,
+    String privateKeyPem,
+  ) {
+    final decoded = decodeMlDsaIdentityPem(publicKeyPem, privateKeyPem);
+    if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+    final keys = decoded.valueOrNull!;
+    return Result.success(
+      PqTlsServerIdentity(publicKey: keys.publicKey, secretKey: keys.secretKey),
+    );
+  }
+
+  String get publicKeyPem => encodeMlDsaPublicKeyPem(publicKey);
+
+  String get privateKeyPem => encodeMlDsaPrivateKeyPem(secretKey);
 }
 
 /// TLS 1.3 server with RFC 10024 hybrid key exchange.
@@ -229,7 +260,7 @@ final class PqTlsServer {
       transcript.add(ee);
       final cert = encodeCertificate(identity.publicKey);
       transcript.add(cert);
-      final toSign = transcript.snapshot();
+      final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
       final sig = crypto.mlDsaSign(
         secretKey: identity.secretKey,
         message: toSign,

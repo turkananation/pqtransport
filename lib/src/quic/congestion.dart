@@ -34,7 +34,11 @@ final class QuicNewReno {
 
   int congestionWindow;
   int bytesInFlight = 0;
-  int ssthresh = quicSsthreshInfinite;
+
+  /// Null is RFC 9002 Appendix B `ssthresh = infinite`: the window starts
+  /// in slow start. The first congestion event stores a byte threshold.
+  /// A sentinel integer is not used; `2^63-1` is not a JavaScript number.
+  int? ssthresh;
   final int _minimumWindow;
   DateTime? _recoveryStart;
   var _recoverySendCredit = false;
@@ -48,8 +52,12 @@ final class QuicNewReno {
 
   DateTime? get recoveryStart => _recoveryStart;
 
-  /// True while the window is below the slow-start threshold (RFC 9002 §7.3.1).
-  bool get inSlowStart => congestionWindow < ssthresh;
+  /// True while the window is below [ssthresh] (RFC 9002 §7.3.1).
+  /// Null [ssthresh] is infinite, so the connection starts here.
+  bool get inSlowStart {
+    final threshold = ssthresh;
+    return threshold == null || congestionWindow < threshold;
+  }
 
   /// [bytes] more in-flight bytes fit, or [probe] ignores the window
   /// (RFC 9002 §7.5). Ack-only packets are not in flight and are not checked.
@@ -85,7 +93,8 @@ final class QuicNewReno {
     if (bytesInFlight < 0) bytesInFlight = 0;
     if (appLimited) return;
     if (_inRecovery(timeSent)) return;
-    if (congestionWindow < ssthresh) {
+    final threshold = ssthresh;
+    if (threshold == null || congestionWindow < threshold) {
       congestionWindow += sentBytes;
       _congestionAvoidanceBytes = 0;
       return;
@@ -119,11 +128,11 @@ final class QuicNewReno {
     return _onCongestionEvent(newestInFlight);
   }
 
-  /// Section 7.6. Collapses the window to the minimum and leaves recovery
-  /// so the next acknowledgement can slow-start again.
+  /// Section 7.6 and Appendix B.7. Sets the window to the minimum.
+  /// Does not clear [recoveryStart]: an acknowledgement of a packet sent
+  /// at or before that time still must not grow the window (Appendix B.5).
   void onPersistentCongestion() {
     congestionWindow = _minimumWindow;
-    _recoveryStart = null;
     _congestionAvoidanceBytes = 0;
   }
 
@@ -155,11 +164,12 @@ final class QuicNewReno {
   bool _onCongestionEvent(DateTime sentTime) {
     if (_inRecovery(sentTime)) return false;
     _recoveryStart = _now();
-    ssthresh =
+    final halved =
         congestionWindow *
         quicLossReductionNumerator ~/
         quicLossReductionDenominator;
-    final reduced = ssthresh > _minimumWindow ? ssthresh : _minimumWindow;
+    ssthresh = halved;
+    final reduced = halved > _minimumWindow ? halved : _minimumWindow;
     congestionWindow = reduced;
     _congestionAvoidanceBytes = 0;
     _recoverySendCredit = true;

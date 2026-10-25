@@ -73,6 +73,7 @@ void main() {
         quicInitialCongestionWindow(quicMinClientInitialUdpBytes),
       );
       expect(cc.inSlowStart, isTrue);
+      expect(cc.ssthresh, isNull);
       const size = quicMinClientInitialUdpBytes;
       for (var i = 0; i < quicInitialWindowDatagrams; i++) {
         expect(cc.canSend(size), isTrue, reason: 'packet $i');
@@ -191,6 +192,52 @@ void main() {
       );
       expect(cc.inSlowStart, isTrue);
       expect(cc.recoveryStart, isNull);
+      expect(cc.ssthresh, isNull);
+    });
+
+    test('Appendix B.7 persistent congestion does not end recovery', () {
+      var now = DateTime.utc(2026);
+      final cc = QuicNewReno(
+        maxDatagramSize: quicMinClientInitialUdpBytes,
+        now: () => now,
+      );
+      const size = quicMinClientInitialUdpBytes;
+      final lostAt = now;
+      expect(cc.onPacketSent(size).isSuccess, isTrue);
+      now = now.add(const Duration(milliseconds: 5));
+      expect(
+        cc.onPacketsLost(
+          lost: [(sentBytes: size, timeSent: lostAt, inFlight: true)],
+        ),
+        isTrue,
+      );
+      final recoveryAt = cc.recoveryStart;
+      expect(recoveryAt, isNotNull);
+      final threshold = cc.ssthresh;
+      expect(threshold, isNotNull);
+      cc.onPersistentCongestion();
+      expect(cc.recoveryStart, recoveryAt);
+      expect(cc.ssthresh, threshold);
+      expect(
+        cc.congestionWindow,
+        quicMinimumCongestionWindow(quicMinClientInitialUdpBytes),
+      );
+      final during = cc.congestionWindow;
+      cc.onPacketAcked(
+        sentBytes: size,
+        timeSent: lostAt,
+        inFlight: true,
+        appLimited: false,
+      );
+      expect(cc.congestionWindow, during);
+      final after = now.add(const Duration(milliseconds: 1));
+      cc.onPacketAcked(
+        sentBytes: size,
+        timeSent: after,
+        inFlight: true,
+        appLimited: false,
+      );
+      expect(cc.congestionWindow, during + size);
     });
   });
 
@@ -374,12 +421,15 @@ void main() {
       final event = ackOnly(loss, app, 5);
       expect(event.isSuccess, isTrue, reason: '${event.errorOrNull}');
       expect(event.valueOrNull!.persistentCongestion, isTrue);
+      // The packet just acknowledged was sent before recovery_start, so
+      // Appendix B.5 does not grow the window. Appendix B.7 leaves it at
+      // the minimum.
       expect(
         loss.congestionWindow,
-        quicMinimumCongestionWindow(quicMinClientInitialUdpBytes) +
-            quicMinClientInitialUdpBytes,
+        quicMinimumCongestionWindow(quicMinClientInitialUdpBytes),
       );
       expect(loss.inSlowStart, isTrue);
+      expect(loss.controller.recoveryStart, isNotNull);
     });
 
     test('ack of an unsent packet number fails closed', () {
@@ -438,6 +488,28 @@ void main() {
       loss.markHandshakeConfirmed();
       expect(loss.lossDetectionDeadline, isNotNull);
       expect(loss.ptoCount, 0);
+    });
+
+    test('LIM-05: 0-RTT is not a fourth packet number space', () {
+      // RFC 9000 §12.3: 0-RTT shares Application Data with 1-RTT.
+      // Issue 55 forbids sending it. The PTO rule in RFC 9002 §6.2.1
+      // is what this stack implements instead.
+      expect(QuicPacketNumberSpace.values, [
+        QuicPacketNumberSpace.initial,
+        QuicPacketNumberSpace.handshake,
+        QuicPacketNumberSpace.application,
+      ]);
+      final clock = QuicManualClock();
+      final loss = QuicLossRecovery(clock: clock, isServer: false);
+      send(loss, app, 0, [
+        streamFrame(0, [1]),
+      ]);
+      clock.advance(const Duration(seconds: 30));
+      final event = loss.onLossDetectionTimeout();
+      expect(event.isSuccess, isTrue);
+      expect(event.valueOrNull!.probeSpace, isNull);
+      expect(event.valueOrNull!.retransmit, isEmpty);
+      expect(loss.lossDetectionDeadline, isNull);
     });
 
     test(

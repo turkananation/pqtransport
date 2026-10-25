@@ -29,8 +29,10 @@ follows the suite: HKDF-SHA-384 for IANA `0x1302` (default), HKDF-SHA-256
 for IANA `0x1303`. Private-use `0xFF00` is retired.
 
 HelloRetryRequest is on the wire with cookie extension 44 and
-`selected_group` (OPEN-05). Once-only; a second HRR fails closed. X.509
-chains and OpenSSL interop are not started. ChaCha records are Done
+`selected_group` (OPEN-05). Once-only; a second HRR fails closed.
+X.509 chains are not parsed. Handshake interop with OpenSSL 3.5.9 on
+X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
+(2026-10-20, auth mode raw-pk) is the OpenSSL claim. ChaCha records are Done
 (`0x1303`) on VM, dart2wasm, and dart2js (pqforge 0.4.5 Dart engine).
 
 ## DNS / DoH / DoT
@@ -55,8 +57,8 @@ SLH-DSA signed records are not the interactive default.
 
 1-RTT short-header HP and Initial long-header HP (AES). CRYPTO frames
 carry a live TLS handshake (RFC 9001, no TLS records). ACK processor
-is present. ChaCha HP is not implemented. QUIC 0-RTT is an explicit
-non-goal.
+is present. ChaCha HP is not implemented. QUIC 0-RTT is not implemented
+(LIM-05, issue 55). It is not a fourth packet number space.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3

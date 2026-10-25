@@ -21,7 +21,7 @@ Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exch
 [![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](doc/API.md)
 [![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-214_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![tests](https://img.shields.io/badge/tests-258_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -37,8 +37,8 @@ Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exch
 ## Claim boundary
 
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_interop-not_started-bf8700?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
-[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446_hellos_(not_OpenSSL)-bf8700?style=for-the-badge)](doc/ROADMAP.md)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446-2f855a?style=for-the-badge)](doc/ROADMAP.md)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
 [![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
@@ -75,8 +75,11 @@ TLS record protection defaults to AES-256-GCM with HKDF-SHA-384
 (IANA `TLS_AES_256_GCM_SHA384`, `0x1302`). The client also offers
 `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`), which completes on VM,
 dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
-Concatenation is RFC 10024-aligned and unit-tested — this release does **not**
-claim OpenSSL interop.
+Concatenation is RFC 10024-aligned and unit-tested. Handshake interop
+with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and
+SecP384r1MLKEM1024 in `tool/interop/openssl` (2026-10-20, auth mode
+raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`. That is not
+an X.509 path and not BoringSSL.
 
 ## Install
 
@@ -91,7 +94,7 @@ dependencies:
 import 'package:pqtransport/pqtransport.dart';
 ```
 
-IO datagrams / multicast: `import 'package:pqtransport/pqtransport_io.dart';`
+IO datagrams, TCP, and multicast: `import 'package:pqtransport/pqtransport_io.dart';`
 
 ## Consume
 
@@ -130,7 +133,7 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **247 tests**, **90.7% line coverage** of `lib/`.
+`dart analyze` is clean. **258 tests**, **90.7% line coverage** of `lib/`.
 Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
 TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
 IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,

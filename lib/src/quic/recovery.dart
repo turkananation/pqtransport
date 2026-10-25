@@ -39,9 +39,14 @@ final class QuicManualClock implements QuicClock {
   }
 }
 
-/// RFC 9000 §12.3 packet number spaces. Numbers are never reused in a space.
+/// RFC 9000 §12.3 packet number spaces. A number is never reused in a space.
 ///
-/// 0-RTT is not a space this stack implements (LIM-05).
+/// There are three spaces. 0-RTT is not a fourth space: the RFC puts
+/// 0-RTT and 1-RTT in Application Data. This stack does not send 0-RTT
+/// (LIM-05, issue 55), so Application Data numbers are 1-RTT only.
+/// RFC 9002 §6.2.1 keeps that space's PTO disarmed until the handshake
+/// is confirmed, which is the rule that stops a sender retransmitting
+/// early data the peer may be unable to decrypt.
 enum QuicPacketNumberSpace { initial, handshake, application }
 
 /// Bytes that must be carried in a new packet when the original is lost
@@ -202,7 +207,9 @@ final class QuicRecoveryEvent {
 /// client Initial. A silent peer still stops, because [maxPtoCount] stands
 /// in for the idle timeout this stack does not negotiate.
 /// Application Data PTO is disarmed until [markHandshakeConfirmed]
-/// (RFC 9002 §6.2.1).
+/// (RFC 9002 §6.2.1). That rule is also why LIM-05 does not need a
+/// separate 0-RTT timer: early data is not sent, and 0-RTT would have
+/// shared this space (RFC 9000 §12.3).
 final class QuicLossRecovery {
   QuicLossRecovery({
     QuicClock? clock,
@@ -279,7 +286,9 @@ final class QuicLossRecovery {
 
   int get congestionWindow => controller.congestionWindow;
   int get bytesInFlight => controller.bytesInFlight;
-  int get ssthresh => controller.ssthresh;
+
+  /// Null until the first congestion event (RFC 9002 Appendix B: infinite).
+  int? get ssthresh => controller.ssthresh;
   int get smoothedRttMicros => _smoothedRtt;
   int get latestRttMicros => _latestRtt;
   int get ptoCount => _ptoCount;

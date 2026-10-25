@@ -51,7 +51,7 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 | ID | Pri | Item | Why |
 | --- | --- | --- | --- |
-| IMP-12 | P1 | OpenSSL 3.5+ fixture | LIM-01; wording stays honest until green |
+| IMP-12 | P1 | OpenSSL 3.5.9 RFC 10024 raw-pk fixtures | **Done** (LIM-01). All three groups. Not X.509. Not BoringSSL. |
 | IMP-13 | P2 | `joinMulticast` on `IoDatagramChannel` | **Done** OPEN-09 |
 | IMP-14 | P2 | QUIC header protection + ACK + RFC 9001 | **Done** OPEN-06 |
 | IMP-15 | P2 | HTTP/2; then HTTP/3+QPACK | **Done** OPEN-07 (0.5.3 + 0.5.4) |
@@ -82,7 +82,9 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 ## Suggested first PR (when directed)
 
-LIM-01 OpenSSL 3.5+ recorded fixture (slice 0.4). OPEN-01, OPEN-02,
+LIM-01 raw-pk against OpenSSL 3.5.9 covers X25519MLKEM768,
+SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`.
+X.509 paths and BoringSSL are not that fixture. OPEN-01, OPEN-02,
 OPEN-04, OPEN-05, OPEN-06, OPEN-07, OPEN-08, OPEN-09, OPEN-12, OPEN-13
 are done. OPEN-10 (DoH/DoT) is done. ChaCha on
 dart2js is **done** in pqforge 0.4.5; QUIC HP uses pqforge 0.4.6
