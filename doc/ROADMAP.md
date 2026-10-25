@@ -102,9 +102,12 @@ stays the default).
 | # | Work | Closes |
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
+| 0.6.2 | One X.509 certificate when RawPublicKey was not negotiated | OPEN-14 **Proposed.** [ADR-0014](adr/ADR-0014-x509-certificate.md), [plan](plans/OPEN-14-x509-certificate.md). Not started. |
 
-X.509, ChaCha header protection, QUIC flow-control frames, and DNSSEC
-are not this slice. 0-RTT stays LIM-05.
+0.6.2 does not include chain building, AIA, OCSP, CT, the system trust
+store, Merkle Tree Certificates, ChaCha header protection, QUIC
+flow-control frames, or DNSSEC. 0-RTT stays LIM-05. The raw-pk OpenSSL
+flight is not edited to produce 0.6.2.
 
 ## Parallelism (safe vs forbidden)
 
@@ -121,7 +124,8 @@ Never parallelize:
 
 ## Suggested next coding turn (when directed)
 
-1. X.509 path validation and BoringSSL are not the 0.4 fixture.
+1. Do not implement OPEN-14 until ADR-0014 is accepted. The contract is
+   [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md).
 
 Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
 carry a real TLS handshake (OPEN-06). HTTP/2 on `PqTlsSocket` is Done.

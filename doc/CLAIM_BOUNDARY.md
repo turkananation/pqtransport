@@ -45,6 +45,13 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
   (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
   Not X.509. Not BoringSSL.
 
+ADR-0014 (proposed, 2026-10-25) does not add a sentence. An implementation
+PR may add one only for a flight that is in that same PR, with the
+OpenSSL version, the groups, and the auth mode (`X.509` single ML-DSA
+certificate, or raw-pk). "Works with browsers" is not that sentence.
+Chain building, BoringSSL, and WebPKI stay unclaimed until a flight
+says otherwise.
+
 ## Forbidden wording
 
 Do not write the invariant-script banned phrases (see

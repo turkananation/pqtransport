@@ -75,3 +75,21 @@ OPEN-02 and OPEN-13 are **Fixed**.
 4. Add a live handshake test for any newly unlocked group.
 5. Update this file, [BUGS.md](BUGS.md), and [TRACKER.md](TRACKER.md)
    together.
+
+## OPEN-14 is not a pqforge wait
+
+X.509 (RFC 5280 + RFC 9881) is a transport codec. pqforge 0.4.7 does not
+parse certificates and should not grow one for this issue.
+
+| Need | Where it comes from |
+| --- | --- |
+| ML-DSA-65/87 verify, empty context, pure (not pre-hash) | `PqTransportCrypto.mlDsaVerify` already |
+| ML-DSA SPKI | already in `handshake.dart` |
+| Certificate, Name, extensions, one-entry list | new `lib/src/tls/x509.dart` |
+| P-256 ECDSA `PqEcdsaP256` | do not call. Classical certificates are a caller hook. |
+| P-384 ECDSA, RSA-PSS, RSA PKCS#1 | not exported. Do not vendor PointyCastle to get them. |
+| ASN.1 tree API | do not import `package:pointycastle` from pqtransport. |
+
+Design: [ADR-0014](adr/ADR-0014-x509-certificate.md).
+Plan: [OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md).
+

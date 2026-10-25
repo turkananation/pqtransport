@@ -49,6 +49,7 @@ upgrade a claim this layer is not allowed to make. See
 | Claim language | [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
 | dart2js ChaCha | [CHACHA_DART2JS.md](CHACHA_DART2JS.md) — **done** (pqforge 0.4.5) | [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) |
 | Contributor loop | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | [TRACKER.md](TRACKER.md) |
+| OPEN-14 X.509 (proposed) | [adr/ADR-0014-x509-certificate.md](adr/ADR-0014-x509-certificate.md) | [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md) |
 
 ## Documents
 
@@ -72,6 +73,8 @@ upgrade a claim this layer is not allowed to make. See
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |
 | [ci/RELEASE_CHECKLIST.md](ci/RELEASE_CHECKLIST.md) | Tag + GitHub Release + pub.dev OIDC publish loop. |
+| [adr/ADR-0014-x509-certificate.md](adr/ADR-0014-x509-certificate.md) | Proposed decision for OPEN-14. Not an implementation. |
+| [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md) | Build contract for that decision. Wire format is unchanged until the follow-up PR. |
 
 ## Verification snapshot (this documentation pass)
 

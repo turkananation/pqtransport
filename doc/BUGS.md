@@ -1,6 +1,6 @@
 # Bugs
 
-Last updated: 2026-09-17
+Last updated: 2026-10-25
 
 Status key:
 
@@ -18,8 +18,12 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 ## Open bugs
 
-None. OPEN-15 (RFC 9002 loss recovery) is **Fixed**. The remaining
-handshake gap with a classical peer is LIM-01, not an open defect.
+| ID | Sev | Component | Summary | Evidence |
+|---|---|---|---|---|
+| OPEN-14 | P1 | TLS | X.509 Certificate is not implemented. RawPublicKey is the only negotiated type (OPEN-04). | [#43](https://github.com/turkananation/pqtransport/issues/43). Design, not a fix: [ADR-0014](adr/ADR-0014-x509-certificate.md). |
+
+OPEN-15 (RFC 9002 loss recovery) is **Fixed**. LIM-01 remains the raw-pk
+OpenSSL limit. OPEN-14 does not widen that limit.
 
 ## Blocked on pqforge
 

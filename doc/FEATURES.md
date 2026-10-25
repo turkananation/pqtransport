@@ -34,7 +34,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
 | HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
 | SNI, ALPN, supported_versions, key_share extensions | Done | ClientHello ALPN default `http/1.1`. EncryptedExtensions carries the selected protocol (RFC 7301). `h2` is selectable. |
-| X.509 / certificate chains | Not started | Raw-pk is explicit (OPEN-04). The OpenSSL fixture uses RFC 7250, not a path. |
+| X.509 / certificate chains | Not started | Single certificate is proposed, not built: [ADR-0014](adr/ADR-0014-x509-certificate.md). Chain building stays Not started either way. Raw-pk remains the only wire type (OPEN-04). |
 | ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
 | OpenSSL 3.5.9 RFC 10024 groups | Done | Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk). P-384 uses `maximum`. Not X.509. Not BoringSSL. |
 
