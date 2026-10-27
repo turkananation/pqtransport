@@ -37,7 +37,9 @@ dart pub get
 Dependencies: `pqforge ^0.4.6`, `swissarmyknife ^0.1.0`. Do not add
 `pqcrypto`, `pointycastle`, or `cryptography` as direct dependencies
 to grab a missing helper — that splits the crypto story. Report the
-gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead.
+gap in [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md) instead. OPEN-14 follows
+that rule: X.509 lands in pqforge `lib/src/certificates/x509.dart`, not
+as a PointyCastle import here. See [ADR-0014](adr/ADR-0014-x509-certificate.md).
 
 ## Commands
 

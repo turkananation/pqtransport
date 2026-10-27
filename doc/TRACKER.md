@@ -84,7 +84,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 
 | ID | Sev | Status | Evidence |
 | --- | --- | --- | --- |
-| OPEN-14 | P1 | **Open.** Design proposed 2026-10-25. No wire change. | [#43](https://github.com/turkananation/pqtransport/issues/43), [ADR-0014](adr/ADR-0014-x509-certificate.md) |
+| OPEN-14 | P1 | **Open.** Design amended 2026-10-27. Codec is pqforge 0.4.8. No wire change. | [#43](https://github.com/turkananation/pqtransport/issues/43), [ADR-0014](adr/ADR-0014-x509-certificate.md) |
 
 ### pqforge exports (0.4.6 — consumed)
 

@@ -5,9 +5,11 @@
 - Design record for OPEN-14 ([#43](https://github.com/turkananation/pqtransport/issues/43)):
   [doc/adr/ADR-0014-x509-certificate.md](doc/adr/ADR-0014-x509-certificate.md)
   and [doc/plans/OPEN-14-x509-certificate.md](doc/plans/OPEN-14-x509-certificate.md).
-  No wire change. The Certificate message is still one RFC 7250
-  SubjectPublicKeyInfo. X.509 is not implemented. The OpenSSL sentence
-  is unchanged (3.5.9, three RFC 10024 groups, auth mode raw-pk).
+  Amended 2026-10-27: the certificate layer is pqforge
+  `lib/src/certificates/x509.dart` (0.4.8), exported for reuse.
+  pqtransport opts in. No wire change. The Certificate message is still
+  one RFC 7250 SubjectPublicKeyInfo. The OpenSSL sentence is unchanged
+  (3.5.9, three RFC 10024 groups, auth mode raw-pk).
 - `IoTcpSocket` and `IoTcpServer` (`package:pqtransport/pqtransport_io.dart`).
   `PqTlsSocket` reassembles RFC 8446 records from the TCP byte stream
   and rejects a record whose version is not `0x0303` or whose length

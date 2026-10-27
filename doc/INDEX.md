@@ -73,8 +73,8 @@ upgrade a claim this layer is not allowed to make. See
 | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) | Setup, test commands, invariants, coding laws. |
 | [SITE.md](SITE.md) | Jaspr documentation site. Why github.io was dark; how to build. |
 | [ci/RELEASE_CHECKLIST.md](ci/RELEASE_CHECKLIST.md) | Tag + GitHub Release + pub.dev OIDC publish loop. |
-| [adr/ADR-0014-x509-certificate.md](adr/ADR-0014-x509-certificate.md) | Proposed decision for OPEN-14. Not an implementation. |
-| [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md) | Build contract for that decision. Wire format is unchanged until the follow-up PR. |
+| [adr/ADR-0014-x509-certificate.md](adr/ADR-0014-x509-certificate.md) | Proposed decision for OPEN-14. Certificate layer is a pqforge export. Not an implementation. |
+| [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md) | Build contract, including the pqforge 0.4.8 API. Wire format is unchanged until the follow-up PRs. |
 
 ## Verification snapshot (this documentation pass)
 
