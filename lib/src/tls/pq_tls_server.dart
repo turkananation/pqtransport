@@ -19,10 +19,21 @@ import 'tls_state.dart';
 import 'cipher_suite.dart';
 
 final class PqTlsServerIdentity {
-  PqTlsServerIdentity({required this.publicKey, required this.secretKey});
+  PqTlsServerIdentity({
+    required this.publicKey,
+    required this.secretKey,
+    this.chain = const [],
+    this.signContent,
+    this.certificateMessage,
+    this.leafScheme = tlsSignatureMldsa65,
+  });
 
   final Uint8List publicKey;
   final Uint8List secretKey;
+  final List<Uint8List> chain;
+  final Uint8List Function(Uint8List content)? signContent;
+  final Uint8List? certificateMessage;
+  final int leafScheme;
 
   factory PqTlsServerIdentity.generate(PqTransportCrypto crypto) {
     final kp = crypto.mlDsaKeyGen();
@@ -58,9 +69,109 @@ final class PqTlsServerIdentity {
     );
   }
 
+  /// X.509 chain, leaf first. The Certificate message is cached.
+  /// [sign] covers the CertificateVerify content, not the certificate TBS.
+  factory PqTlsServerIdentity.x509({
+    required PqX509PublicKey leafKey,
+    required Uint8List Function(Uint8List content) sign,
+    required List<Uint8List> chain,
+    String? certificateDnsName,
+  }) {
+    if (chain.isEmpty || chain.length > tlsCertificateListMax) {
+      throw ArgumentError.value(chain.length, 'chain', 'expected 1..8');
+    }
+    final copies = [for (final der in chain) Uint8List.fromList(der)];
+    final parsed = <PqX509Certificate>[];
+    for (final der in copies) {
+      final one = PqX509.parse(der);
+      final certificate = one.certificate;
+      if (certificate == null) {
+        throw ArgumentError.value(
+          one.failure,
+          'chain',
+          'certificate did not parse',
+        );
+      }
+      parsed.add(certificate);
+    }
+    final leaf = parsed.first;
+    if (!_leafKeyEquals(leaf.publicKey, leafKey)) {
+      throw ArgumentError('leaf key does not match the certificate');
+    }
+    if (certificateDnsName != null && !_dnsName(leaf, certificateDnsName)) {
+      throw ArgumentError.value(
+        certificateDnsName,
+        'certificateDnsName',
+        'not a DNS SAN on the leaf',
+      );
+    }
+    final scheme = switch (leaf.algorithm) {
+      PqX509Algorithm.mlDsa65 => tlsSignatureMldsa65,
+      PqX509Algorithm.mlDsa87 => tlsSignatureMldsa87,
+      PqX509Algorithm.ecdsaP256Sha256 => tlsSignatureEcdsaP256Sha256,
+      PqX509Algorithm.ecdsaP384Sha384 => tlsSignatureEcdsaP384Sha384,
+      PqX509Algorithm.ed25519 => tlsSignatureEd25519,
+      PqX509Algorithm.rsaPssSha256 => tlsSignatureRsaPssSha256,
+      PqX509Algorithm.rsaPssSha384 => tlsSignatureRsaPssSha384,
+      PqX509Algorithm.rsaPssSha512 => tlsSignatureRsaPssSha512,
+      _ => null,
+    };
+    if (scheme == null) {
+      throw ArgumentError('${leaf.algorithm} is not a TLS CertificateVerify');
+    }
+    final raw = switch (leafKey) {
+      final PqX509MlDsaKey key => Uint8List.fromList(key.raw),
+      final PqX509EcdsaP256Key key => Uint8List.fromList(key.uncompressed),
+      final PqX509EcdsaP384Key key => Uint8List.fromList(key.uncompressed),
+      final PqX509Ed25519Key key => Uint8List.fromList(key.raw),
+      final PqX509RsaKey key => Uint8List.fromList(key.modulus),
+    };
+    return PqTlsServerIdentity(
+      publicKey: raw,
+      secretKey: Uint8List(0),
+      chain: copies,
+      signContent: sign,
+      certificateMessage: encodeX509Certificate(copies),
+      leafScheme: scheme,
+    );
+  }
+
   String get publicKeyPem => encodeMlDsaPublicKeyPem(publicKey);
 
   String get privateKeyPem => encodeMlDsaPrivateKeyPem(secretKey);
+}
+
+bool _leafKeyEquals(PqX509PublicKey parsed, PqX509PublicKey given) {
+  if (parsed is PqX509RsaKey && given is PqX509RsaKey) {
+    return _sameKey(parsed.modulus, given.modulus) &&
+        _sameKey(parsed.exponent, given.exponent);
+  }
+  final a = switch (parsed) {
+    final PqX509MlDsaKey key => key.raw,
+    final PqX509EcdsaP256Key key => key.uncompressed,
+    final PqX509EcdsaP384Key key => key.uncompressed,
+    final PqX509Ed25519Key key => key.raw,
+    final PqX509RsaKey key => key.modulus,
+  };
+  final b = switch (given) {
+    final PqX509MlDsaKey key => key.raw,
+    final PqX509EcdsaP256Key key => key.uncompressed,
+    final PqX509EcdsaP384Key key => key.uncompressed,
+    final PqX509Ed25519Key key => key.raw,
+    final PqX509RsaKey key => key.modulus,
+  };
+  return _sameKey(a, b);
+}
+
+bool _sameKey(Uint8List a, Uint8List b) =>
+    a.length == b.length && PqBytes.constantTimeEquals(a, b);
+
+bool _dnsName(PqX509Certificate leaf, String name) {
+  final host = name.toLowerCase();
+  for (final san in leaf.subjectAltNames) {
+    if (san is PqX509DnsName && san.ascii.toLowerCase() == host) return true;
+  }
+  return false;
 }
 
 /// TLS 1.3 server with RFC 10024 hybrid key exchange.
@@ -207,6 +318,12 @@ final class PqTlsServer {
         PqTransportError.illegalKemKey(group.kemPublicLabel),
       );
     }
+    final selectedIdentity = _selectCertificate(hello);
+    if (selectedIdentity.isFailure) {
+      return _certificateFailure(selectedIdentity.errorOrNull!);
+    }
+    final sendX509 = selectedIdentity.valueOrNull!.sendX509;
+    final echoType = selectedIdentity.valueOrNull!.echoType;
     final classical = await crypto.classicalKeyGen(group);
     Uint8List? ssKem;
     Uint8List? ssClassical;
@@ -256,16 +373,22 @@ final class PqTlsServer {
       );
       if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
       selectedAlpn = alpn.valueOrNull;
-      final ee = encodeEncryptedExtensions(alpnProtocol: selectedAlpn);
+      final ee = encodeEncryptedExtensions(
+        serverCertificateType: echoType,
+        alpnProtocol: selectedAlpn,
+      );
       transcript.add(ee);
-      final cert = encodeCertificate(identity.publicKey);
+      final cert = sendX509
+          ? identity.certificateMessage!
+          : encodeCertificate(identity.publicKey);
       transcript.add(cert);
       final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
-      final sig = crypto.mlDsaSign(
-        secretKey: identity.secretKey,
-        message: toSign,
-      );
-      final cv = encodeCertVerify(sig);
+      final sig = identity.signContent != null
+          ? identity.signContent!(toSign)
+          : crypto.mlDsaSign(secretKey: identity.secretKey, message: toSign);
+      final cv = sendX509
+          ? encodeCertVerifyScheme(identity.leafScheme, sig)
+          : encodeCertVerify(sig);
       transcript.add(cv);
       final fin = encodeFinished(
         schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
@@ -329,6 +452,70 @@ final class PqTlsServer {
       applicationTranscriptHash: transcript.snapshot(),
     );
     return const Result.success([]);
+  }
+
+  Result<({bool sendX509, int? echoType}), PqTransportError> _selectCertificate(
+    ClientHello hello,
+  ) {
+    final sendX509 = identity.chain.isNotEmpty && hello.offersX509;
+    if (!sendX509 && !hello.offersRawPublicKey) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate('no x509 identity'),
+      );
+    }
+    if (!sendX509 &&
+        identity.chain.isNotEmpty &&
+        identity.leafScheme != tlsSignatureMldsa65 &&
+        identity.leafScheme != tlsSignatureMldsa87) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate('raw public key'),
+      );
+    }
+    final requiredScheme = sendX509 || identity.chain.isNotEmpty
+        ? identity.leafScheme
+        : tlsSignatureMldsa65;
+    if (!hello.signatureSchemes.contains(requiredScheme)) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate(
+          'signature_scheme $requiredScheme',
+        ),
+      );
+    }
+    final echoType = hello.certificateTypes == null
+        ? null
+        : (sendX509 ? tlsCertTypeX509 : tlsCertTypeRawPublicKey);
+    return Result.success((sendX509: sendX509, echoType: echoType));
+  }
+
+  PqTransportError? _wireCertificateError;
+
+  Result<List<Uint8List>, PqTransportError> _certificateFailure(
+    PqTransportError error,
+  ) {
+    _wireCertificateError = error;
+    driveTls(machine, TlsEvent.fatal);
+    return Result.failure(error);
+  }
+
+  /// Fatal Alert for a certificate policy failure. Plaintext when the
+  /// ServerHello was not sent. Null on QUIC and for older failures.
+  Uint8List? certificateAlert(PqTransportError error) {
+    if (!identical(error, _wireCertificateError)) return null;
+    final alert = error.alert;
+    if (alert == null || quic) return null;
+    final payload = Uint8List.fromList([2, alert]);
+    final layer = records;
+    if (layer == null) {
+      return encodePlainRecord(
+        TlsRecord(type: tlsContentAlert, payload: payload),
+      );
+    }
+    return layer.protectWith(
+      trafficSecret: schedule.serverHandshakeTraffic,
+      iv: schedule.serverHandshakeIv,
+      inner: TlsRecord(type: tlsContentAlert, payload: payload),
+      epoch: TlsRecordEpoch.handshake,
+    );
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {

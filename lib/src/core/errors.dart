@@ -59,6 +59,26 @@ final class PqTransportError implements Exception {
     alert: tlsAlertDecryptError,
   );
 
+  factory PqTransportError.badCertificate(String why) => PqTransportError._(
+    code: PqTransportErrorCode.badCertificate,
+    message: 'bad_certificate: $why',
+    alert: tlsAlertBadCertificate,
+  );
+
+  factory PqTransportError.unsupportedCertificate(String why) =>
+      PqTransportError._(
+        code: PqTransportErrorCode.unsupportedCertificate,
+        message: 'unsupported_certificate: $why',
+        alert: tlsAlertUnsupportedCertificate,
+      );
+
+  factory PqTransportError.certificateUnknown(String why) =>
+      PqTransportError._(
+        code: PqTransportErrorCode.certificateUnknown,
+        message: 'certificate_unknown: $why',
+        alert: tlsAlertCertificateUnknown,
+      );
+
   factory PqTransportError.circuitOpen(String why) => PqTransportError._(
     code: PqTransportErrorCode.circuitOpen,
     message: 'circuit_open: $why',
@@ -110,6 +130,9 @@ enum PqTransportErrorCode {
   handshakeFailure,
   internalError,
   decryptError,
+  badCertificate,
+  unsupportedCertificate,
+  certificateUnknown,
   circuitOpen,
   replay,
   throttled,

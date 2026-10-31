@@ -13,3 +13,4 @@ pub-credentials.json
 pubspec.lock
 tool/interop/nghttp3-qpack/.build/
 tool/interop/openssl/.build/
+tool/interop/boringssl/.build/
