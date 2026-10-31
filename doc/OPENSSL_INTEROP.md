@@ -20,6 +20,11 @@ raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
 
 BoringSSL is not this fixture. X.509 certificate chains are not parsed.
 
+OPEN-14 is proposed in [ADR-0014](adr/ADR-0014-x509-certificate.md).
+The certificate layer is pqforge `lib/src/certificates/x509.dart`
+(0.4.8, not released). This fixture is unchanged: raw-pk, three groups.
+Merging the design does not change the sentence above.
+
 ## Still forbidden
 
 - "interoperable with OpenSSL" with no version, group, or auth mode

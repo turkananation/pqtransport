@@ -65,7 +65,8 @@ No X.509, no chain, no name constraints. `allowUnauthenticated` exists
 on `PqTlsClient` and must stay opt-in. Default path still verifies
 CertificateVerify over that raw key. **Mitigation:** tests use generated
 identity; do not ship `allowUnauthenticated: true` as the example
-default. **Fix:** slice 0.2.2.
+default. **Proposed follow-up:** [ADR-0014](adr/ADR-0014-x509-certificate.md)
+(pqforge `PqX509`, opt-in, caller anchors). Not built.
 
 ### S5 — Replay was after AEAD; now before (FIX-06, closed)
 

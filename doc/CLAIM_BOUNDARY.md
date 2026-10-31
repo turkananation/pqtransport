@@ -45,6 +45,14 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
   (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
   Not X.509. Not BoringSSL.
 
+ADR-0014 (proposed, amended 2026-10-27) does not add a sentence. The
+certificate codec is a pqforge 0.4.8 export. An implementation PR may
+add an interop sentence only for a flight that is in that same PR, with
+the OpenSSL version, the groups, the auth mode, and the chain length.
+"Works with browsers" is not that sentence. A browser-shaped ClientHello
+is specified so an opted-in server can answer one. BoringSSL, WebPKI,
+and the system trust store stay unclaimed until a flight says otherwise.
+
 ## Forbidden wording
 
 Do not write the invariant-script banned phrases (see

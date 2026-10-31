@@ -139,7 +139,9 @@ Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
 SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
 raw-pk) is `tool/interop/openssl`. The peer
 sends one RFC 7250 SPKI, not an X.509 path. BoringSSL is not that
-fixture. Records use the 5-byte header as AEAD additional data.
+fixture. ADR-0014 (proposed) keeps this shape as the default and, when
+the peer omits the extension, consumes pqforge `PqX509` instead of
+growing a parser here. That path is not on the wire yet. Records use the 5-byte header as AEAD additional data.
 ChangeCipherSpec is ignored. A handshake message may span records.
 
 Record protection: `TLSInnerPlaintext` = `payload || content_type`, sealed

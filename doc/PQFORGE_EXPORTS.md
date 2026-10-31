@@ -76,3 +76,28 @@ OPEN-02 and OPEN-13 are **Fixed**.
 4. Add a live handshake test for any newly unlocked group.
 5. Update this file, [BUGS.md](BUGS.md), and [TRACKER.md](TRACKER.md)
    together.
+
+## OPEN-14 waits on pqforge 0.4.8
+
+X.509 is a pqforge certificate layer, not a pqtransport codec and not a
+PointyCastle import here. pqforge 0.4.7 does not parse certificates.
+0.4.8 adds `lib/src/certificates/x509.dart` and exports it from
+`package:pqforge/pqforge.dart`. Projects that never speak TLS can call
+`PqX509`. pqtransport only applies TLS policy.
+
+| Need | Where it comes from |
+| --- | --- |
+| Parse, mint, path check, original TBS bytes | `PqX509` in pqforge 0.4.8 |
+| ML-DSA-65/87/44, empty context, pure | existing primitive, called by `PqX509` |
+| P-256 ECDSA | existing `PqEcdsaP256`, after DER `r\|\|s` decode |
+| P-384 ECDSA | new `PqEcdsaP384` in that same release |
+| RSA PKCS#1 and RSA-PSS | new `PqRsa`, PointyCastle already inside pqforge |
+| Ed25519 | new sync `PqEd25519`. Not the async hybrid verifier |
+| TLS Certificate message, alerts, anchors-as-policy | pqtransport, after the bump to `pqforge: ^0.4.8` |
+
+Do not import `package:pointycastle` or `package:cryptography` from
+pqtransport to get there. No git pin.
+
+Design: [ADR-0014](adr/ADR-0014-x509-certificate.md).
+Plan: [OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md).
+

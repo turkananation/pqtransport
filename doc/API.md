@@ -61,7 +61,7 @@ import 'package:pqtransport/pqtransport_io.dart';
 
 | Type | Role |
 |---|---|
-| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `peerAuthenticated` is true only after the client checked CertificateVerify. `allowUnauthenticated` skips that check and is not authentication; the bit stays false. |
+| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `peerAuthenticated` is true only after the client checked CertificateVerify. `allowUnauthenticated` skips that check and is not authentication; the bit stays false. Certificate payload is RFC 7250 RawPublicKey. X.509 is not implemented. The proposed opt-in consumes pqforge `PqX509` ([plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md)). |
 | `PqTlsServerIdentity` | ML-DSA-65 key pair |
 | `TlsState` / `TlsEvent` / `tlsClientMachine` / `tlsServerMachine` | Machines |
 | `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
