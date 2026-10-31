@@ -317,11 +317,28 @@ final class PqTransportCrypto {
     };
   }
 
-  /// AES-ECB one 16-byte block. QUIC header protection (RFC 9000 §5.4.3).
+  /// AES-ECB one 16-byte block. QUIC AES header protection (RFC 9001 §5.4.3).
   Uint8List aesEncryptBlock({
     required Uint8List key,
     required Uint8List block,
   }) => PqSymmetricPrimitives.aesEncryptBlock(key: key, block: block);
+
+  /// RFC 8439 ChaCha20 keystream from pqforge. Not an AEAD.
+  ///
+  /// QUIC ChaCha header protection (RFC 9001 §5.4.4) passes the sample's
+  /// little-endian block counter, the sample's last 12 bytes as [nonce],
+  /// and [length] 5. Those five bytes are the mask.
+  Uint8List chacha20({
+    required Uint8List key,
+    required Uint8List nonce,
+    required int counter,
+    int length = 64,
+  }) => PqSymmetricPrimitives.chacha20(
+    key: key,
+    nonce: nonce,
+    counter: counter,
+    length: length,
+  );
 
   HybridGroup get defaultGroup => switch (kem) {
     PqKemAlgorithm.mlKem1024 => HybridGroup.secP384r1MlKem1024,

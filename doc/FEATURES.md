@@ -84,10 +84,10 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | --- | --- | --- |
 | 1-RTT packet protect | Done | Short-header HP (`0x1f` mask); AES-256-GCM |
 | CRYPTO / STREAM / padding-capable frames | Done | CRYPTO + ACK + STREAM decode; offset reassembly + FIN |
-| Flow control (MAX_DATA / MAX_STREAM_DATA) | Partial | `QuicFlowControl.consume` |
-| Connection / stream state machines | Partial | Happy + illegal-event tests |
+| Flow control (MAX_DATA / MAX_STREAM_DATA) | Done | RFC 9000 §4. `flowWindow` is explicit. `test/quic/lifecycle_test.dart` |
+| Connection / stream state machines | Done | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM. `test/quic/lifecycle_test.dart` |
 | TLS in QUIC (RFC 9001) | Done | CRYPTO stream, no TLS records. Initial AES-128-GCM + HP. OPEN-06. |
-| Header protection | Done | AES-ECB (pqforge `aesEncryptBlock`). ChaCha HP not implemented. |
+| Header protection | Done | AES-ECB for Initial and AES 1-RTT. ChaCha20 mask (RFC 9001 §5.4.4) via pqforge 0.4.8 `chacha20`. |
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
 | `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |

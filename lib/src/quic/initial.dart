@@ -36,17 +36,13 @@ final class QuicInitialSecrets {
   }
 }
 
-/// 1-RTT / Handshake keys from a TLS traffic secret. Hash follows [schedule]
-/// (SHA-384 for IANA `0x1302`). ChaCha HP is not in this slice.
+/// 1-RTT / Handshake keys from a TLS traffic secret. Hash and AEAD follow
+/// [schedule]. Initial secrets stay AES-128-GCM (RFC 9001 §5.2) and do
+/// not call this function.
 QuicPacketKeys quicKeysFromTls({
   required TlsKeySchedule schedule,
   required Uint8List trafficSecret,
 }) {
-  if (schedule.aead == TransportAead.chacha20Poly1305) {
-    throw UnsupportedError(
-      'QUIC ChaCha20 header protection is not implemented (RFC 9001 §5.4.4)',
-    );
-  }
   final n = schedule.aead == TransportAead.aes128Gcm
       ? quicAes128KeyBytes
       : aeadKeyBytes;
@@ -137,6 +133,7 @@ final class QuicInitialCodec {
       hpKey: keys.hp,
       packet: packet,
       pnOffset: prefix.length,
+      aead: TransportAead.aes128Gcm,
     );
     applyQuicHeaderProtection(
       packet,
@@ -172,6 +169,7 @@ final class QuicInitialCodec {
       hpKey: keys.hp,
       packet: packet,
       pnOffset: pnOff,
+      aead: TransportAead.aes128Gcm,
     );
     packet[0] ^= mask[0] & 0x0f;
     final pnLen = (packet[0] & 0x03) + 1;

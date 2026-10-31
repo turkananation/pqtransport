@@ -47,6 +47,29 @@ void main() {
     expect(ct, hex('8ea2b7ca516745bfeafc49904b496089'));
   });
 
+  test('RFC 8439 §2.3.2 ChaCha20 block through the facade (QUIC HP)', () {
+    final block = crypto.chacha20(
+      key: hex(
+        '000102030405060708090a0b0c0d0e0f'
+        '101112131415161718191a1b1c1d1e1f',
+      ),
+      nonce: hex('000000090000004a00000000'),
+      counter: 1,
+      length: 64,
+    );
+    expect(block.sublist(0, 16), hex('10f1e7e4d13b5915500fdd1fa32071c4'));
+    final mask = crypto.chacha20(
+      key: hex(
+        '000102030405060708090a0b0c0d0e0f'
+        '101112131415161718191a1b1c1d1e1f',
+      ),
+      nonce: hex('000000090000004a00000000'),
+      counter: 1,
+      length: 5,
+    );
+    expect(mask, block.sublist(0, 5));
+  });
+
   test('CRYPTO frame carries a live X25519MLKEM768 ClientHello', () async {
     final client = PqTlsClient(crypto: crypto, quic: true);
     final ch = await client.startHandshake();
@@ -153,10 +176,32 @@ void main() {
     );
   });
 
-  test('flow control violation is an error', () {
-    final fc = QuicFlowControl(maxData: 10, maxStreamData: 8);
-    expect(fc.consume(0, 4).isSuccess, isTrue);
-    expect(fc.consume(0, 5).isFailure, isTrue);
+  test('flow control: stream credit, connection credit, receive limit', () {
+    final stream = QuicFlowControl(maxData: 100, maxStreamData: 4);
+    final first = stream.budget(streamId: 0, offset: 0, length: 8);
+    expect(first.allowed, 4);
+    expect(first.streamBlocked, isTrue);
+    expect(first.connectionBlocked, isFalse);
+    stream.commitSend(0, 4);
+    stream.onMaxStreamData(0, 8);
+    final second = stream.budget(streamId: 0, offset: 4, length: 4);
+    expect(second.allowed, 4);
+    expect(second.blocked, isFalse);
+
+    final connection = QuicFlowControl(maxData: 4, maxStreamData: 100);
+    final blocked = connection.budget(streamId: 0, offset: 0, length: 8);
+    expect(blocked.allowed, 4);
+    expect(blocked.connectionBlocked, isTrue);
+    expect(blocked.streamBlocked, isFalse);
+
+    final receive = QuicFlowControl(maxData: 100, maxStreamData: 4);
+    expect(receive.receive(0, 4).isSuccess, isTrue);
+    final over = receive.receive(0, 5);
+    expect(over.isFailure, isTrue);
+    expect(over.errorOrNull!.code, PqTransportErrorCode.flowControl);
+    final granted = receive.onConsumed(streamId: 0, bytes: 4, window: 4);
+    expect(granted, isNotEmpty);
+    expect(receive.onConsumed(streamId: 1, bytes: 1, window: 0), isEmpty);
   });
 
   test('short packet is a decode failure', () {
@@ -196,32 +241,70 @@ void main() {
     expect(parsed.valueOrNull!.acks.single.largest, 3);
   });
 
-  test('ChaCha20 QUIC header protection fails closed', () {
+  test('ChaCha20 header protection round-trips; AES mask fails closed', () {
+    final key = crypto.randomBytes(aeadKeyBytes);
+    final iv = crypto.randomBytes(aeadNonceBytes);
+    final hpKey = crypto.randomBytes(aeadKeyBytes);
+    final dcid = crypto.randomBytes(quicShortDcidBytes);
+    final payload = Uint8List.fromList([quicFramePing]);
     final codec = QuicPacketCodec(
       crypto: crypto,
-      key: crypto.randomBytes(aeadKeyBytes),
-      iv: crypto.randomBytes(aeadNonceBytes),
-      hpKey: crypto.randomBytes(aeadKeyBytes),
+      key: key,
+      iv: iv,
+      hpKey: hpKey,
       aead: TransportAead.chacha20Poly1305,
     );
-    final sealed = codec.protect(
-      dcid: crypto.randomBytes(quicShortDcidBytes),
-      packetNumber: 1,
-      payload: Uint8List.fromList([quicFramePing]),
+    final sealed = codec.protect(dcid: dcid, packetNumber: 1, payload: payload);
+    expect(sealed.isSuccess, isTrue, reason: '${sealed.errorOrNull}');
+    final opened = codec.open(sealed.valueOrNull!);
+    expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+    expect(opened.valueOrNull!.packetNumber, 1);
+    expect(opened.valueOrNull!.payload, payload);
+    final flipped = Uint8List.fromList(sealed.valueOrNull!);
+    flipped[0] ^= 0x01;
+    expect(codec.open(flipped).isFailure, isTrue);
+
+    final pnOff = 1 + quicShortDcidBytes;
+    final packet = Uint8List.fromList(sealed.valueOrNull!);
+    final chachaMask = quicHeaderProtectionMask(
+      crypto: crypto,
+      hpKey: hpKey,
+      packet: packet,
+      pnOffset: pnOff,
+      aead: TransportAead.chacha20Poly1305,
     );
-    expect(sealed.isFailure, isTrue);
-    expect(sealed.errorOrNull!.code, PqTransportErrorCode.unsupported);
+    packet[0] ^= chachaMask[0] & 0x1f;
+    final pnLen = (packet[0] & 0x03) + 1;
+    for (var i = 0; i < pnLen; i++) {
+      packet[pnOff + i] ^= chachaMask[1 + i];
+    }
+    final aesMask = quicHeaderProtectionMask(
+      crypto: crypto,
+      hpKey: hpKey,
+      packet: packet,
+      pnOffset: pnOff,
+      aead: TransportAead.aes256Gcm,
+    );
+    applyQuicHeaderProtection(
+      packet,
+      mask: aesMask,
+      pnOffset: pnOff,
+      pnLength: pnLen,
+      longHeader: false,
+    );
+    expect(codec.open(packet).isFailure, isTrue);
+
     final chacha = TlsKeySchedule(
       crypto,
       suite: TlsCipherSuite.chacha20Poly1305Sha256,
     );
-    expect(
-      () => quicKeysFromTls(
-        schedule: chacha,
-        trafficSecret: crypto.randomBytes(sha256HashBytes),
-      ),
-      throwsA(isA<UnsupportedError>()),
+    final keys = quicKeysFromTls(
+      schedule: chacha,
+      trafficSecret: crypto.randomBytes(sha256HashBytes),
     );
+    expect(keys.key, hasLength(aeadKeyBytes));
+    expect(keys.hp, hasLength(aeadKeyBytes));
+    expect(keys.iv, hasLength(aeadNonceBytes));
   });
 
   test('ACK additional ranges: 1,2,5,6,9', () {

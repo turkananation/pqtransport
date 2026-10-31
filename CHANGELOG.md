@@ -36,6 +36,24 @@
   classical TLS. QPACK bytes are checked against libnghttp3 in
   `tool/interop/nghttp3-qpack`. HTTP/2 prior-knowledge DoH is checked
   against curl's libnghttp2 in `tool/interop/nghttp2-curl`.
+- QUIC ChaCha20 header protection (OPEN-16). RFC 9001 §5.4.4 mask is
+  `PqSymmetricPrimitives.chacha20` from pqforge 0.4.8: sample counter
+  little-endian, last 12 bytes as the nonce, first 5 keystream bytes.
+  Initial packets stay AES-128-GCM. An AES mask on a ChaCha packet
+  fails closed. `test/quic/quic_test.dart`.
+- QUIC flow control (OPEN-17). RFC 9000 §4. `MAX_DATA` /
+  `MAX_STREAM_DATA` are sent when the application reads, using the
+  caller's `flowWindow` (zero sends nothing). A write past either
+  limit stalls and emits `DATA_BLOCKED` or `STREAM_DATA_BLOCKED`.
+  A STREAM past the receive limit is `FLOW_CONTROL_ERROR` and closes
+  the connection. `test/quic/lifecycle_test.dart`.
+- QUIC connection and stream lifecycle (OPEN-18). A local idle
+  timeout (not the negotiated transport parameter; disarmed unless
+  set) closes the connection. `CONNECTION_CLOSE` from either role
+  enters the draining period (three times the current PTO, RFC 9000
+  §10.2) and discards inbound packets instead of answering them.
+  `RESET_STREAM` is visible to the peer as an error. A send after
+  close fails. `test/quic/lifecycle_test.dart`.
 - QUIC loss recovery (OPEN-15). RFC 9002 §5 RTT, §6 loss detection and
   PTO, §7 NewReno (`QuicNewReno` / `QuicLossRecovery`). Initial and
   Application Data packet number spaces are separate; Handshake is
@@ -45,11 +63,10 @@
   to at least 1200 bytes (RFC 9000 §14.1). The congestion window blocks
   sends. A peer that never ACKs stops after `quicMaxPtoCount` probes
   (this stack does not negotiate `max_idle_timeout`). No ECN, migration,
-  multipath, or anti-amplification limit. ChaCha header protection
-  still fails closed. 0-RTT is not implemented (LIM-05, issue 55):
-  it is not a fourth packet number space (RFC 9000 §12.3), and the
-  Application Data PTO stays disarmed until the handshake is
-  confirmed (RFC 9002 §6.2.1).
+  multipath, or anti-amplification limit. 0-RTT is not implemented
+  (LIM-05, issue 55): it is not a fourth packet number space
+  (RFC 9000 §12.3), and the Application Data PTO stays disarmed until
+  the handshake is confirmed (RFC 9002 §6.2.1).
   `test/quic/recovery_test.dart`.
 - DNS-over-HTTPS and DNS-over-TLS (OPEN-10 / slice 0.5.5). RFC 8484
   URI template `{?dns}` (unpadded base64url), POST and GET

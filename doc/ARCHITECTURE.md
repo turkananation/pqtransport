@@ -187,8 +187,9 @@ under a new packet number and pads a client Initial so the UDP datagram
 is at least 1200 bytes. It does not mint Handshake packet-protection
 keys, does not send 0-RTT, and does not implement ECN, migration, or the
 anti-amplification limit. A silent peer stops after `quicMaxPtoCount`
-probes because `max_idle_timeout` is not negotiated. ChaCha HP fails
-closed.
+probes because `max_idle_timeout` is not negotiated. A caller can set a
+local idle timeout. ChaCha20 header protection uses the pqforge 0.4.8
+keystream. Flow control and CONNECTION_CLOSE / drain are implemented.
 
 HTTP/1.1 is a real codec used by `PqHttpClient.roundTripH1` over a completed
 `PqTlsSocket`. HTTP/2 (RFC 9113 + RFC 7541) is a real session on ALPN `h2`

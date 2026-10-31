@@ -389,21 +389,33 @@ final class QuicAckProcessor {
   }
 }
 
-/// CRYPTO + ACK + STREAM frames from a QUIC packet payload. PADDING and PING
-/// are skipped. [ackEliciting] is set when a PING, CRYPTO, or STREAM frame
-/// was present (RFC 9002: anything except ACK, PADDING, and CONNECTION_CLOSE).
-/// ACK-ECN and unknown types fail closed.
+/// CRYPTO + ACK + STREAM + flow-control frames from a QUIC packet payload.
+/// PADDING and PING are skipped. [ackEliciting] is set when any frame
+/// other than ACK, PADDING, or CONNECTION_CLOSE was present (RFC 9002
+/// §2 / RFC 9000 §13.2.1). ACK-ECN and unknown types fail closed.
 final class QuicPayload {
   const QuicPayload({
     this.crypto = const [],
     this.acks = const [],
     this.streams = const [],
+    this.maxData = const [],
+    this.maxStreamData = const [],
+    this.dataBlocked = const [],
+    this.streamDataBlocked = const [],
+    this.resets = const [],
+    this.closes = const [],
     this.ackEliciting = false,
   });
 
   final List<QuicCryptoFrame> crypto;
   final List<QuicAckFrame> acks;
   final List<QuicStreamFrame> streams;
+  final List<QuicMaxDataFrame> maxData;
+  final List<QuicMaxStreamDataFrame> maxStreamData;
+  final List<QuicDataBlockedFrame> dataBlocked;
+  final List<QuicStreamDataBlockedFrame> streamDataBlocked;
+  final List<QuicResetStreamFrame> resets;
+  final List<QuicConnectionCloseFrame> closes;
   final bool ackEliciting;
 }
 
@@ -412,6 +424,12 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final crypto = <QuicCryptoFrame>[];
   final acks = <QuicAckFrame>[];
   final streams = <QuicStreamFrame>[];
+  final maxData = <QuicMaxDataFrame>[];
+  final maxStreamData = <QuicMaxStreamDataFrame>[];
+  final dataBlocked = <QuicDataBlockedFrame>[];
+  final streamDataBlocked = <QuicStreamDataBlockedFrame>[];
+  final resets = <QuicResetStreamFrame>[];
+  final closes = <QuicConnectionCloseFrame>[];
   var ackEliciting = false;
   while (r.remaining > 0) {
     final type = r.bytes[r.offset];
@@ -445,6 +463,48 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       ackEliciting = true;
       continue;
     }
+    if (type == quicFrameMaxData) {
+      final f = QuicMaxDataFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      maxData.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameMaxStreamData) {
+      final f = QuicMaxStreamDataFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      maxStreamData.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameDataBlocked) {
+      final f = QuicDataBlockedFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      dataBlocked.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameStreamDataBlocked) {
+      final f = QuicStreamDataBlockedFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      streamDataBlocked.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameResetStream) {
+      final f = QuicResetStreamFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      resets.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameConnectionClose ||
+        type == quicFrameConnectionCloseApp) {
+      final f = QuicConnectionCloseFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      closes.add(f.valueOrNull!);
+      continue;
+    }
     return Result.failure(
       PqTransportError.decodeFailure(
         'unsupported quic frame 0x${type.toRadixString(16)}',
@@ -456,6 +516,12 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       crypto: crypto,
       acks: acks,
       streams: streams,
+      maxData: maxData,
+      maxStreamData: maxStreamData,
+      dataBlocked: dataBlocked,
+      streamDataBlocked: streamDataBlocked,
+      resets: resets,
+      closes: closes,
       ackEliciting: ackEliciting,
     ),
   );
@@ -526,16 +592,30 @@ Uint8List quicHeaderProtectionMask({
   required Uint8List hpKey,
   required Uint8List packet,
   required int pnOffset,
+  required TransportAead aead,
 }) {
   final sampleOff = pnOffset + quicPacketNumberMaxBytes;
-  return crypto.aesEncryptBlock(
-    key: hpKey,
-    block: slice(
-      packet,
-      sampleOff,
-      sampleOff + quicHeaderProtectionSampleBytes,
-    ),
+  final sample = slice(
+    packet,
+    sampleOff,
+    sampleOff + quicHeaderProtectionSampleBytes,
   );
+  if (aead == TransportAead.chacha20Poly1305) {
+    // RFC 9001 §5.4.4. Arithmetic, not `<<`, so the counter stays a
+    // non-negative integer on dart2js (bitwise shifts are signed int32).
+    final counter =
+        sample[0] +
+        (sample[1] * 256) +
+        (sample[2] * 65536) +
+        (sample[3] * 16777216);
+    return crypto.chacha20(
+      key: hpKey,
+      nonce: slice(sample, 4, sample.length),
+      counter: counter,
+      length: 5,
+    );
+  }
+  return crypto.aesEncryptBlock(key: hpKey, block: sample);
 }
 
 /// RFC 9001 Figure 6. Sample is always taken 4 bytes after [pnOffset].
@@ -600,13 +680,6 @@ final class QuicPacketCodec {
     required Uint8List payload,
     int packetNumberLength = pnLength,
   }) {
-    if (aead == TransportAead.chacha20Poly1305) {
-      return Result.failure(
-        PqTransportError.unsupported(
-          'QUIC ChaCha20 header protection is not implemented',
-        ),
-      );
-    }
     if (packetNumberLength < 1 ||
         packetNumberLength > quicPacketNumberMaxBytes) {
       return Result.failure(PqTransportError.decodeFailure('pn length'));
@@ -637,6 +710,7 @@ final class QuicPacketCodec {
       hpKey: hpKey,
       packet: packet,
       pnOffset: pnOff,
+      aead: aead,
     );
     applyQuicHeaderProtection(
       packet,
@@ -672,6 +746,7 @@ final class QuicPacketCodec {
       hpKey: hpKey,
       packet: packet,
       pnOffset: pnOff,
+      aead: aead,
     );
     packet[0] ^= mask[0] & 0x1f;
     final pnLen = (packet[0] & 0x03) + 1;
@@ -700,30 +775,345 @@ final class QuicPacketCodec {
   }
 }
 
-final class QuicFlowControl {
-  QuicFlowControl({
-    this.maxData = quicMaxDataDefault,
-    this.maxStreamData = quicMaxStreamDataDefault,
+final class QuicMaxDataFrame {
+  const QuicMaxDataFrame(this.maximum);
+
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameMaxData);
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicMaxDataFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final maximum = readVarint(r);
+    if (maximum < 0) {
+      return Result.failure(PqTransportError.decodeFailure('MAX_DATA'));
+    }
+    return Result.success(QuicMaxDataFrame(maximum));
+  }
+}
+
+final class QuicMaxStreamDataFrame {
+  const QuicMaxStreamDataFrame(this.id, this.maximum);
+
+  final int id;
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameMaxStreamData);
+    writeQuicVarint(b, id);
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicMaxStreamDataFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final id = readVarint(r);
+    final maximum = readVarint(r);
+    if (id < 0 || maximum < 0) {
+      return Result.failure(PqTransportError.decodeFailure('MAX_STREAM_DATA'));
+    }
+    return Result.success(QuicMaxStreamDataFrame(id, maximum));
+  }
+}
+
+final class QuicDataBlockedFrame {
+  const QuicDataBlockedFrame(this.maximum);
+
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameDataBlocked);
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicDataBlockedFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final maximum = readVarint(r);
+    if (maximum < 0) {
+      return Result.failure(PqTransportError.decodeFailure('DATA_BLOCKED'));
+    }
+    return Result.success(QuicDataBlockedFrame(maximum));
+  }
+}
+
+final class QuicStreamDataBlockedFrame {
+  const QuicStreamDataBlockedFrame(this.id, this.maximum);
+
+  final int id;
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameStreamDataBlocked);
+    writeQuicVarint(b, id);
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicStreamDataBlockedFrame, PqTransportError> read(
+    ByteReader r,
+  ) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final id = readVarint(r);
+    final maximum = readVarint(r);
+    if (id < 0 || maximum < 0) {
+      return Result.failure(
+        PqTransportError.decodeFailure('STREAM_DATA_BLOCKED'),
+      );
+    }
+    return Result.success(QuicStreamDataBlockedFrame(id, maximum));
+  }
+}
+
+final class QuicResetStreamFrame {
+  const QuicResetStreamFrame({
+    required this.id,
+    required this.errorCode,
+    required this.finalSize,
   });
 
-  final int maxData;
-  final int maxStreamData;
-  int sentData = 0;
-  final Map<int, int> sentStream = {};
+  final int id;
+  final int errorCode;
+  final int finalSize;
 
-  Result<void, PqTransportError> consume(int streamId, int bytes) {
-    sentData += bytes;
-    sentStream[streamId] = (sentStream[streamId] ?? 0) + bytes;
-    if (sentData > maxData) {
-      return Result.failure(
-        PqTransportError.handshakeFailure('MAX_DATA exceeded'),
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameResetStream);
+    writeQuicVarint(b, id);
+    writeQuicVarint(b, errorCode);
+    writeQuicVarint(b, finalSize);
+    return b.takeBytes();
+  }
+
+  static Result<QuicResetStreamFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final id = readVarint(r);
+    final errorCode = readVarint(r);
+    final finalSize = readVarint(r);
+    if (id < 0 || errorCode < 0 || finalSize < 0) {
+      return Result.failure(PqTransportError.decodeFailure('RESET_STREAM'));
+    }
+    return Result.success(
+      QuicResetStreamFrame(id: id, errorCode: errorCode, finalSize: finalSize),
+    );
+  }
+}
+
+final class QuicConnectionCloseFrame {
+  const QuicConnectionCloseFrame({
+    required this.application,
+    required this.errorCode,
+    this.frameType = 0,
+    this.reason = const [],
+  });
+
+  /// RFC 9000 §19.19. Application close is type `0x1d` and has no frame type.
+  final bool application;
+  final int errorCode;
+  final int frameType;
+  final List<int> reason;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(
+      application ? quicFrameConnectionCloseApp : quicFrameConnectionClose,
+    );
+    writeQuicVarint(b, errorCode);
+    if (!application) writeQuicVarint(b, frameType);
+    writeQuicVarint(b, reason.length);
+    b.add(reason);
+    return b.takeBytes();
+  }
+
+  static Result<QuicConnectionCloseFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final application = type.valueOrNull == quicFrameConnectionCloseApp;
+    final errorCode = readVarint(r);
+    final frameType = application ? 0 : readVarint(r);
+    final length = readVarint(r);
+    if (errorCode < 0 || frameType < 0 || length < 0) {
+      return Result.failure(PqTransportError.decodeFailure('CONNECTION_CLOSE'));
+    }
+    final reason = r.take(length, PqLengthLabel.datagram);
+    if (reason.isFailure) return Result.failure(reason.errorOrNull!);
+    return Result.success(
+      QuicConnectionCloseFrame(
+        application: application,
+        errorCode: errorCode,
+        frameType: frameType,
+        reason: reason.valueOrNull!,
+      ),
+    );
+  }
+}
+
+/// How many bytes of one write fit the peer's advertised credit.
+final class QuicSendBudget {
+  const QuicSendBudget({
+    required this.allowed,
+    required this.streamBlocked,
+    required this.connectionBlocked,
+  });
+
+  final int allowed;
+  final bool streamBlocked;
+  final bool connectionBlocked;
+
+  bool get blocked => streamBlocked || connectionBlocked;
+}
+
+/// RFC 9000 §4 connection and stream data limits.
+///
+/// Send credit is what the peer has advertised. Receive credit is what
+/// this endpoint advertises. A limit only moves forward. [onConsumed]
+/// advertises [window] bytes beyond the bytes the application has read.
+/// [window] `0` does not send MAX frames. There is no hidden multiplier.
+final class QuicFlowControl {
+  QuicFlowControl({
+    int maxData = quicMaxDataDefault,
+    int maxStreamData = quicMaxStreamDataDefault,
+    int? sendMaxData,
+    int? sendMaxStreamData,
+    int? recvMaxData,
+    int? recvMaxStreamData,
+  }) : _peerMaxData = sendMaxData ?? maxData,
+       _localMaxData = recvMaxData ?? maxData,
+       _initialSendStream = sendMaxStreamData ?? maxStreamData,
+       _initialRecvStream = recvMaxStreamData ?? maxStreamData;
+
+  int _peerMaxData;
+  int _localMaxData;
+  final int _initialSendStream;
+  final int _initialRecvStream;
+  final Map<int, int> _peerStream = {};
+  final Map<int, int> _localStream = {};
+  final Map<int, int> _sendHigh = {};
+  final Map<int, int> _recvHigh = {};
+  var _sendSum = 0;
+  var _recvSum = 0;
+  var _consumedConn = 0;
+  final Map<int, int> _consumedStream = {};
+
+  int get peerMaxData => _peerMaxData;
+  int get localMaxData => _localMaxData;
+
+  int peerStreamMax(int id) => _peerStream[id] ?? _initialSendStream;
+
+  int localStreamMax(int id) => _localStream[id] ?? _initialRecvStream;
+
+  QuicSendBudget budget({
+    required int streamId,
+    required int offset,
+    required int length,
+  }) {
+    if (length < 0) {
+      return const QuicSendBudget(
+        allowed: 0,
+        streamBlocked: true,
+        connectionBlocked: true,
       );
     }
-    if ((sentStream[streamId] ?? 0) > maxStreamData) {
+    final oldHigh = _sendHigh[streamId] ?? 0;
+    final streamLimit = peerStreamMax(streamId);
+    var allowed = 0;
+    var streamBlocked = false;
+    var connectionBlocked = false;
+    var high = oldHigh;
+    var sum = _sendSum;
+    for (var i = 0; i < length; i++) {
+      final end = offset + i + 1;
+      final nextHigh = end > high ? end : high;
+      if (nextHigh > streamLimit) {
+        streamBlocked = true;
+        break;
+      }
+      final nextSum = sum - high + nextHigh;
+      if (nextSum > _peerMaxData) {
+        connectionBlocked = true;
+        break;
+      }
+      high = nextHigh;
+      sum = nextSum;
+      allowed++;
+    }
+    return QuicSendBudget(
+      allowed: allowed,
+      streamBlocked: streamBlocked,
+      connectionBlocked: connectionBlocked,
+    );
+  }
+
+  void commitSend(int streamId, int endOffset) {
+    final old = _sendHigh[streamId] ?? 0;
+    if (endOffset <= old) return;
+    _sendSum += endOffset - old;
+    _sendHigh[streamId] = endOffset;
+  }
+
+  /// Absolute end offset of received STREAM data. A retransmission of
+  /// the same bytes does not consume the limit twice. Past either limit
+  /// is FLOW_CONTROL_ERROR and does not move the high-water mark.
+  Result<void, PqTransportError> receive(int streamId, int endOffset) {
+    final old = _recvHigh[streamId] ?? 0;
+    final high = endOffset > old ? endOffset : old;
+    if (high > localStreamMax(streamId)) {
       return Result.failure(
-        PqTransportError.handshakeFailure('MAX_STREAM_DATA exceeded'),
+        PqTransportError.flowControl('MAX_STREAM_DATA exceeded'),
       );
     }
+    final next = _recvSum - old + high;
+    if (next > _localMaxData) {
+      return Result.failure(PqTransportError.flowControl('MAX_DATA exceeded'));
+    }
+    _recvHigh[streamId] = high;
+    _recvSum = next;
     return const Result.success(null);
+  }
+
+  void onMaxData(int limit) {
+    if (limit > _peerMaxData) _peerMaxData = limit;
+  }
+
+  void onMaxStreamData(int id, int limit) {
+    if (limit > peerStreamMax(id)) _peerStream[id] = limit;
+  }
+
+  /// Application read of [bytes]. When [window] is positive, advertise
+  /// `consumed + window` if that is above the current receive limit.
+  List<Uint8List> onConsumed({
+    required int streamId,
+    required int bytes,
+    required int window,
+  }) {
+    if (bytes < 0) return const [];
+    _consumedStream[streamId] = (_consumedStream[streamId] ?? 0) + bytes;
+    _consumedConn += bytes;
+    if (window <= 0 || bytes == 0) return const [];
+    final frames = <Uint8List>[];
+    final nextStream = _consumedStream[streamId]! + window;
+    if (nextStream > localStreamMax(streamId)) {
+      _localStream[streamId] = nextStream;
+      frames.add(QuicMaxStreamDataFrame(streamId, nextStream).encode());
+    }
+    final nextConn = _consumedConn + window;
+    if (nextConn > _localMaxData) {
+      _localMaxData = nextConn;
+      frames.add(QuicMaxDataFrame(nextConn).encode());
+    }
+    return frames;
   }
 }

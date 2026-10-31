@@ -302,9 +302,27 @@ const int quicFrameStreamTypeMask = 0xF8;
 const int quicFrameStreamOffBit = 0x04;
 const int quicFrameStreamLenBit = 0x02;
 const int quicFrameStreamFinBit = 0x01;
+const int quicFrameResetStream = 0x04;
 const int quicFrameMaxData = 0x10;
 const int quicFrameMaxStreamData = 0x11;
+const int quicFrameDataBlocked = 0x14;
+const int quicFrameStreamDataBlocked = 0x15;
 const int quicFrameConnectionClose = 0x1c;
+const int quicFrameConnectionCloseApp = 0x1d;
+
+/// RFC 9000 §20. A STREAM past MAX_DATA or MAX_STREAM_DATA.
+const int quicErrorFlowControl = 0x03;
+
+/// RFC 9000 §20.1. No error. Used by an application CONNECTION_CLOSE.
+const int quicErrorNoError = 0x00;
+
+/// Local idle timer. Not the negotiated `max_idle_timeout` transport
+/// parameter (this stack does not send transport parameters). Null on
+/// [PqQuicConn] leaves the timer disarmed. RFC 9000 §10.1.
+const int quicLocalIdleTimeoutMicros = 30000000;
+
+/// RFC 9000 §10.2. The draining period is three times the current PTO.
+const int quicDrainPtoMultiplier = 3;
 
 const int quicStreamIdTypeMask = 0x03;
 const int quicStreamIdClientBidi = 0x00;
