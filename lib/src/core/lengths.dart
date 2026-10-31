@@ -185,13 +185,29 @@ const int tlsExtCookie = 44;
 const int tlsServerNameTypeHostName = 0;
 const int tlsSignatureMldsa65 = 0x0905;
 const int tlsSignatureMldsa87 = 0x0906;
+const int tlsSignatureEcdsaP256Sha256 = 0x0403;
+const int tlsSignatureEcdsaP384Sha384 = 0x0503;
+const int tlsSignatureEd25519 = 0x0807;
+const int tlsSignatureRsaPssSha256 = 0x0804;
+const int tlsSignatureRsaPssSha384 = 0x0805;
+const int tlsSignatureRsaPssSha512 = 0x0806;
+
+/// RFC 7250 CertificateType. Absent extension means X.509.
+const int tlsCertTypeX509 = 0;
 const int tlsCertTypeRawPublicKey = 2;
+
+/// RFC 8446 certificate_list. A ninth entry is refused.
+const int tlsCertificateListMax = 8;
+
 const int tlsCompressionNull = 0;
 const int tlsLegacySessionIdMaxBytes = 32;
 const int tlsCookieBytes = 32;
 const int tlsAlertIllegalParameter = 47;
 const int tlsAlertUnexpectedMessage = 10;
 const int tlsAlertDecryptError = 51;
+const int tlsAlertBadCertificate = 42;
+const int tlsAlertUnsupportedCertificate = 43;
+const int tlsAlertCertificateUnknown = 46;
 const int tlsAlertHandshakeFailure = 40;
 const int tlsAlertInternalError = 80;
 const int tlsMaxHelloRetry = 1;

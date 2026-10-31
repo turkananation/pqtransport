@@ -8,11 +8,9 @@ handshake or the script exits non-zero.
 ## What is claimed
 
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-SecP256r1MLKEM768, and SecP384r1MLKEM1024 in this directory
-(2026-10-20, auth mode raw-pk). SecP384r1MLKEM1024 uses
-`PqForgeProfile.maximum`.
-
-Nothing wider.
+SecP256r1MLKEM768, and SecP384r1MLKEM1024. raw-pk and one ML-DSA-65
+X.509 chain. SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
+BoringSSL verifies the leaf. curl does one GET. Not a browser.
 
 | Item | Value |
 | --- | --- |
@@ -20,11 +18,11 @@ Nothing wider.
 | Groups | `X25519MLKEM768` (`0x11EC`), `SecP256r1MLKEM768` (`0x11EB`), `SecP384r1MLKEM1024` (`0x11ED`) |
 | Order | X25519 is ML-KEM then classical (`ml_kem_slot` 0). P-256 and P-384 are classical then ML-KEM (`ml_kem_slot` 1). |
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`), HKDF-SHA-384 |
-| Auth | RFC 7250 raw public key. `-enable_server_rpk` sends the ML-DSA-65 SubjectPublicKeyInfo. The X.509 certificate exists only so OpenSSL will load the key. This library does not parse or validate an X.509 path. |
-| Finished | Each group: OpenSSL must log `read finished`. `peerAuthenticated` must be true. |
-
-Not claimed: X.509 path validation, BoringSSL, `curl --http3`, or a
-FIPS 140 module.
+| Auth, raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. |
+| Auth, X.509 | ML-DSA-65 leaf signed by an ML-DSA-65 CA. Chain length 1. The client trusts that CA only. DNS `localhost`. |
+| BoringSSL | 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. Not a TLS peer. |
+| curl | One HTTPS GET on X25519MLKEM768 with `--cacert`, curl linked to this OpenSSL. Not a browser. Not `curl --http3`. |
+| Finished | Each group, both auth modes: OpenSSL logs `read finished`. `peerAuthenticated` is true. |
 
 ## Wire this fixture requires
 

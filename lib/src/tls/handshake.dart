@@ -11,6 +11,22 @@ import '../core/transcript.dart';
 import 'cipher_suite.dart';
 import 'record.dart';
 
+/// RFC 7250 certificate type. [x509] is value 0. [rawPublicKey] is value 2.
+enum TlsCertificateType {
+  x509(tlsCertTypeX509),
+  rawPublicKey(tlsCertTypeRawPublicKey);
+
+  const TlsCertificateType(this.wire);
+
+  final int wire;
+
+  static TlsCertificateType? fromWire(int wire) => switch (wire) {
+    tlsCertTypeX509 => TlsCertificateType.x509,
+    tlsCertTypeRawPublicKey => TlsCertificateType.rawPublicKey,
+    _ => null,
+  };
+}
+
 /// RFC 8446 ClientHello. Compact 0.1 body (random || group || share) is retired.
 final class ClientHello {
   const ClientHello({
@@ -23,6 +39,8 @@ final class ClientHello {
     this.alpnProtocols = const [httpAlpnH1],
     this.supportedGroups,
     this.cookie,
+    this.certificateTypes = const [TlsCertificateType.rawPublicKey],
+    this.signatureSchemes = const [tlsSignatureMldsa65, tlsSignatureMldsa87],
   });
 
   final Uint8List random;
@@ -37,7 +55,22 @@ final class ClientHello {
   final List<int>? supportedGroups;
   final Uint8List? cookie;
 
+  /// What this hello offers. `[rawPublicKey]` is the default and sends the
+  /// extension. `[x509]` omits the extension, which is the RFC 7250 default.
+  /// Null, on a decoded hello, means the peer omitted the extension.
+  final List<TlsCertificateType>? certificateTypes;
+
+  final List<int> signatureSchemes;
+
   List<int> get offeredGroupCodepoints => supportedGroups ?? [group.codepoint];
+
+  bool get offersX509 =>
+      certificateTypes == null ||
+      certificateTypes!.contains(TlsCertificateType.x509);
+
+  bool get offersRawPublicKey =>
+      certificateTypes != null &&
+      certificateTypes!.contains(TlsCertificateType.rawPublicKey);
 
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
@@ -61,11 +94,15 @@ final class ClientHello {
       b.add(_extServerName(serverName));
     }
     b.add(_extSupportedGroups(offeredGroupCodepoints));
-    b.add(_extSignatureAlgorithms());
+    b.add(_extSignatureAlgorithms(signatureSchemes));
     if (alpnProtocols.isNotEmpty) {
       b.add(_extAlpn(alpnProtocols));
     }
-    b.add(_extCertificateTypeOffer(tlsExtServerCertificateType));
+    final types = certificateTypes;
+    if (types != null &&
+        !(types.length == 1 && types.single == TlsCertificateType.x509)) {
+      b.add(_extCertificateTypeOffer(types));
+    }
     final c = cookie;
     if (c != null) {
       b.add(_extCookie(c));
@@ -169,6 +206,8 @@ final class ClientHello {
         alpnProtocols: alpn.valueOrNull ?? const [],
         supportedGroups: groups.valueOrNull!,
         cookie: cookie.valueOrNull,
+        certificateTypes: rawPk.valueOrNull,
+        signatureSchemes: sigs.valueOrNull!,
       ),
     );
   }
@@ -480,6 +519,83 @@ Uint8List encodeCertificate(Uint8List mlDsaPublicKey) {
   return encodeHandshake(tlsHsCertificate, body.takeBytes());
 }
 
+/// RFC 8446 Certificate carrying one or more DER certificates, leaf first.
+Uint8List encodeX509Certificate(List<Uint8List> ders) {
+  if (ders.isEmpty || ders.length > tlsCertificateListMax) {
+    throw ArgumentError.value(ders.length, 'ders', 'expected 1..8');
+  }
+  final list = BytesBuilder(copy: false);
+  for (final der in ders) {
+    writeUint24(list, der.length);
+    list.add(der);
+    writeUint16(list, 0);
+  }
+  final packed = list.takeBytes();
+  final body = BytesBuilder(copy: false);
+  body.addByte(0);
+  writeUint24(body, packed.length);
+  body.add(packed);
+  return encodeHandshake(tlsHsCertificate, body.takeBytes());
+}
+
+/// Certificate entry payloads, in order. Extensions are parsed and ignored.
+Result<List<Uint8List>, PqTransportError> decodeCertificateEntries(
+  Uint8List handshake,
+) {
+  final hs = decodeHandshake(handshake);
+  if (hs.isFailure) return Result.failure(hs.errorOrNull!);
+  final (type, body) = hs.valueOrNull!;
+  if (type != tlsHsCertificate) {
+    return Result.failure(
+      PqTransportError.unexpectedMessage('expected certificate'),
+    );
+  }
+  final r = ByteReader(body);
+  final contextLen = r.u8();
+  if (contextLen.isFailure) return Result.failure(contextLen.errorOrNull!);
+  if (contextLen.valueOrNull != 0) {
+    return Result.failure(
+      PqTransportError.decodeFailure('server certificate context'),
+    );
+  }
+  final listLen = r.u24();
+  if (listLen.isFailure) return Result.failure(listLen.errorOrNull!);
+  final list = r.take(listLen.valueOrNull!, PqLengthLabel.tlsExtension);
+  if (list.isFailure) return Result.failure(list.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('trailing certificate'),
+    );
+  }
+  final entry = ByteReader(list.valueOrNull!);
+  final out = <Uint8List>[];
+  while (!entry.isDone) {
+    if (out.length == tlsCertificateListMax) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate('certificate list'),
+      );
+    }
+    final certLen = entry.u24();
+    if (certLen.isFailure) return Result.failure(certLen.errorOrNull!);
+    if (certLen.valueOrNull == 0) {
+      return Result.failure(PqTransportError.decodeFailure('empty cert_data'));
+    }
+    final cert = entry.take(certLen.valueOrNull!, PqLengthLabel.tlsExtension);
+    if (cert.isFailure) return Result.failure(cert.errorOrNull!);
+    final extLen = entry.u16();
+    if (extLen.isFailure) return Result.failure(extLen.errorOrNull!);
+    final exts = entry.take(extLen.valueOrNull!, PqLengthLabel.tlsExtension);
+    if (exts.isFailure) return Result.failure(exts.errorOrNull!);
+    out.add(cert.valueOrNull!);
+  }
+  if (out.isEmpty) {
+    return Result.failure(
+      PqTransportError.decodeFailure('empty certificate_list'),
+    );
+  }
+  return Result.success(out);
+}
+
 Result<Uint8List, PqTransportError> decodeCertificate(Uint8List handshake) {
   final hs = decodeHandshake(handshake);
   if (hs.isFailure) return Result.failure(hs.errorOrNull!);
@@ -536,6 +652,13 @@ Uint8List tls13ServerCertVerifyContent(Uint8List transcriptHash) {
   return b.takeBytes();
 }
 
+final class TlsCertificateVerify {
+  const TlsCertificateVerify(this.scheme, this.signature);
+
+  final int scheme;
+  final Uint8List signature;
+}
+
 Uint8List encodeCertVerify(Uint8List signature) {
   final scheme = switch (signature.length) {
     mlDsa65SignatureBytes => tlsSignatureMldsa65,
@@ -549,6 +672,10 @@ Uint8List encodeCertVerify(Uint8List signature) {
       'not an ML-DSA-65 or ML-DSA-87 signature',
     );
   }
+  return encodeCertVerifyScheme(scheme, signature);
+}
+
+Uint8List encodeCertVerifyScheme(int scheme, Uint8List signature) {
   final b = BytesBuilder(copy: false);
   writeUint16(b, scheme);
   writeUint16(b, signature.length);
@@ -556,7 +683,9 @@ Uint8List encodeCertVerify(Uint8List signature) {
   return encodeHandshake(tlsHsCertificateVerify, b.takeBytes());
 }
 
-Result<Uint8List, PqTransportError> decodeCertVerify(Uint8List handshake) {
+Result<TlsCertificateVerify, PqTransportError> decodeCertVerify(
+  Uint8List handshake,
+) {
   final hs = decodeHandshake(handshake);
   if (hs.isFailure) return Result.failure(hs.errorOrNull!);
   final (type, body) = hs.valueOrNull!;
@@ -568,25 +697,11 @@ Result<Uint8List, PqTransportError> decodeCertVerify(Uint8List handshake) {
   final r = ByteReader(body);
   final scheme = r.u16();
   if (scheme.isFailure) return Result.failure(scheme.errorOrNull!);
-  final expected = switch (scheme.valueOrNull) {
-    tlsSignatureMldsa65 => mlDsa65SignatureBytes,
-    tlsSignatureMldsa87 => mlDsa87SignatureBytes,
-    _ => -1,
-  };
-  if (expected < 0) {
-    return Result.failure(
-      PqTransportError.unsupported('signature_scheme ${scheme.valueOrNull}'),
-    );
-  }
   final len = r.u16();
   if (len.isFailure) return Result.failure(len.errorOrNull!);
-  if (len.valueOrNull != expected) {
+  if (len.valueOrNull == 0) {
     return Result.failure(
-      PqTransportError.illegalParameter(
-        PqLengthLabel.mlDsa65Signature,
-        len.valueOrNull!,
-        expected,
-      ),
+      PqTransportError.decodeFailure('empty certificate verify'),
     );
   }
   final sig = r.take(len.valueOrNull!, PqLengthLabel.mlDsa65Signature);
@@ -596,7 +711,9 @@ Result<Uint8List, PqTransportError> decodeCertVerify(Uint8List handshake) {
       PqTransportError.decodeFailure('trailing certificate verify'),
     );
   }
-  return sig;
+  return Result.success(
+    TlsCertificateVerify(scheme.valueOrNull!, sig.valueOrNull!),
+  );
 }
 
 Uint8List encodeFinished(Uint8List verifyData) =>
@@ -618,16 +735,18 @@ Result<Uint8List, PqTransportError> decodeFinished(
 }
 
 Uint8List encodeEncryptedExtensions({
-  int serverCertificateType = tlsCertTypeRawPublicKey,
+  int? serverCertificateType = tlsCertTypeRawPublicKey,
   String? alpnProtocol,
 }) {
   final parts = BytesBuilder(copy: false);
-  parts.add(
-    _ext(
-      tlsExtServerCertificateType,
-      Uint8List.fromList([serverCertificateType]),
-    ),
-  );
+  if (serverCertificateType != null) {
+    parts.add(
+      _ext(
+        tlsExtServerCertificateType,
+        Uint8List.fromList([serverCertificateType]),
+      ),
+    );
+  }
   if (alpnProtocol != null) {
     parts.add(_extAlpn([alpnProtocol]));
   }
@@ -636,15 +755,12 @@ Uint8List encodeEncryptedExtensions({
   return encodeHandshake(tlsHsEncryptedExtensions, b.takeBytes());
 }
 
-/// RFC 8446 EncryptedExtensions. Always carries RFC 7250 RawPublicKey
-/// (OPEN-04). Optional ALPN is the single selected protocol (RFC 7301).
+/// RFC 8446 EncryptedExtensions. A null [serverCertificateType] means the
+/// extension was absent, which is X.509 when the client allowed it.
 final class EncryptedExtensions {
-  const EncryptedExtensions({
-    this.serverCertificateType = tlsCertTypeRawPublicKey,
-    this.alpnProtocol,
-  });
+  const EncryptedExtensions({this.serverCertificateType, this.alpnProtocol});
 
-  final int serverCertificateType;
+  final int? serverCertificateType;
   final String? alpnProtocol;
 }
 
@@ -671,17 +787,21 @@ Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
   if (exts.isFailure) return Result.failure(exts.errorOrNull!);
   final map = exts.valueOrNull!;
   final data = map[tlsExtServerCertificateType];
-  if (data == null || data.length != 1) {
-    return Result.failure(
-      PqTransportError.decodeFailure(
-        'EncryptedExtensions missing server_certificate_type (OPEN-04)',
-      ),
-    );
-  }
-  if (data[0] != tlsCertTypeRawPublicKey) {
-    return Result.failure(
-      PqTransportError.unsupported('server_certificate_type ${data[0]}'),
-    );
+  int? certificateType;
+  if (data != null) {
+    if (data.length != 1) {
+      return Result.failure(
+        PqTransportError.decodeFailure('server_certificate_type'),
+      );
+    }
+    if (data[0] != tlsCertTypeRawPublicKey && data[0] != tlsCertTypeX509) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate(
+          'server_certificate_type ${data[0]}',
+        ),
+      );
+    }
+    certificateType = data[0];
   }
   final alpn = _parseAlpn(map);
   if (alpn.isFailure) return Result.failure(alpn.errorOrNull!);
@@ -693,7 +813,7 @@ Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
   }
   return Result.success(
     EncryptedExtensions(
-      serverCertificateType: data[0],
+      serverCertificateType: certificateType,
       alpnProtocol: protocols?.first,
     ),
   );
@@ -765,10 +885,11 @@ Uint8List _extSupportedGroups(List<int> codepoints) {
   return _ext(tlsExtSupportedGroups, _u16Vector(list.takeBytes()));
 }
 
-Uint8List _extSignatureAlgorithms() {
+Uint8List _extSignatureAlgorithms(List<int> schemes) {
   final list = BytesBuilder(copy: false);
-  writeUint16(list, tlsSignatureMldsa65);
-  writeUint16(list, tlsSignatureMldsa87);
+  for (final scheme in schemes) {
+    writeUint16(list, scheme);
+  }
   return _ext(tlsExtSignatureAlgorithms, _u16Vector(list.takeBytes()));
 }
 
@@ -811,10 +932,10 @@ Uint8List _extAlpn(List<String> protos) {
   return _ext(tlsExtAlpn, _u16Vector(list.takeBytes()));
 }
 
-Uint8List _extCertificateTypeOffer(int extType) {
+Uint8List _extCertificateTypeOffer(List<TlsCertificateType> types) {
   final body = BytesBuilder(copy: false);
-  writeOpaque8(body, Uint8List.fromList([tlsCertTypeRawPublicKey]));
-  return _ext(extType, body.takeBytes());
+  writeOpaque8(body, Uint8List.fromList([for (final t in types) t.wire]));
+  return _ext(tlsExtServerCertificateType, body.takeBytes());
 }
 
 Uint8List _u16Vector(Uint8List inner) {
@@ -942,7 +1063,7 @@ Result<List<int>, PqTransportError> _parseSupportedGroups(
   return Result.success(out);
 }
 
-Result<void, PqTransportError> _parseSignatureAlgorithms(
+Result<List<int>, PqTransportError> _parseSignatureAlgorithms(
   Map<int, Uint8List> exts,
 ) {
   final data = exts[tlsExtSignatureAlgorithms];
@@ -960,16 +1081,11 @@ Result<void, PqTransportError> _parseSignatureAlgorithms(
       PqTransportError.decodeFailure('signature_algorithms length'),
     );
   }
-  var found = false;
+  final out = <int>[];
   for (var i = 0; i < raw.length; i += 2) {
-    if (readUint16(raw, i) == tlsSignatureMldsa65) found = true;
+    out.add(readUint16(raw, i));
   }
-  if (!found) {
-    return Result.failure(
-      PqTransportError.unsupported('signature_algorithms missing ML-DSA-65'),
-    );
-  }
-  return const Result.success(null);
+  return Result.success(out);
 }
 
 Result<(HybridGroup, Uint8List), PqTransportError> _parseKeyShareClient(
@@ -1087,27 +1203,33 @@ Result<String?, PqTransportError> _parseServerName(Map<int, Uint8List> exts) {
   }
 }
 
-Result<void, PqTransportError> _parseCertificateTypeOffer(
+/// Null means the extension was omitted. RFC 7250 then requires X.509.
+Result<List<TlsCertificateType>?, PqTransportError> _parseCertificateTypeOffer(
   Map<int, Uint8List> exts,
   int extType,
 ) {
   final data = exts[extType];
-  if (data == null) {
-    return Result.failure(
-      PqTransportError.decodeFailure(
-        'missing certificate_type (raw-pk must be explicit, OPEN-04)',
-      ),
-    );
-  }
+  if (data == null) return const Result.success(null);
   final r = ByteReader(data);
   final list = r.opaque8(PqLengthLabel.tlsHello);
   if (list.isFailure) return Result.failure(list.errorOrNull!);
-  if (!list.valueOrNull!.contains(tlsCertTypeRawPublicKey)) {
+  final bytes = list.valueOrNull!;
+  if (bytes.isEmpty) {
     return Result.failure(
-      PqTransportError.unsupported('certificate_type missing RawPublicKey'),
+      PqTransportError.decodeFailure('empty certificate_type'),
     );
   }
-  return const Result.success(null);
+  final out = <TlsCertificateType>[];
+  for (final b in bytes) {
+    final type = TlsCertificateType.fromWire(b);
+    if (type == null) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate('certificate_type $b'),
+      );
+    }
+    out.add(type);
+  }
+  return Result.success(out);
 }
 
 Result<List<String>?, PqTransportError> _parseAlpn(Map<int, Uint8List> exts) {

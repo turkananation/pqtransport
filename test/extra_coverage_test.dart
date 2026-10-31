@@ -433,6 +433,12 @@ void main() {
       expect(
         decodeEncryptedExtensions(
           encodeEncryptedExtensions(serverCertificateType: 0),
+        ).isSuccess,
+        isTrue,
+      );
+      expect(
+        decodeEncryptedExtensions(
+          encodeEncryptedExtensions(serverCertificateType: 1),
         ).isFailure,
         isTrue,
       );

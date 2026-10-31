@@ -41,17 +41,20 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
 - "Best-effort side-channel posture in Dart (VM / dart2js / dart2wasm
   cannot guarantee constant-time execution)."
 - Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
-  (2026-10-20, auth mode raw-pk). P-384 uses `PqForgeProfile.maximum`.
-  Not X.509. Not BoringSSL.
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`.
+  Two auth modes. raw-pk (2026-10-20): `-enable_server_rpk`, one ML-DSA-65
+  SubjectPublicKeyInfo. X.509: an ML-DSA-65 leaf signed by an ML-DSA-65
+  CA, chain length 1, that CA as the only caller-supplied anchor, DNS
+  `localhost`. P-384 uses `PqForgeProfile.maximum`. BoringSSL
+  0.20261020.0 runs `X509_verify_cert` on that leaf. It is not a
+  BoringSSL TLS peer. curl linked to this OpenSSL completes one
+  X25519MLKEM768 HTTPS GET with `--cacert`. Not a browser. Not WebPKI.
+  Not `curl --http3`.
 
-ADR-0014 (proposed, amended 2026-10-27) does not add a sentence. The
-certificate codec is a pqforge 0.4.8 export. An implementation PR may
-add an interop sentence only for a flight that is in that same PR, with
-the OpenSSL version, the groups, the auth mode, and the chain length.
-"Works with browsers" is not that sentence. A browser-shaped ClientHello
-is specified so an opted-in server can answer one. BoringSSL, WebPKI,
-and the system trust store stay unclaimed until a flight says otherwise.
+ADR-0014 is implemented for a caller-supplied chain of 1 to 8. There
+is no AIA fetch, no system trust store, and no browser flight. A
+browser-shaped ClientHello (the certificate-type extension omitted)
+is what the X.509 mode sends. A live Chrome handshake is not claimed.
 
 ## Forbidden wording
 
@@ -68,15 +71,16 @@ Use instead:
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | The one sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk. Nothing wider. |
+| Interoperable with OpenSSL | The sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk and the one ML-DSA-65 X.509 chain. BoringSSL verifies that leaf only. curl is one HTTPS GET. Nothing wider. |
 
 Also forbidden in meaning, even if the substring differs:
 
 - "certified", "FIPS 140 module" as a positive claim.
 - "Production-ready post-quantum TLS" in the OpenSSL sense.
-- RFC-byte-exact TLS 1.3 interoperability with OpenSSL / BoringSSL
-  beyond those three raw-pk groups. X.509 paths are not
-  validated.
+- RFC-byte-exact TLS 1.3 interoperability with OpenSSL beyond the
+  three groups and the two auth modes in the sentence above. BoringSSL
+  is a leaf check, not a TLS peer. A browser handshake is not claimed.
+  WebPKI is not claimed.
 - Putting IANA `0x1302` on a SHA-256 schedule (that lie is closed: the
   `0x1302` path is SHA-384).
 - Web UDP / mDNS / raw QUIC when the target is a browser.

@@ -31,6 +31,7 @@ export 'src/quic/connection.dart';
 export 'src/quic/congestion.dart';
 export 'src/quic/recovery.dart';
 export 'src/socket/pq_transport_socket.dart';
+export 'src/tls/certificate_policy.dart';
 export 'src/tls/cipher_suite.dart';
 export 'src/tls/handshake.dart';
 export 'src/tls/key_schedule.dart';
