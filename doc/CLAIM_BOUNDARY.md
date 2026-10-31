@@ -17,7 +17,7 @@ Sister evidence:
 | Package | Floor | Role |
 | --- | --- | --- |
 | pqcrypto | 0.4.1 (via pqforge, not a direct dep) | FIPS 203/204/205 primitives, KATs |
-| pqforge | **0.4.5** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures |
+| pqforge | **0.4.8** | Hybrid KEX, AEAD (incl. dart2js ChaCha), ChaCha20 keystream for QUIC HP, HKDF, signatures |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
 | pqtransport | 0.1.0 in this tree, unpublished until gates pass | Protocol layer |
 
@@ -82,7 +82,7 @@ Also forbidden in meaning, even if the substring differs:
 | X25519MLKEM768 / SecP256r1MLKEM768 / SecP384r1MLKEM1024 | RFC 10024 | Codecs **and live KEX** for all three |
 | PQ/T terminology | RFC 9794 | Hybrid, not PQ-only |
 | ML-KEM / ML-DSA / SLH-DSA | FIPS 203 / 204 / 205 | Via pqforge → pqcrypto |
-| QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Not ECN, migration, multipath, anti-amplification, or `max_idle_timeout` (a local PTO budget stops a silent peer). Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha header protection fails closed. Not 0-RTT (LIM-05, issue 55): early data is not sent, so the Application Data space is 1-RTT only (RFC 9000 §12.3) and its PTO stays disarmed until the handshake is confirmed (RFC 9002 §6.2.1). Not `curl --http3`. |
+| QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Flow control (§4) and CONNECTION_CLOSE / drain (§10.2). A local idle timeout closes the connection only when the caller sets it; `max_idle_timeout` is not negotiated. Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha20 header protection is the RFC 9001 §5.4.4 mask (pqforge 0.4.8). Not ECN, migration, multipath, or anti-amplification. Not 0-RTT (LIM-05, issue 55): early data is not sent, so the Application Data space is 1-RTT only (RFC 9000 §12.3) and its PTO stays disarmed until the handshake is confirmed (RFC 9002 §6.2.1). Not `curl --http3`. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
 | DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |

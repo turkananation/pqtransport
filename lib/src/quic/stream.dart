@@ -23,10 +23,12 @@ final class QuicStreamReassembler {
   var _read = 0;
   var _finAt = -1;
   var _reset = false;
+  int? _resetCode;
   final machine = quicStreamMachine();
 
   bool get isFin => _finAt >= 0 && _read >= _finAt;
   bool get isReset => _reset;
+  int? get resetCode => _reset ? _resetCode : null;
   int get buffered => _read;
   bool get hasBuffered => _spans.isNotEmpty && _spans.first.offset == _read;
 
@@ -125,10 +127,19 @@ final class QuicStreamReassembler {
     return out.takeBytes();
   }
 
-  void reset() {
+  Result<void, PqTransportError> reset(int errorCode) {
+    if (machine.currentState != QuicStreamState.reset) {
+      final moved = machine.trigger(QuicStreamEvent.reset);
+      if (moved.isFailure) {
+        return Result.failure(
+          PqTransportError.unexpectedMessage('stream reset illegal'),
+        );
+      }
+    }
     _reset = true;
+    _resetCode = errorCode;
     _spans.clear();
-    machine.trigger(QuicStreamEvent.reset);
+    return const Result.success(null);
   }
 }
 

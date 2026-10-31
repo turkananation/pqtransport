@@ -41,13 +41,31 @@ final class PqQuicConn {
     required this._deliver,
     QuicClock? clock,
     int maxDatagramSize = quicMinClientInitialUdpBytes,
+    int maxData = quicMaxDataDefault,
+    int maxStreamData = quicMaxStreamDataDefault,
+    int? sendMaxData,
+    int? sendMaxStreamData,
+    int? recvMaxData,
+    int? recvMaxStreamData,
+    this.flowWindow = 0,
+    this.idleTimeout,
   }) : lossRecovery = QuicLossRecovery(
          clock: clock ?? const QuicSystemClock(),
          isServer: !isClient,
          maxDatagramSize: maxDatagramSize,
        ),
        _streams = QuicStreamMap(isClient: isClient),
-       _flow = QuicFlowControl() {
+       _flow = QuicFlowControl(
+         maxData: maxData,
+         maxStreamData: maxStreamData,
+         sendMaxData: sendMaxData,
+         sendMaxStreamData: sendMaxStreamData,
+         recvMaxData: recvMaxData,
+         recvMaxStreamData: recvMaxStreamData,
+       ),
+       _connMachine = quicConnMachine() {
+    _connMachine.trigger(QuicConnectionEvent.start);
+    _lastActivity = lossRecovery.clock.now();
     final secrets = QuicInitialSecrets.derive(
       crypto: crypto,
       destinationConnectionId: isClient ? peerCid : localCid,
@@ -71,6 +89,14 @@ final class PqQuicConn {
     Future<Result<void, PqTransportError>> Function(Uint8List)? deliver,
     QuicClock? clock,
     int maxDatagramSize = quicMinClientInitialUdpBytes,
+    int maxData = quicMaxDataDefault,
+    int maxStreamData = quicMaxStreamDataDefault,
+    int? sendMaxData,
+    int? sendMaxStreamData,
+    int? recvMaxData,
+    int? recvMaxStreamData,
+    int flowWindow = 0,
+    Duration? idleTimeout,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     return PqQuicConn._(
@@ -86,6 +112,14 @@ final class PqQuicConn {
       deliver: deliver,
       clock: clock,
       maxDatagramSize: maxDatagramSize,
+      maxData: maxData,
+      maxStreamData: maxStreamData,
+      sendMaxData: sendMaxData,
+      sendMaxStreamData: sendMaxStreamData,
+      recvMaxData: recvMaxData,
+      recvMaxStreamData: recvMaxStreamData,
+      flowWindow: flowWindow,
+      idleTimeout: idleTimeout,
     );
   }
 
@@ -99,6 +133,14 @@ final class PqQuicConn {
     Future<Result<void, PqTransportError>> Function(Uint8List)? deliver,
     QuicClock? clock,
     int maxDatagramSize = quicMinClientInitialUdpBytes,
+    int maxData = quicMaxDataDefault,
+    int maxStreamData = quicMaxStreamDataDefault,
+    int? sendMaxData,
+    int? sendMaxStreamData,
+    int? recvMaxData,
+    int? recvMaxStreamData,
+    int flowWindow = 0,
+    Duration? idleTimeout,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     return PqQuicConn._(
@@ -115,6 +157,14 @@ final class PqQuicConn {
       deliver: deliver,
       clock: clock,
       maxDatagramSize: maxDatagramSize,
+      maxData: maxData,
+      maxStreamData: maxStreamData,
+      sendMaxData: sendMaxData,
+      sendMaxStreamData: sendMaxStreamData,
+      recvMaxData: recvMaxData,
+      recvMaxStreamData: recvMaxStreamData,
+      flowWindow: flowWindow,
+      idleTimeout: idleTimeout,
     );
   }
 
@@ -126,6 +176,10 @@ final class PqQuicConn {
     List<String>? alpnProtocols,
     QuicClock? clock,
     int maxDatagramSize = quicMinClientInitialUdpBytes,
+    int maxData = quicMaxDataDefault,
+    int maxStreamData = quicMaxStreamDataDefault,
+    int flowWindow = 0,
+    Duration? idleTimeout,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final id = identity ?? PqTlsServerIdentity.generate(c);
@@ -142,6 +196,10 @@ final class PqQuicConn {
       deliver: (p) => server.ingestDatagram(p),
       clock: clock,
       maxDatagramSize: maxDatagramSize,
+      maxData: maxData,
+      maxStreamData: maxStreamData,
+      flowWindow: flowWindow,
+      idleTimeout: idleTimeout,
     );
     server = PqQuicConn.server(
       crypto: c,
@@ -153,6 +211,10 @@ final class PqQuicConn {
       deliver: (p) => client.ingestDatagram(p),
       clock: clock,
       maxDatagramSize: maxDatagramSize,
+      maxData: maxData,
+      maxStreamData: maxStreamData,
+      flowWindow: flowWindow,
+      idleTimeout: idleTimeout,
     );
     return (client, server);
   }
@@ -169,6 +231,12 @@ final class PqQuicConn {
   final Future<Result<void, PqTransportError>> Function(Uint8List)? _deliver;
   final QuicStreamMap _streams;
   final QuicFlowControl _flow;
+  final int flowWindow;
+  final Duration? idleTimeout;
+  final StateMachine<QuicConnectionState, QuicConnectionEvent> _connMachine;
+  final List<_QuicStalledSend> _stalled = [];
+  late DateTime _lastActivity;
+  DateTime? _drainUntil;
   final List<Uint8List> outgoing = [];
   final List<QuicRetransmittable> _pending = [];
   final Map<QuicPacketNumberSpace, QuicAckProcessor> _received = {
@@ -192,6 +260,15 @@ final class PqQuicConn {
   bool get isComplete => _tls.isComplete;
   String? get alpn => _tls.alpn;
   QuicStreamMap get streams => _streams;
+  QuicConnectionState get connectionState => _connMachine.currentState;
+  bool get isDraining => connectionState == QuicConnectionState.draining;
+  bool get isClosed =>
+      connectionState == QuicConnectionState.closed ||
+      connectionState == QuicConnectionState.failed;
+  bool get _terminal => isDraining || isClosed;
+
+  /// Application error code from a received or local RESET_STREAM.
+  int? streamResetCode(int id) => _streams.streams[id]?.resetCode;
 
   /// STREAM bytes accepted by [writeStream] and not yet sealed into a packet.
   int get pendingApplicationBytes {
@@ -339,11 +416,28 @@ final class PqQuicConn {
         PqTransportError.handshakeFailure('quic not complete'),
       );
     }
+    if (_terminal) {
+      return Result.failure(PqTransportError.closed('quic closed'));
+    }
     if (_error != null) return Result.failure(_error!);
+    final idle = _checkIdle();
+    if (idle != null) return Result.failure(idle);
     _syncHandshake();
-    final flow = _flow.consume(id, data.length);
-    if (flow.isFailure) return flow;
+    final existing = _streams.streams[id];
+    if (existing != null && existing.isReset) {
+      return Result.failure(PqTransportError.closed('stream reset'));
+    }
     _streams.streams.putIfAbsent(id, () => QuicStreamReassembler(id));
+    final queued = _enqueueSend(id, data, fin: fin);
+    if (queued.isFailure) return queued;
+    return _flush();
+  }
+
+  Result<void, PqTransportError> _enqueueSend(
+    int id,
+    Uint8List data, {
+    required bool fin,
+  }) {
     final room = lossRecovery.maxDatagramPayload;
     if (room < 1) {
       return Result.failure(
@@ -360,24 +454,73 @@ final class PqQuicConn {
           fin: fin,
         ),
       );
-    } else {
+      return const Result.success(null);
+    }
+    final budget = _flow.budget(
+      streamId: id,
+      offset: base,
+      length: data.length,
+    );
+    if (budget.allowed > 0) {
+      final take = Uint8List.sublistView(data, 0, budget.allowed);
       var off = 0;
-      while (off < data.length) {
-        final rest = data.length - off;
+      while (off < take.length) {
+        final rest = take.length - off;
         final n = rest < room ? rest : room;
         _pending.add(
           QuicRetransmitStream(
             streamId: id,
             offset: base + off,
-            data: Uint8List.fromList(data.sublist(off, off + n)),
-            fin: fin && off + n == data.length,
+            data: Uint8List.fromList(take.sublist(off, off + n)),
+            fin: fin && budget.allowed == data.length && off + n == take.length,
           ),
         );
         off += n;
       }
+      _flow.commitSend(id, base + budget.allowed);
+      _sendOffsets[id] = base + budget.allowed;
     }
-    _sendOffsets[id] = base + data.length;
-    return _flush();
+    if (budget.allowed < data.length) {
+      _stalled.add(
+        _QuicStalledSend(id, Uint8List.sublistView(data, budget.allowed), fin),
+      );
+      _queueBlocked(id, budget);
+    }
+    return const Result.success(null);
+  }
+
+  void _queueBlocked(int id, QuicSendBudget budget) {
+    if (budget.connectionBlocked) {
+      final limit = _flow.peerMaxData;
+      _queueControl('db:$limit', QuicDataBlockedFrame(limit).encode());
+    }
+    if (budget.streamBlocked) {
+      final limit = _flow.peerStreamMax(id);
+      _queueControl(
+        'sb:$id:$limit',
+        QuicStreamDataBlockedFrame(id, limit).encode(),
+      );
+    }
+  }
+
+  void _queueControl(String token, Uint8List bytes) {
+    if (_pending.any((frame) => frame.token == token)) return;
+    _pending.add(
+      QuicRetransmitFrame(
+        space: QuicPacketNumberSpace.application,
+        token: token,
+        bytes: bytes,
+      ),
+    );
+  }
+
+  void _releaseStalled() {
+    if (_stalled.isEmpty || _terminal) return;
+    final waiting = List<_QuicStalledSend>.of(_stalled);
+    _stalled.clear();
+    for (final item in waiting) {
+      _enqueueSend(item.id, item.data, fin: item.fin);
+    }
   }
 
   int openBidi() => _streams.openBidi();
@@ -386,7 +529,146 @@ final class PqQuicConn {
   Uint8List readStream(int id) {
     final s = _streams.streams[id];
     if (s == null) return Uint8List(0);
-    return s.takeAvailable();
+    final bytes = s.takeAvailable();
+    if (bytes.isNotEmpty && !_terminal) {
+      for (final frame in _flow.onConsumed(
+        streamId: id,
+        bytes: bytes.length,
+        window: flowWindow,
+      )) {
+        _queueControl('ad:$id:${frame[0]}:${frame.length}', frame);
+      }
+    }
+    return bytes;
+  }
+
+  /// Seal MAX_DATA / MAX_STREAM_DATA queued by [readStream].
+  Future<Result<void, PqTransportError>> flushControl() {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        if (_terminal) {
+          done.complete(Result.failure(PqTransportError.closed('quic closed')));
+        } else {
+          done.complete(await _flush());
+        }
+        _wake();
+      } on Object catch (e) {
+        final err = PqTransportError.internalError('quic flush $e');
+        _error = err;
+        done.complete(Result.failure(err));
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  /// RFC 9000 §19.4. [errorCode] is an application error.
+  Future<Result<void, PqTransportError>> resetStream(int id, int errorCode) {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        final reset = await _resetStream(id, errorCode);
+        done.complete(reset);
+        _wake();
+      } on Object catch (e) {
+        final err = PqTransportError.internalError('quic reset $e');
+        _error = err;
+        done.complete(Result.failure(err));
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  Future<Result<void, PqTransportError>> _resetStream(
+    int id,
+    int errorCode,
+  ) async {
+    if (!isComplete) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('quic not complete'),
+      );
+    }
+    if (_terminal) {
+      return Result.failure(PqTransportError.closed('quic closed'));
+    }
+    final stream = _streams.streams.putIfAbsent(
+      id,
+      () => QuicStreamReassembler(id),
+    );
+    final marked = stream.reset(errorCode);
+    if (marked.isFailure) return marked;
+    _stalled.removeWhere((item) => item.id == id);
+    final finalSize = _sendOffsets[id] ?? 0;
+    _queueControl(
+      'rst:$id:$errorCode:$finalSize',
+      QuicResetStreamFrame(
+        id: id,
+        errorCode: errorCode,
+        finalSize: finalSize,
+      ).encode(),
+    );
+    return _flush();
+  }
+
+  /// RFC 9000 §10.2. Sends CONNECTION_CLOSE, then discards inbound
+  /// packets until three times the current PTO have passed.
+  Future<Result<void, PqTransportError>> close({
+    int errorCode = quicErrorNoError,
+    bool application = true,
+  }) {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        done.complete(
+          await _close(errorCode: errorCode, application: application),
+        );
+        _wake();
+      } on Object catch (e) {
+        final err = PqTransportError.internalError('quic close $e');
+        _error = err;
+        done.complete(Result.failure(err));
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  Future<Result<void, PqTransportError>> _close({
+    required int errorCode,
+    required bool application,
+  }) async {
+    if (isClosed) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('quic already closed'),
+      );
+    }
+    if (isDraining) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('quic already draining'),
+      );
+    }
+    _syncHandshake();
+    final frame = QuicConnectionCloseFrame(
+      application: application,
+      errorCode: errorCode,
+    ).encode();
+    _pending
+      ..clear()
+      ..add(
+        QuicRetransmitFrame(
+          space: isComplete
+              ? QuicPacketNumberSpace.application
+              : QuicPacketNumberSpace.initial,
+          token: 'close:$errorCode',
+          bytes: frame,
+        ),
+      );
+    _stalled.clear();
+    final sent = await _flush(ignoreWindowPackets: 1);
+    _enterDrain();
+    return sent;
   }
 
   bool streamFin(int id) => _streams.streams[id]?.isFin ?? false;
@@ -394,6 +676,10 @@ final class PqQuicConn {
   bool streamHasData(int id) => _streams.streams[id]?.hasBuffered ?? false;
 
   Future<Result<void, PqTransportError>> _driveLossRecovery() async {
+    final idle = _checkIdle();
+    if (idle != null) return Result.failure(idle);
+    final drained = _checkDrain();
+    if (drained != null) return Result.failure(drained);
     if (_error != null) return Result.failure(_error!);
     final event = lossRecovery.onLossDetectionTimeout();
     if (event.isFailure) return Result.failure(event.errorOrNull!);
@@ -403,6 +689,13 @@ final class PqQuicConn {
   }
 
   Future<Result<void, PqTransportError>> _ingest(Uint8List wire) async {
+    if (_terminal) {
+      final drained = _checkDrain();
+      if (drained != null) return Result.failure(drained);
+      return const Result.success(null);
+    }
+    final idle = _checkIdle();
+    if (idle != null) return Result.failure(idle);
     if (wire.isEmpty) {
       return Result.failure(PqTransportError.decodeFailure('empty quic'));
     }
@@ -450,6 +743,10 @@ final class PqQuicConn {
     recv.onReceived(packetNumber);
     if (body.ackEliciting) _wantAck[space] = true;
     if (!duplicate) {
+      if (body.closes.isNotEmpty) {
+        _enterDrain();
+        return const Result.success(null);
+      }
       for (final frame in body.crypto) {
         final reply = await _tls.ingest(frame);
         if (reply.isFailure) return Result.failure(reply.errorOrNull!);
@@ -464,9 +761,34 @@ final class PqQuicConn {
         }
       }
       for (final frame in body.streams) {
+        if (frame.data.isNotEmpty) {
+          final limited = _flow.receive(
+            frame.id,
+            frame.offset + frame.data.length,
+          );
+          if (limited.isFailure) {
+            await _close(errorCode: quicErrorFlowControl, application: false);
+            return limited;
+          }
+        }
         final ingested = _streams.ingest(frame);
         if (ingested.isFailure) return Result.failure(ingested.errorOrNull!);
       }
+      for (final frame in body.maxData) {
+        _flow.onMaxData(frame.maximum);
+      }
+      for (final frame in body.maxStreamData) {
+        _flow.onMaxStreamData(frame.id, frame.maximum);
+      }
+      for (final frame in body.resets) {
+        final stream = _streams.streams.putIfAbsent(
+          frame.id,
+          () => QuicStreamReassembler(frame.id),
+        );
+        final marked = stream.reset(frame.errorCode);
+        if (marked.isFailure) return marked;
+      }
+      _releaseStalled();
       for (final ack in body.acks) {
         final event = lossRecovery.onAck(space, ack);
         if (event.isFailure) return Result.failure(event.errorOrNull!);
@@ -475,6 +797,7 @@ final class PqQuicConn {
       }
     }
     _syncHandshake();
+    _noteActivity();
     _wake();
     return _flush();
   }
@@ -675,6 +998,7 @@ final class PqQuicConn {
     if (includeAck) _wantAck[space] = false;
     final emitted = await _emit(packet);
     if (emitted.isFailure) return Result.failure(emitted.errorOrNull!);
+    _noteActivity();
     return const Result.success(true);
   }
 
@@ -694,6 +1018,9 @@ final class PqQuicConn {
     if (!_markedConfirmed) {
       _markedConfirmed = true;
       lossRecovery.markHandshakeConfirmed();
+      if (_connMachine.currentState == QuicConnectionState.handshake) {
+        _connMachine.trigger(QuicConnectionEvent.handshakeDone);
+      }
     }
     if (_initialDiscarded) return;
     if (_pending.any((frame) => frame.space == QuicPacketNumberSpace.initial)) {
@@ -715,11 +1042,67 @@ final class PqQuicConn {
     _appSeal = QuicPacketCodec.fromKeys(
       crypto,
       quicKeysFromTls(schedule: _tls.schedule, trafficSecret: sendSecret),
+      aead: _tls.schedule.aead,
     );
     _appOpen = QuicPacketCodec.fromKeys(
       crypto,
       quicKeysFromTls(schedule: _tls.schedule, trafficSecret: recvSecret),
+      aead: _tls.schedule.aead,
     );
+  }
+
+  void _noteActivity() {
+    _lastActivity = lossRecovery.clock.now();
+  }
+
+  PqTransportError? _checkIdle() {
+    final limit = idleTimeout;
+    if (limit == null || _terminal) return null;
+    if (lossRecovery.clock.now().difference(_lastActivity) < limit) {
+      return null;
+    }
+    _silentClose();
+    return PqTransportError.closed('idle timeout');
+  }
+
+  void _silentClose() {
+    _pending.clear();
+    _stalled.clear();
+    final state = _connMachine.currentState;
+    if (state == QuicConnectionState.ready ||
+        state == QuicConnectionState.handshake ||
+        state == QuicConnectionState.idle) {
+      _connMachine.trigger(QuicConnectionEvent.close);
+    }
+    _error = PqTransportError.closed('idle timeout');
+  }
+
+  PqTransportError? _checkDrain() {
+    final until = _drainUntil;
+    if (until == null) return null;
+    if (lossRecovery.clock.now().isBefore(until)) return null;
+    if (connectionState == QuicConnectionState.draining) {
+      _connMachine.trigger(QuicConnectionEvent.close);
+    }
+    _error = PqTransportError.closed('drained');
+    return _error;
+  }
+
+  void _enterDrain() {
+    _pending.clear();
+    _stalled.clear();
+    final state = _connMachine.currentState;
+    if (state == QuicConnectionState.ready) {
+      _connMachine.trigger(QuicConnectionEvent.drain);
+    } else if (state == QuicConnectionState.handshake ||
+        state == QuicConnectionState.idle) {
+      _connMachine.trigger(QuicConnectionEvent.close);
+      _error = PqTransportError.closed('quic closed');
+      return;
+    }
+    final micros = lossRecovery.ptoMicros * quicDrainPtoMultiplier;
+    _drainUntil = lossRecovery.clock.now().add(Duration(microseconds: micros));
+    _error = PqTransportError.closed('quic draining');
   }
 
   void _armBoundTimers() {
@@ -779,4 +1162,12 @@ final class QuicLossSubscription {
       unawaited(_conn.driveLossRecovery());
     });
   }
+}
+
+final class _QuicStalledSend {
+  _QuicStalledSend(this.id, this.data, this.fin);
+
+  final int id;
+  final Uint8List data;
+  final bool fin;
 }

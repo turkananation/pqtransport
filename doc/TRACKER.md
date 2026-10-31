@@ -107,6 +107,9 @@ None. OPEN-10 is **Fixed** (row below).
 | OPEN-07 | P2 | **Fixed** | HTTP/2 on `PqTlsSocket`; HTTP/3+QPACK on `PqQuicConn` STREAM |
 | OPEN-10 | P2 | **Fixed** | RFC 8484 DoH (`DohClient` h2/h3) and RFC 7858 DoT (ALPN `dot`). `tool/interop` for curl/nghttp2 and nghttp3 QPACK |
 | OPEN-15 | P2 | **Fixed** | RFC 9002 loss detection, PTO, NewReno. `test/quic/recovery_test.dart` |
+| OPEN-16 | P2 | **Fixed** | RFC 9001 §5.4.4 ChaCha20 header protection. pqforge 0.4.8 |
+| OPEN-17 | P2 | **Fixed** | RFC 9000 §4 flow control. `test/quic/lifecycle_test.dart` |
+| OPEN-18 | P2 | **Fixed** | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 

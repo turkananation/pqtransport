@@ -125,6 +125,28 @@ final class QuicRetransmitPing extends QuicRetransmittable {
   Uint8List encode() => Uint8List.fromList([quicFramePing]);
 }
 
+/// One already-encoded control frame (MAX_DATA, blocked, RESET_STREAM,
+/// CONNECTION_CLOSE). Lost copies are sealed again under a new packet
+/// number, same as STREAM (RFC 9000 §13.3).
+final class QuicRetransmitFrame extends QuicRetransmittable {
+  QuicRetransmitFrame({
+    required this.space,
+    required this.token,
+    required this.bytes,
+  });
+
+  @override
+  final QuicPacketNumberSpace space;
+
+  @override
+  final String token;
+
+  final Uint8List bytes;
+
+  @override
+  Uint8List encode() => bytes;
+}
+
 /// One packet remembered by loss detection.
 final class QuicSentPacket {
   QuicSentPacket({
@@ -295,6 +317,11 @@ final class QuicLossRecovery {
   bool get ptoBudgetExhausted => _ptoBudgetExhausted;
   bool get handshakeConfirmed => _handshakeConfirmed;
   bool get inSlowStart => controller.inSlowStart;
+
+  /// RFC 9002 §6.2.1 PTO period. RFC 9000 §10.2 multiplies this by three
+  /// for the draining period.
+  int get ptoMicros =>
+      _ptoDurationMicros(includeMaxAckDelay: _handshakeConfirmed);
 
   /// When [onLossDetectionTimeout] will do work. Null means the timer is
   /// disarmed (nothing in flight, or the PTO budget is spent).

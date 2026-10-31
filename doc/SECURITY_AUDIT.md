@@ -79,14 +79,13 @@ Handshake and application epochs have independent counters
 (`TlsRecordEpoch`). Mixing them again would reuse nonces under the
 same key.
 
-### S7 — QUIC ChaCha HP and 0-RTT (LIM-05 / residual)
+### S7 — QUIC 0-RTT (LIM-05 / residual)
 
-AES header protection and RFC 9001 TLS-in-QUIC are **done** (OPEN-06).
-ChaCha20 HP is not implemented and fails closed. 0-RTT is not
-implemented (LIM-05, issue 55). RFC 9000 §12.3 would put it in the
-Application Data space; this stack does not send it, and RFC 9002
-§6.2.1 keeps that PTO disarmed until the handshake is confirmed.
-CRYPTO frames carry a live encapsulate.
+AES and ChaCha20 header protection are done (OPEN-06, OPEN-16).
+0-RTT is not implemented (LIM-05, issue 55). RFC 9000 §12.3 would put
+it in the Application Data space; this stack does not send it, and
+RFC 9002 §6.2.1 keeps that PTO disarmed until the handshake is
+confirmed. CRYPTO frames carry a live encapsulate.
 
 ### S8 — UDP HKDF extra is shared (by design)
 
@@ -132,7 +131,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |
 | DNS cache poisoning from compressed rdata names | Mitigated (OPEN-08): rdata pointers resolve against the outer message; RDLENGTH bounds the record |
 | mDNS spoofing on a real LAN | Mitigated in part (OPEN-09): `joinMulticast` required to receive; signed TXT (`pqsig=`) when used. Spoofed LAN peers remain a threat. |
-| QUIC injection via unprotected headers | Mitigated (OPEN-06): AES-ECB HP on Initial and 1-RTT. ChaCha HP not implemented. |
+| QUIC injection via unprotected headers | Mitigated (OPEN-06, OPEN-16): AES-ECB HP on Initial and AES 1-RTT. ChaCha20 HP uses the pqforge 0.4.8 keystream. |
 | Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.6` / transitive pqcrypto |
 
 ## Audit extras that are **not** claimed

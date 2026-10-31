@@ -74,6 +74,11 @@ final class PqTransportError implements Exception {
     message: 'throttled: $why',
   );
 
+  factory PqTransportError.flowControl(String why) => PqTransportError._(
+    code: PqTransportErrorCode.flowControl,
+    message: 'flow_control: $why',
+  );
+
   factory PqTransportError.closed(String why) => PqTransportError._(
     code: PqTransportErrorCode.closed,
     message: 'closed: $why',
@@ -109,6 +114,7 @@ enum PqTransportErrorCode {
   replay,
   throttled,
   closed,
+  flowControl,
   unsupported,
 }
 
