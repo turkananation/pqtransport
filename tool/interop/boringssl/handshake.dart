@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:pqforge/pqforge.dart';
 import 'package:pqtransport/pqtransport_io.dart';
 
+import 'ech_flight.dart';
+
 /// BoringSSL 0.20261020.0 as a TLS process. X25519MLKEM768 and
 /// TLS_AES_256_GCM_SHA384 only. Not SecP256r1MLKEM768. Not
 /// SecP384r1MLKEM1024. Not a browser.
@@ -27,6 +29,7 @@ Future<void> main(List<String> args) async {
     await _clientFlights(peer, minted.path);
     await _serverFlights(peer);
     await _classicalFlights(peer);
+    await boringsslEchFlights(peer);
     stdout.writeln(
       'BoringSSL 0.20261020.0 handshakes complete on X25519MLKEM768, '
       'TLS_AES_256_GCM_SHA384. ML-DSA-65 X.509 chain length 1, one '

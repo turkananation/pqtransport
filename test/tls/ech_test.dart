@@ -102,4 +102,38 @@ void main() {
     expect(server.isComplete, isFalse);
     expect(server.acceptedServerName, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
+
+  test('a parsed ECHConfig keeps BoringSSL wire bytes', () {
+    final ours = EchConfig(
+      configId: 7,
+      publicKey: Uint8List(32),
+      publicName: 'public.example',
+      maximumNameLength: 64,
+    );
+    final wire = ours.encode();
+    final parsed = EchConfig.parse(wire);
+    expect(parsed.isSuccess, isTrue, reason: '${parsed.errorOrNull}');
+    expect(parsed.valueOrNull!.encode(), wire);
+    final extra = Uint8List(wire.length + 4);
+    extra.setRange(0, wire.length, wire);
+    final contentsLen = wire[2] << 8 | wire[3];
+    extra[2] = (contentsLen + 4) >> 8;
+    extra[3] = (contentsLen + 4) & 0xff;
+    var i = 4 + 1 + 2;
+    final keyLen = extra[i] << 8 | extra[i + 1];
+    i += 2 + keyLen;
+    final suiteLen = extra[i] << 8 | extra[i + 1];
+    extra[i] = (suiteLen + 4) >> 8;
+    extra[i + 1] = (suiteLen + 4) & 0xff;
+    final insertAt = i + 2 + suiteLen;
+    extra.setRange(insertAt + 4, extra.length, wire.sublist(insertAt));
+    extra[insertAt] = 0;
+    extra[insertAt + 1] = 1;
+    extra[insertAt + 2] = 0;
+    extra[insertAt + 3] = 3;
+    final two = EchConfig.parse(extra);
+    expect(two.isSuccess, isTrue, reason: '${two.errorOrNull}');
+    expect(two.valueOrNull!.encode(), extra);
+    expect(two.valueOrNull!.publicName, 'public.example');
+  });
 }

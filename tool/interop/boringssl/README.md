@@ -19,7 +19,8 @@ are HelloRetryRequest. BoringSSL sends that retry with no cookie.
 | Hybrid | `X25519MLKEM768` (`0x11EC`). ML-KEM then X25519. ML-DSA-65 chain length 1, one P-256 leaf, ML-DSA-65 raw public key. |
 | Fallback | `X25519` (`29`), `secp256r1` (`23`), `secp384r1` (`24`), `MLKEM1024` (`0x0202`). ML-DSA-65 chain length 1 only. |
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`) |
-| Negative | A different CA is rejected on the hybrid flight. |
+| Negative | A different CA is rejected on the hybrid flight. ECH without the server key ends in `ech_required` and no second ClientHello. |
+| ECH | RFC 9849, both directions, X25519MLKEM768 only. Inner name `localhost`, public name `public.example`. `bssl s_server` / `bssl s_client`. Not OpenSSL. Not DNS. Not GREASE. Not a browser. |
 | Not claimed | SecP256r1MLKEM768, SecP384r1MLKEM1024, MLKEM512, MLKEM768, TLS 1.2, a browser, WebPKI, curl. |
 
 SecP256r1MLKEM768 and SecP384r1MLKEM1024 are not `SSL_GROUP_*` values in
