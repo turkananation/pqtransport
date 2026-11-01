@@ -131,12 +131,12 @@ void main() {
       final share = Uint8List(g.clientShareBytes)..[0] = 1;
       final ch = ClientHello(
         random: Uint8List(handshakeRandomBytes)..[0] = 7,
-        group: g,
+        group: g.named,
         share: share,
       );
       final decoded = ClientHello.decode(ch.encode());
       expect(decoded.isSuccess, isTrue);
-      expect(decoded.valueOrNull!.group, g);
+      expect(decoded.valueOrNull!.group, g.named);
       expect(
         ClientHello.decode(Uint8List.fromList([99, 0, 0, 0])).isFailure,
         isTrue,
@@ -145,7 +145,7 @@ void main() {
       final ssh = Uint8List(g.serverShareBytes)..[0] = 2;
       final sh = ServerHello(
         random: Uint8List(handshakeRandomBytes)..[1] = 8,
-        group: g,
+        group: g.named,
         share: ssh,
       );
       expect(ServerHello.decode(sh.encode()).isSuccess, isTrue);
@@ -169,7 +169,7 @@ void main() {
       final g = HybridGroup.x25519MlKem768;
       final encoded = ClientHello(
         random: Uint8List(handshakeRandomBytes),
-        group: g,
+        group: g.named,
         share: Uint8List(g.clientShareBytes)..[0] = 1,
       ).encode();
       final smashed = Uint8List.fromList(encoded);
@@ -390,7 +390,7 @@ void main() {
         ClientHello.decode(
           ClientHello(
             random: Uint8List(handshakeRandomBytes),
-            group: g,
+            group: g.named,
             share: Uint8List(g.clientShareBytes)..[0] = 1,
             cipherSuites: const [0x1301],
           ).encode(),

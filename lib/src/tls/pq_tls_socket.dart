@@ -11,7 +11,9 @@ import '../socket/pq_transport_socket.dart';
 import 'pq_tls_client.dart';
 import 'pq_tls_server.dart';
 import 'certificate_policy.dart';
+import 'ech.dart';
 import 'handshake.dart';
+import 'named_group.dart';
 import 'record.dart';
 import 'tls_state.dart';
 
@@ -35,6 +37,8 @@ final class PqTlsSocket {
     PqCertificateHook? verifyPeer,
     DateTime Function()? now,
     String? serverName,
+    List<TlsNamedGroup>? onlyShares,
+    EchConfig? ech,
   }) => PqTlsSocket._(
     inner,
     PqTlsClient(
@@ -50,6 +54,8 @@ final class PqTlsSocket {
       verifyPeer: verifyPeer,
       now: now,
       serverName: serverName,
+      onlyShares: onlyShares,
+      ech: ech,
     ),
     null,
   );
@@ -60,6 +66,7 @@ final class PqTlsSocket {
     PqTlsServerIdentity? identity,
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
+    EchServerConfig? ech,
   }) => PqTlsSocket._(
     inner,
     null,
@@ -68,6 +75,7 @@ final class PqTlsSocket {
       identity: identity,
       group: group,
       alpnProtocols: alpnProtocols,
+      ech: ech,
     ),
   );
 
@@ -80,6 +88,7 @@ final class PqTlsSocket {
   Completer<Result<void, PqTransportError>>? _handshake;
   final List<int> _recordBytes = [];
   var _recordDead = false;
+  var _closeNotifySent = false;
 
   Stream<Uint8List> get applicationData => _app.stream;
 
@@ -97,6 +106,10 @@ final class PqTlsSocket {
 
   /// RFC 7301 protocol selected in EncryptedExtensions. Null if omitted.
   String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
+
+  /// Named group in ServerHello. Null before that message is accepted.
+  TlsNamedGroup? get negotiatedGroup =>
+      _client?.negotiatedGroup ?? _server?.negotiatedGroup;
 
   Future<Result<void, PqTransportError>> handshake({
     Duration timeout = const Duration(seconds: 20),
@@ -132,7 +145,13 @@ final class PqTlsSocket {
       final type = _recordBytes[0];
       final version = (_recordBytes[1] << 8) | _recordBytes[2];
       final length = (_recordBytes[3] << 8) | _recordBytes[4];
-      if (version != tlsLegacyVersion ||
+      final initialClientHello = _server?.state == TlsState.waitClientHello;
+      if (!_legacyRecordVersion(
+            version: version,
+            type: type,
+            length: length,
+            initialClientHello: initialClientHello,
+          ) ||
           length > tlsMaxCiphertextBytes ||
           !_tlsContentType(type)) {
         _recordDead = true;
@@ -263,11 +282,40 @@ final class PqTlsSocket {
   }
 
   Future<void> close() async {
+    await _sendCloseNotify();
     await _sub?.cancel();
     await _client?.close();
     await _server?.close();
     await _app.close();
     await _inner.close();
+  }
+
+  /// RFC 8446 §6.1. A warning close_notify, then the TCP close. Without
+  /// it OpenSSL reports unexpected eof and a non-zero status.
+  Future<void> _sendCloseNotify() async {
+    if (_closeNotifySent || _recordDead || !isComplete) return;
+    final schedule = _client?.schedule ?? _server?.schedule;
+    final records = _client?.records ?? _server?.records;
+    if (schedule == null || records == null) return;
+    _closeNotifySent = true;
+    final isClient = _client != null;
+    final sealed = records.protectWith(
+      trafficSecret: isClient
+          ? schedule.clientApplicationTraffic
+          : schedule.serverApplicationTraffic,
+      iv: isClient
+          ? schedule.clientApplicationIv
+          : schedule.serverApplicationIv,
+      inner: TlsRecord(
+        type: tlsContentAlert,
+        payload: Uint8List.fromList([
+          tlsAlertLevelWarning,
+          tlsAlertCloseNotify,
+        ]),
+      ),
+      epoch: TlsRecordEpoch.application,
+    );
+    await _inner.send(sealed);
   }
 }
 
@@ -276,3 +324,18 @@ bool _tlsContentType(int type) =>
     type == tlsContentAlert ||
     type == tlsContentHandshake ||
     type == tlsContentApplicationData;
+
+/// RFC 8446 §5.1. Records are [tlsLegacyVersion]. An initial ClientHello
+/// may use [tlsCompatibleRecordVersion] so a middlebox will pass it.
+bool _legacyRecordVersion({
+  required int version,
+  required int type,
+  required int length,
+  required bool initialClientHello,
+}) {
+  if (version == tlsLegacyVersion) return true;
+  return version == tlsCompatibleRecordVersion &&
+      type == tlsContentHandshake &&
+      length > 0 &&
+      initialClientHello;
+}

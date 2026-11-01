@@ -33,7 +33,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | SNI, ALPN, key_share extensions | Done |
 | X.509 / certificate chains | Not started (raw-pk negotiated, OPEN-04) |
 | ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js via pqforge 0.4.5) |
-| OpenSSL 3.5.9 RFC 10024 | Done. Three groups. raw-pk, and one ML-DSA-65 X.509 chain. BoringSSL verifies that leaf only. curl does one GET. Not a browser. |
+| OpenSSL 3.5.9 RFC 10024 | Done. Three groups. raw-pk and X.509. BoringSSL 0.20261020.0 verifies that leaf, and handshakes X25519MLKEM768 plus X25519, secp256r1, secp384r1, and MLKEM1024. curl does two GETs. Not a browser. |
 
 ## UDP / DNS / mDNS / QUIC / HTTP
 

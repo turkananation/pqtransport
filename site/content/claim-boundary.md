@@ -45,7 +45,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | The sentence in [CLAIM_BOUNDARY.md](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md): OpenSSL 3.5.9, three groups, raw-pk and one ML-DSA-65 X.509 chain. BoringSSL verifies that leaf. curl is one GET. Not a browser. |
+| Interoperable with OpenSSL | The sentence in [CLAIM_BOUNDARY.md](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md): OpenSSL 3.5.9, three hybrid groups plus X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is those same groups. curl is two GETs. Not a browser. |
 
 Canonical file:
 [`doc/CLAIM_BOUNDARY.md`](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md).

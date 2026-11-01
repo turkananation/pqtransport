@@ -135,10 +135,10 @@ void main() {
     final g = HybridGroup.x25519MlKem768;
     final random = Uint8List(handshakeRandomBytes)..[0] = 7;
     final share = Uint8List(g.clientShareBytes)..[0] = 1;
-    final implicit = ClientHello(random: random, group: g, share: share);
+    final implicit = ClientHello(random: random, group: g.named, share: share);
     final explicit = ClientHello(
       random: random,
-      group: g,
+      group: g.named,
       share: share,
       certificateTypes: const [TlsCertificateType.rawPublicKey],
       signatureSchemes: const [tlsSignatureMldsa65, tlsSignatureMldsa87],
@@ -156,7 +156,7 @@ void main() {
 
     final omitted = ClientHello(
       random: random,
-      group: g,
+      group: g.named,
       share: share,
       certificateTypes: const [TlsCertificateType.x509],
     );
@@ -421,6 +421,57 @@ void main() {
     expect(checked.isSuccess, isTrue, reason: '${checked.errorOrNull}');
     expect(calls, 0);
   });
+
+  test(
+    'P-256 CertificateVerify is DER on the wire and raw still verifies',
+    () async {
+      final content = Uint8List.fromList([9, 8, 7]);
+      final raw = PqEcdsaP256.sign(privateKey: p256Secret, message: content);
+      final der = wireCertificateVerifySignature(
+        tlsSignatureEcdsaP256Sha256,
+        raw,
+      );
+      expect(der[0], 0x30);
+      expect(der.length, isNot(raw.length));
+      final leaf = PqX509.parse(p256Leaf).certificate!;
+      final checked = verifyLeafSignature(
+        leaf: leaf,
+        verify: TlsCertificateVerify(tlsSignatureEcdsaP256Sha256, der),
+        content: content,
+        mlDsaVerify:
+            ({
+              required Uint8List publicKey,
+              required Uint8List message,
+              required Uint8List signatureBytes,
+            }) => false,
+      );
+      expect(checked.isSuccess, isTrue, reason: '${checked.errorOrNull}');
+
+      final client = _x509Client(
+        crypto,
+        clock,
+        trustAnchors: [p256Ca],
+        signatureSchemes: const [tlsSignatureEcdsaP256Sha256],
+      );
+      final server = PqTlsServer(crypto: crypto, identity: p256Identity);
+      final rest = await _serverRest(client, server, ingestRest: false);
+      final opened = TlsRecordLayer(crypto, client.schedule).openWith(
+        trafficSecret: client.schedule.serverHandshakeTraffic,
+        iv: client.schedule.serverHandshakeIv,
+        wire: rest,
+      );
+      expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+      final cv = decodeCertVerify(_messages(opened.valueOrNull!.payload)[2]);
+      expect(cv.isSuccess, isTrue, reason: '${cv.errorOrNull}');
+      expect(cv.valueOrNull!.scheme, tlsSignatureEcdsaP256Sha256);
+      expect(cv.valueOrNull!.signature[0], 0x30);
+      final hs = await client.ingest(rest);
+      expect(hs.isSuccess, isTrue, reason: '${hs.errorOrNull}');
+      final done = await server.ingest(hs.valueOrNull!.single);
+      expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
+      expect(client.peerAuthenticated, isTrue);
+    },
+  );
 
   test('browser-shaped hello: no raw key, P-256 chain completes', () async {
     final browser = _x509Client(

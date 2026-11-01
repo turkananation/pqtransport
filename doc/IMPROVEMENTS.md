@@ -82,11 +82,10 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
 ## Suggested first PR (when directed)
 
-LIM-01 raw-pk against OpenSSL 3.5.9 covers X25519MLKEM768,
-SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`.
-That fixture is not X.509 and not BoringSSL. OPEN-14 is proposed
-separately ([ADR-0014](adr/ADR-0014-x509-certificate.md)): pqforge owns
-the certificate layer, pqtransport opts in. OPEN-01, OPEN-02,
+LIM-01 raw-pk against OpenSSL 3.5.9 covers the three RFC 10024 groups.
+That row is not the X.509 flight. OPEN-14 is **Done**: opt-in X.509,
+OpenSSL 3.5.9 `s_server` and `s_client` against `PqTlsSocket`.
+OPEN-01, OPEN-02,
 OPEN-04, OPEN-05, OPEN-06, OPEN-07, OPEN-08, OPEN-09, OPEN-12, OPEN-13
 are done. OPEN-10 (DoH/DoT) is done. ChaCha on
 dart2js is **done** in pqforge 0.4.5; QUIC HP uses pqforge 0.4.6

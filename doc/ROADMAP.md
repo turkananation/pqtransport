@@ -76,9 +76,10 @@ Exit gate: live handshake tests for **all three** RFC 10024 groups —
 | 0.4.2 | SecP256r1MLKEM768 and SecP384r1MLKEM1024 against the same peer | LIM-01 | **Done** — same driver. P-384 uses `maximum`. |
 | 0.4.3 | Documented failure modes (wrong concat, 1183-byte ek, SHA-256 vs SHA-384) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | **Done** — local tests named in that doc |
 
-The only allowed OpenSSL sentence is: Handshake interop with OpenSSL
-3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
-(2026-10-20, auth mode raw-pk). Not X.509. Not BoringSSL.
+The 0.4 sentence was raw-pk only (2026-10-20). The current OpenSSL
+sentence, including the X.509 client and server flights and the
+X25519 / secp256r1 / secp384r1 / MLKEM1024 fallback, is in
+[CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). Hybrid stays first.
 
 ## Slice 0.5 — datagram / HTTP production
 
@@ -102,7 +103,7 @@ stays the default).
 | # | Work | Closes |
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
-| 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Proposed.** pqforge 0.4.8 owns `lib/src/certificates/x509.dart`. pqtransport opts in. [ADR-0014](adr/ADR-0014-x509-certificate.md), [plan](plans/OPEN-14-x509-certificate.md). Not started. |
+| 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Done.** Opt-in chain of 1 to 8. OpenSSL 3.5.9 client and server flights. Default offer stays raw public key. [ADR-0014](adr/ADR-0014-x509-certificate.md). |
 
 0.6.2 does not include AIA, OCSP, CT, the system trust store, Merkle
 Tree Certificates, ChaCha header protection, QUIC flow-control frames,
@@ -125,9 +126,10 @@ Never parallelize:
 
 ## Suggested next coding turn (when directed)
 
-1. Do not implement OPEN-14 until ADR-0014 is accepted. pqforge 0.4.8
-   lands first. The contract is
-   [plans/OPEN-14-x509-certificate.md](plans/OPEN-14-x509-certificate.md).
+1. OPEN-19 DNSSEC RRSIG (RFC 4034 / RFC 4035), one named algorithm.
+   The AD bit is not trusted.
+   [#48](https://github.com/turkananation/pqtransport/issues/48).
+   Do not start 0-RTT (LIM-05).
 
 Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
 carry a real TLS handshake (OPEN-06). HTTP/2 on `PqTlsSocket` is Done.

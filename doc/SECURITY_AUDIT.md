@@ -129,7 +129,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | --- | --- |
 | Cross-implementation TLS interop confusion | Accepted until 0.4 |
 | Downgrade to TLS 1.2 / classical-only | Compact encoding has no 1.2 path; still add `supported_versions` in 0.2 |
-| HRR cookie binding | Done (OPEN-05; cookie required on HRR, echoed on CH2, mismatch fails closed) |
+| HRR cookie binding | Done (OPEN-05; we send a cookie, echo it on CH2, and a mismatch fails closed. A peer HRR with no cookie is accepted, which is what BoringSSL sends.) |
 | DNS cache poisoning from compressed rdata names | Mitigated (OPEN-08): rdata pointers resolve against the outer message; RDLENGTH bounds the record |
 | mDNS spoofing on a real LAN | Mitigated in part (OPEN-09): `joinMulticast` required to receive; signed TXT (`pqsig=`) when used. Spoofed LAN peers remain a threat. |
 | QUIC injection via unprotected headers | Mitigated (OPEN-06, OPEN-16): AES-ECB HP on Initial and AES 1-RTT. ChaCha20 HP uses the pqforge 0.4.8 keystream. |
@@ -140,7 +140,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 - No pentest report.
 - No side-channel measurement.
 - No FIPS 140 module boundary.
-- OpenSSL claim is only the 3.5.9 X25519MLKEM768 raw-pk fixture. No X.509 path. No BoringSSL.
+- OpenSSL and BoringSSL claims are the flights named in [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). Not a browser. Not WebPKI. Not TLS 1.2.
 
 Re-audit triggers: any change to `hybrid.dart`, `key_schedule.dart`,
 `record.dart`, datagram replay, or a new pqforge major/minor that

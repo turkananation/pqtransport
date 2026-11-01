@@ -130,12 +130,12 @@ Result<void, PqTransportError> verifyLeafSignature({
     final PqX509EcdsaP256Key key => PqEcdsaP256.verify(
       publicKey: key.uncompressed,
       message: content,
-      signature: verify.signature,
+      signature: _ecdsaRaw(verify.signature, 32),
     ),
     final PqX509EcdsaP384Key key => PqEcdsaP384.verify(
       publicKey: key.uncompressed,
       message: content,
-      signature: verify.signature,
+      signature: _ecdsaRaw(verify.signature, 48),
     ),
     final PqX509Ed25519Key key => PqEd25519.verify(
       publicKey: key.raw,
@@ -206,6 +206,76 @@ bool _isServerAuth(List<int> oid) {
     if (oid[i] != server[i]) return false;
   }
   return true;
+}
+
+/// RFC 8446 §4.4.3. ECDSA CertificateVerify is DER `SEQUENCE { r, s }`.
+/// [signature] from [PqEcdsaP256.sign] is raw `r || s`. ML-DSA, Ed25519,
+/// and RSA-PSS stay raw.
+Uint8List wireCertificateVerifySignature(int scheme, Uint8List signature) {
+  final half = _ecdsaHalf(scheme);
+  if (half == 0 || signature.length != half * 2) return signature;
+  return PqX509.encodeEcdsaSignature(signature);
+}
+
+int _ecdsaHalf(int scheme) => switch (scheme) {
+  tlsSignatureEcdsaP256Sha256 => 32,
+  tlsSignatureEcdsaP384Sha384 => 48,
+  _ => 0,
+};
+
+Uint8List _ecdsaRaw(Uint8List signature, int half) {
+  if (signature.length == half * 2) return signature;
+  return _derEcdsaToRaw(signature, half) ?? signature;
+}
+
+Uint8List? _derEcdsaToRaw(Uint8List der, int half) {
+  if (der.length < 8 || der[0] != 0x30) return null;
+  final seq = _derBody(der, 0);
+  if (seq == null || seq.end != der.length) return null;
+  final r = _derInteger(der, seq.start, half);
+  if (r == null) return null;
+  final s = _derInteger(der, r.end, half);
+  if (s == null || s.end != seq.end) return null;
+  final out = Uint8List(half * 2);
+  out.setRange(half - r.bytes.length, half, r.bytes);
+  out.setRange(out.length - s.bytes.length, out.length, s.bytes);
+  return out;
+}
+
+({int start, int end})? _derBody(Uint8List der, int offset) {
+  if (offset >= der.length || der[offset] != 0x30) return null;
+  final len = _derLength(der, offset + 1);
+  if (len == null) return null;
+  final end = len.end + len.value;
+  if (end > der.length) return null;
+  return (start: len.end, end: end);
+}
+
+({Uint8List bytes, int end})? _derInteger(Uint8List der, int offset, int half) {
+  if (offset >= der.length || der[offset] != 0x02) return null;
+  final len = _derLength(der, offset + 1);
+  if (len == null) return null;
+  final end = len.end + len.value;
+  if (end > der.length || len.value == 0 || len.value > half + 1) return null;
+  var bytes = Uint8List.sublistView(der, len.end, end);
+  if (bytes.isNotEmpty && bytes[0] == 0) {
+    bytes = Uint8List.sublistView(bytes, 1);
+  }
+  if (bytes.length > half || bytes.isEmpty) return null;
+  return (bytes: bytes, end: end);
+}
+
+({int value, int end})? _derLength(Uint8List der, int offset) {
+  if (offset >= der.length) return null;
+  final lead = der[offset];
+  if (lead < 0x80) return (value: lead, end: offset + 1);
+  final n = lead & 0x7f;
+  if (n == 0 || n > 2 || offset + 1 + n > der.length) return null;
+  var value = 0;
+  for (var i = 0; i < n; i++) {
+    value = (value << 8) | der[offset + 1 + i];
+  }
+  return (value: value, end: offset + 1 + n);
 }
 
 Result<void, PqTransportError> _matchServerName(

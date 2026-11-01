@@ -55,6 +55,7 @@ This file records what we consume and what is still not wired. IDs:
 | ID | Export | Why it waits |
 |---|---|---|
 | Expand-Label | — | Stays in pqtransport (TLS framing: `tls13` + label + context). |
+| HPKE base mode | — | RFC 9180 DHKEM(X25519, HKDF-SHA256) / HKDF-SHA256 / AES-128-GCM is composed in `ech.dart` from the X25519, HKDF-SHA256, and AES-128-GCM exports. No second X25519. Replace the composition when pqforge exports a named HPKE type. |
 
 OPEN-02 and OPEN-13 are **Fixed**.
 

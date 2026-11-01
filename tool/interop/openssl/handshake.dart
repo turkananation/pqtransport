@@ -6,6 +6,9 @@ import 'dart:typed_data';
 import 'package:pqforge/pqforge.dart';
 import 'package:pqtransport/pqtransport_io.dart';
 
+import 'server_flight.dart';
+import 'fallback_flight.dart';
+
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.length > 2) {
     stderr.writeln(
@@ -26,6 +29,8 @@ Future<void> main(List<String> args) async {
     '(X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024)',
   );
   await handshakeX509(args.single);
+  await handshakeServerFlight(args.single);
+  await handshakeClassicalFallback(args.single);
   exit(0);
 }
 
@@ -142,8 +147,6 @@ Future<void> _handshake(
       _opensslGroup(group),
       '-ciphersuites',
       'TLS_AES_256_GCM_SHA384',
-      '-naccept',
-      '1',
       '-state',
     ], environment: env);
     final errBuf = StringBuffer();
@@ -198,6 +201,11 @@ Future<void> _handshake(
       if (!client.peerAuthenticated) {
         throw StateError(
           '${_opensslGroup(group)} finished without CertificateVerify',
+        );
+      }
+      if (client.negotiatedGroup != group.named) {
+        throw StateError(
+          '${_opensslGroup(group)} negotiated ${client.negotiatedGroup}',
         );
       }
       if (client.cipherSuite != TlsCipherSuite.aes256GcmSha384) {

@@ -52,13 +52,17 @@ In particular:
   validated module is contractually or legally required without your own
   validation.
 - **TLS hellos are RFC 8446-shaped** (`legacy_version`, `key_share`,
-  `supported_versions`, SNI, ALPN). Certificate is still a raw ML-DSA-65
-  public key. Cipher suite is IANA `0x1302` (SHA-384 AES-GCM) by default,
+  `supported_versions`, SNI, ALPN). The default certificate is a raw
+  ML-DSA-65 public key. X.509 is opt-in. Cipher suite is IANA `0x1302` (SHA-384 AES-GCM) by default,
   `0x1303` (ChaCha) if offered. Handshake interop with OpenSSL 3.5.9
   on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
-  (2026-10-20, auth mode raw-pk) is
-  [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). That is not an
-  X.509 path and not BoringSSL.
+  (2026-10-20, auth mode raw-pk) and the X.509 client and server
+  flights (2026-11-01) are
+  [doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). BoringSSL
+  0.20261020.0 is a TLS peer on X25519MLKEM768 and on X25519,
+  secp256r1, secp384r1, and MLKEM1024, both directions.
+  Not a browser. Not WebPKI. Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024.
+  Not MLKEM512. Not MLKEM768. Not TLS 1.2.
 - **Record protection follows the suite.** `0x1302` is AES-256-GCM with
   HKDF-SHA-384. `0x1303` is ChaCha20-Poly1305 with HKDF-SHA-256.
 - **Best-effort side-channel resistance.** Pure Dart compiled to the VM,
@@ -84,9 +88,12 @@ Primitive KATs (ML-KEM / ML-DSA / SLH-DSA) belong in
 - Requests for CMVP / FIPS 140 certification (a separate, formal process).
 - Theoretical side-channel concerns already documented in
   [doc/SECURITY_AUDIT.md](doc/SECURITY_AUDIT.md) without a concrete exploit.
-- X.509 path validation and BoringSSL. The only OpenSSL claim is
+- Browsers and WebPKI. BoringSSL is a TLS peer only for X25519MLKEM768,
+  `TLS_AES_256_GCM_SHA384`, ML-DSA-65 chain length 1, one P-256 leaf,
+  and ML-DSA-65 raw public key, as named in
+  [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md). The OpenSSL claim is
   Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-  SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
-  raw-pk). Reports that a truncated share or a
+  SecP256r1MLKEM768, and SecP384r1MLKEM1024, raw-pk and the X.509
+  flights in that same file. Reports that a truncated share or a
   Finished forgery is accepted are in scope.
 - Vendoring cryptographic primitives inside this package. Consume pqforge.

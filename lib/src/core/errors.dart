@@ -114,6 +114,13 @@ final class PqTransportError implements Exception {
     alert: tlsAlertNoApplicationProtocol,
   );
 
+  /// RFC 9849. The client offered ECH and will not continue in the clear.
+  factory PqTransportError.echRequired(String why) => PqTransportError._(
+    code: PqTransportErrorCode.echRequired,
+    message: 'ech_required: $why',
+    alert: tlsAlertEchRequired,
+  );
+
   final PqTransportErrorCode code;
   final String message;
   final int? alert;
@@ -138,6 +145,7 @@ enum PqTransportErrorCode {
   closed,
   flowControl,
   unsupported,
+  echRequired,
 }
 
 /// Named length filter labels (never log the bytes themselves).
