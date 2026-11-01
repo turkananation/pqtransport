@@ -72,12 +72,11 @@ final class PqTransportError implements Exception {
         alert: tlsAlertUnsupportedCertificate,
       );
 
-  factory PqTransportError.certificateUnknown(String why) =>
-      PqTransportError._(
-        code: PqTransportErrorCode.certificateUnknown,
-        message: 'certificate_unknown: $why',
-        alert: tlsAlertCertificateUnknown,
-      );
+  factory PqTransportError.certificateUnknown(String why) => PqTransportError._(
+    code: PqTransportErrorCode.certificateUnknown,
+    message: 'certificate_unknown: $why',
+    alert: tlsAlertCertificateUnknown,
+  );
 
   factory PqTransportError.circuitOpen(String why) => PqTransportError._(
     code: PqTransportErrorCode.circuitOpen,
