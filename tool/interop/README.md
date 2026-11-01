@@ -7,7 +7,8 @@ published library and they do not use `dart:ffi`.
 | --- | --- | --- |
 | [nghttp2-curl](nghttp2-curl/README.md) | curl linked to libnghttp2 | Live HTTP/2 prior-knowledge DoH POST and GET. Our HPACK, HTTP/2 frames, and RFC 8484 body. |
 | [nghttp3-qpack](nghttp3-qpack/README.md) | libnghttp3 1.11.0 | QPACK field section, both directions, static table, encoder stream ingested when present. |
-| [openssl](openssl/README.md) | OpenSSL 3.5.9, BoringSSL 0.20261020.0, curl linked to that OpenSSL | Three RFC 10024 groups, raw-pk and one ML-DSA-65 X.509 chain. BoringSSL verifies the leaf. curl does one HTTPS GET. Not a browser. |
+| [openssl](openssl/README.md) | OpenSSL 3.5.9, curl linked to that OpenSSL | Three RFC 10024 groups, raw-pk and X.509 both directions. BoringSSL verifies the OpenSSL leaf. curl does two HTTPS GETs. Not a browser. |
+| [boringssl](boringssl/README.md) | BoringSSL 0.20261020.0 | X25519MLKEM768 and `TLS_AES_256_GCM_SHA384` only, both directions. ML-DSA-65 chain length 1, one P-256 leaf, ML-DSA-65 raw public key. Not the other two RFC 10024 groups. Not a browser. |
 
 Run all:
 

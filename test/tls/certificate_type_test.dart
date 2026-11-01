@@ -135,10 +135,10 @@ void main() {
     final g = HybridGroup.x25519MlKem768;
     final random = Uint8List(handshakeRandomBytes)..[0] = 7;
     final share = Uint8List(g.clientShareBytes)..[0] = 1;
-    final implicit = ClientHello(random: random, group: g, share: share);
+    final implicit = ClientHello(random: random, group: g.named, share: share);
     final explicit = ClientHello(
       random: random,
-      group: g,
+      group: g.named,
       share: share,
       certificateTypes: const [TlsCertificateType.rawPublicKey],
       signatureSchemes: const [tlsSignatureMldsa65, tlsSignatureMldsa87],
@@ -156,7 +156,7 @@ void main() {
 
     final omitted = ClientHello(
       random: random,
-      group: g,
+      group: g.named,
       share: share,
       certificateTypes: const [TlsCertificateType.x509],
     );

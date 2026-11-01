@@ -10,13 +10,16 @@ import '../core/hybrid.dart';
 import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
+import 'certificate_policy.dart';
+import 'cipher_suite.dart';
+import 'ech.dart';
 import 'handshake.dart';
 import 'key_schedule.dart';
+import 'key_share.dart';
 import 'machines.dart';
+import 'named_group.dart';
 import 'record.dart';
 import 'tls_state.dart';
-import 'cipher_suite.dart';
-import 'certificate_policy.dart';
 
 /// TLS 1.3 client with RFC 10024 hybrid key exchange.
 final class PqTlsClient {
@@ -43,6 +46,18 @@ final class PqTlsClient {
     this.serverName,
     this.signatureSchemes,
     this.quic = false,
+
+    /// Key shares to send instead of the preferred hybrid plus X25519.
+    ///
+    /// Null is the default: one share for [group], then an X25519 share.
+    /// [supported_groups] still lists [offeredGroups] and the classical
+    /// and pure groups, hybrid first. A non-null list is the whole offer.
+    /// The preferred hybrid is not added back.
+    this.onlyShares,
+
+    /// RFC 9849 configuration. When set, the wire hello is ClientHelloOuter
+    /// and rejection fails closed. There is no cleartext retry.
+    this.ech,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -84,6 +99,12 @@ final class PqTlsClient {
   /// X.509 is offered.
   final List<int>? signatureSchemes;
 
+  /// Replaces the default hybrid-plus-X25519 key shares. See the constructor.
+  final List<TlsNamedGroup>? onlyShares;
+
+  /// Null means this client does not offer ECH.
+  final EchConfig? ech;
+
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
 
@@ -92,14 +113,20 @@ final class PqTlsClient {
   late final TlsKeySchedule schedule = TlsKeySchedule(crypto);
   TlsRecordLayer? records;
 
-  Uint8List? _classicalSecret;
-  Uint8List? _kemSecret;
   Uint8List? _hybridSs;
   Uint8List? _clientRandom;
-  late HybridGroup _activeGroup;
+  List<TlsLocalShare> _localShares = [];
+  List<int> _advertised = const [];
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
   String? selectedAlpn;
+
+  /// ClientHelloInner, kept for the accept_confirmation transcript.
+  /// The bytes on the wire are ClientHelloOuter when this is set.
+  Uint8List? _echInnerHello;
+
+  /// Group in the peer's ServerHello. Null until that message is accepted.
+  TlsNamedGroup? negotiatedGroup;
   var _peerAuthenticated = false;
   Uint8List? _peerPublicKey;
   int? _certificateType;
@@ -121,18 +148,48 @@ final class PqTlsClient {
   bool get peerAuthenticated => _peerAuthenticated && isComplete;
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
-    final compatible = crypto.requireGroup(group);
-    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
+    final shares = _sharesToMint();
+    if (shares.isEmpty) {
+      return Result.failure(PqTransportError.unsupported('no key share'));
+    }
+    for (final group in shares) {
+      final hybrid = group.asHybrid;
+      if (hybrid == null) continue;
+      final gate = crypto.requireGroup(hybrid);
+      if (gate.isFailure) return Result.failure(gate.errorOrNull!);
+    }
     final driven = driveTls(machine, TlsEvent.startHandshake);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
-    _activeGroup = group;
     _clientRandom = crypto.randomBytes(handshakeRandomBytes);
-    final share = await _newClientShare(_activeGroup);
-    if (share.isFailure) return Result.failure(share.errorOrNull!);
-    final hello = _clientHello(share.valueOrNull!);
+    _advertised = _supportedCodes(shares);
+    for (final group in shares) {
+      final minted = await mintTlsClientShare(crypto, group);
+      if (minted.isFailure) {
+        wipeTlsShares(_localShares);
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(minted.errorOrNull!);
+      }
+      _localShares.add(minted.valueOrNull!);
+    }
+    final hello = _clientHello();
     final encoded = hello.encode();
+    if (ech == null) {
+      transcript.add(encoded);
+      return Result.success(wrapHandshake(encoded, quic: quic));
+    }
+    final outer = await sealEchOuter(
+      crypto: crypto,
+      config: ech!,
+      innerHandshake: encoded,
+      inner: hello,
+    );
+    if (outer.isFailure) {
+      driveTls(machine, TlsEvent.fatal);
+      return Result.failure(outer.errorOrNull!);
+    }
+    _echInnerHello = encoded;
     transcript.add(encoded);
-    return Result.success(wrapHandshake(encoded, quic: quic));
+    return Result.success(wrapHandshake(outer.valueOrNull!, quic: quic));
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> ingest(
@@ -189,55 +246,58 @@ final class PqTlsClient {
     final sh = ServerHello.decode(shBytes);
     if (sh.isFailure) return Result.failure(sh.errorOrNull!);
     if (sh.valueOrNull!.isHelloRetryRequest) {
+      if (_echInnerHello != null) {
+        return _fatal(
+          PqTransportError.echRequired('ech has no cleartext retry'),
+        );
+      }
       if (leftover.isNotEmpty) return _fail('trailing after hrr');
       return _ingestHelloRetry(sh.valueOrNull!, shBytes);
     }
     final bound = _bindSuite(sh.valueOrNull!.cipherSuite);
     if (bound.isFailure) return Result.failure(bound.errorOrNull!);
-    if (sh.valueOrNull!.group != _activeGroup) return _fail('group mismatch');
+    final innerHello = _echInnerHello;
+    if (innerHello != null) {
+      final accepted = echAcceptConfirmationMatches(
+        crypto: crypto,
+        schedule: schedule,
+        innerHandshake: innerHello,
+        innerRandom: _clientRandom!,
+        serverHello: shBytes,
+      );
+      if (!accepted) {
+        return _fatal(PqTransportError.echRequired('server rejected ech'));
+      }
+    }
+    TlsLocalShare? selected;
+    for (final share in _localShares) {
+      if (share.group == sh.valueOrNull!.group) selected = share;
+    }
+    if (selected == null) return _fail('group mismatch');
+    negotiatedGroup = selected.group;
     final driven = driveTls(machine, TlsEvent.receiveServerHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     transcript.add(shBytes);
-    final decoded = decodeServerShare(_activeGroup, sh.valueOrNull!.share);
-    if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
-    final share = decoded.valueOrNull!;
-    Uint8List? ssKem;
-    Uint8List? ssClassical;
-    try {
-      ssKem = crypto.decapsulate(_kemSecret!, share.kemCiphertext);
-      ssClassical = await crypto.classicalAgree(
-        _activeGroup,
-        secretKey: _classicalSecret!,
-        remotePublicKey: share.classicalShare,
-      );
-      if (isAllZeros(ssClassical)) return _fail('classical all-zero');
-      final combined = combineSharedSecret(
-        group: _activeGroup,
-        kemSharedSecret: ssKem,
-        classicalSharedSecret: ssClassical,
-      );
-      if (combined.isFailure) return Result.failure(combined.errorOrNull!);
-      _hybridSs = combined.valueOrNull!;
-      schedule.deriveHandshake(
-        hybridSharedSecret: _hybridSs!,
-        handshakeTranscriptHash: transcript.snapshot(),
-      );
-      records = TlsRecordLayer(crypto, schedule);
-      if (quic && leftover.isNotEmpty) {
-        return await _ingestEncrypted(leftover);
-      }
-      return const Result.success([]);
-    } on PqTransportError catch (e) {
+    final secret = await deriveTlsSharedSecret(
+      crypto,
+      selected,
+      sh.valueOrNull!.share,
+    );
+    wipeTlsShares(_localShares);
+    if (secret.isFailure) {
       driveTls(machine, TlsEvent.fatal);
-      return Result.failure(e);
-    } on Object catch (e) {
-      return _fail('kex ${e.runtimeType}');
-    } finally {
-      zeroize(_kemSecret);
-      zeroize(_classicalSecret);
-      zeroize(ssKem);
-      zeroize(ssClassical);
+      return Result.failure(secret.errorOrNull!);
     }
+    _hybridSs = secret.valueOrNull!;
+    schedule.deriveHandshake(
+      hybridSharedSecret: _hybridSs!,
+      handshakeTranscriptHash: transcript.snapshot(),
+    );
+    records = TlsRecordLayer(crypto, schedule);
+    if (quic && leftover.isNotEmpty) {
+      return await _ingestEncrypted(leftover);
+    }
+    return const Result.success([]);
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> _ingestEncrypted(
@@ -426,15 +486,20 @@ final class PqTlsClient {
   ) async {
     final noted = noteHelloRetry();
     if (noted.isFailure) return Result.failure(noted.errorOrNull!);
-    if (!_offersGroup(hrr.group)) {
+    if (_echInnerHello != null) {
+      return _fatal(PqTransportError.echRequired('ech has no cleartext retry'));
+    }
+    if (!_advertised.contains(hrr.group.codepoint)) {
       return _fail('hrr group not offered');
     }
     final bound = _bindSuite(hrr.cipherSuite);
     if (bound.isFailure) return Result.failure(bound.errorOrNull!);
-    final compatible = crypto.requireGroup(hrr.group);
-    if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
+    final hybrid = hrr.group.asHybrid;
+    if (hybrid != null) {
+      final compatible = crypto.requireGroup(hybrid);
+      if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
+    }
     final cookie = hrr.cookie;
-    if (cookie == null) return _fail('hrr missing cookie');
     final ch1 = transcript.bytes;
     rewriteTranscriptForHelloRetry(
       transcript: transcript,
@@ -442,44 +507,77 @@ final class PqTlsClient {
       helloRetryRequest: hrrBytes,
       hash: schedule.transcriptHash,
     );
-    zeroize(_kemSecret);
-    zeroize(_classicalSecret);
-    _kemSecret = null;
-    _classicalSecret = null;
-    _activeGroup = hrr.group;
-    final share = await _newClientShare(_activeGroup);
-    if (share.isFailure) return Result.failure(share.errorOrNull!);
-    final hello = _clientHello(share.valueOrNull!, cookie: cookie);
+    wipeTlsShares(_localShares);
+    _localShares = [];
+    final share = await mintTlsClientShare(crypto, hrr.group);
+    if (share.isFailure) {
+      driveTls(machine, TlsEvent.fatal);
+      return Result.failure(share.errorOrNull!);
+    }
+    _localShares = [share.valueOrNull!];
+    final hello = _clientHello(cookie: cookie);
     final encoded = hello.encode();
     transcript.add(encoded);
     return Result.success([wrapHandshake(encoded, quic: quic)]);
   }
 
-  ClientHello _clientHello(Uint8List share, {Uint8List? cookie}) => ClientHello(
-    random: _clientRandom!,
-    group: _activeGroup,
-    share: share,
-    cipherSuites: offeredCipherSuites,
-    alpnProtocols: alpnProtocols,
-    supportedGroups: [for (final g in offeredGroups) g.codepoint],
-    serverName: serverName ?? 'localhost',
-    cookie: cookie,
-    certificateTypes: certificateTypes,
-    signatureSchemes:
-        signatureSchemes ??
-        (certificateTypes.contains(TlsCertificateType.x509)
-            ? const [
-                tlsSignatureMldsa65,
-                tlsSignatureMldsa87,
-                tlsSignatureEcdsaP256Sha256,
-                tlsSignatureEcdsaP384Sha384,
-                tlsSignatureEd25519,
-                tlsSignatureRsaPssSha256,
-                tlsSignatureRsaPssSha384,
-                tlsSignatureRsaPssSha512,
-              ]
-            : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
-  );
+  ClientHello _clientHello({Uint8List? cookie}) {
+    final shares = _localShares;
+    return ClientHello(
+      random: _clientRandom!,
+      group: shares.first.group,
+      share: shares.first.wire,
+      keyShares: shares.length == 1
+          ? null
+          : [
+              for (final entry in shares)
+                (group: entry.group, share: entry.wire),
+            ],
+      cipherSuites: offeredCipherSuites,
+      alpnProtocols: alpnProtocols,
+      supportedGroups: _advertised,
+      serverName: serverName ?? 'localhost',
+      cookie: cookie,
+      certificateTypes: certificateTypes,
+      echInner: ech != null,
+      signatureSchemes:
+          signatureSchemes ??
+          (certificateTypes.contains(TlsCertificateType.x509)
+              ? const [
+                  tlsSignatureMldsa65,
+                  tlsSignatureMldsa87,
+                  tlsSignatureEcdsaP256Sha256,
+                  tlsSignatureEcdsaP384Sha384,
+                  tlsSignatureEd25519,
+                  tlsSignatureRsaPssSha256,
+                  tlsSignatureRsaPssSha384,
+                  tlsSignatureRsaPssSha512,
+                ]
+              : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
+    );
+  }
+
+  List<TlsNamedGroup> _sharesToMint() {
+    if (onlyShares != null) return onlyShares!;
+    return [TlsNamedGroup.fromHybrid(group), TlsNamedGroup.x25519];
+  }
+
+  List<int> _supportedCodes(List<TlsNamedGroup> shares) {
+    final out = <int>[];
+    if (onlyShares == null) {
+      for (final offered in offeredGroups) {
+        final code = offered.codepoint;
+        if (!out.contains(code)) out.add(code);
+      }
+    }
+    for (final share in shares) {
+      if (!out.contains(share.codepoint)) out.add(share.codepoint);
+    }
+    for (final fallback in tlsClassicalFallbackGroups) {
+      if (!out.contains(fallback.codepoint)) out.add(fallback.codepoint);
+    }
+    return out;
+  }
 
   Result<int, PqTransportError> _selectedCertificateType(
     EncryptedExtensions ee,
@@ -510,27 +608,6 @@ final class PqTlsClient {
       return Result.failure(PqTransportError.unsupportedCertificate('x509'));
     }
     return Result.success(type);
-  }
-
-  Future<Result<Uint8List, PqTransportError>> _newClientShare(
-    HybridGroup shareGroup,
-  ) async {
-    final kem = crypto.kemKeyGen();
-    final classical = await crypto.classicalKeyGen(shareGroup);
-    _kemSecret = kem.secretKey;
-    _classicalSecret = classical.secretKey;
-    return encodeClientShare(
-      HybridClientShare(
-        group: shareGroup,
-        kemEncapsulationKey: kem.publicKey,
-        classicalShare: classical.publicKey,
-      ),
-    );
-  }
-
-  bool _offersGroup(HybridGroup g) {
-    if (offeredGroups.contains(g)) return true;
-    return g == group;
   }
 
   Result<void, PqTransportError> _bindSuite(int codepoint) {

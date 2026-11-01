@@ -8,7 +8,7 @@ void main() {
 
   ClientHello fixtureHello() => ClientHello(
     random: Uint8List(handshakeRandomBytes)..[0] = 7,
-    group: g,
+    group: g.named,
     share: Uint8List(g.clientShareBytes)..[0] = 1,
   );
 
@@ -25,7 +25,7 @@ void main() {
     final decoded = ClientHello.decode(fixtureHello().encode());
     expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
     final ch = decoded.valueOrNull!;
-    expect(ch.group, g);
+    expect(ch.group, g.named);
     expect(ch.share.length, g.clientShareBytes);
     expect(ch.share[0], 1);
     expect(ch.serverName, 'localhost');
@@ -58,7 +58,7 @@ void main() {
   test('retired 0xFF00-only ClientHello is unsupported (OPEN-02)', () {
     final ch = ClientHello(
       random: Uint8List(handshakeRandomBytes),
-      group: g,
+      group: g.named,
       share: Uint8List(g.clientShareBytes)..[0] = 1,
       cipherSuites: const [tlsCipherAes256GcmSha256Private],
     );
@@ -70,7 +70,7 @@ void main() {
   test('ServerHello is RFC 8446-shaped and round-trips', () {
     final sh = ServerHello(
       random: Uint8List(handshakeRandomBytes)..[1] = 8,
-      group: g,
+      group: g.named,
       share: Uint8List(g.serverShareBytes)..[0] = 2,
     );
     final hs = sh.encode();
@@ -78,7 +78,7 @@ void main() {
     expect(readUint16(body, 0), tlsLegacyVersion);
     final decoded = ServerHello.decode(hs);
     expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
-    expect(decoded.valueOrNull!.group, g);
+    expect(decoded.valueOrNull!.group, g.named);
     expect(decoded.valueOrNull!.cipherSuite, tlsCipherAes256GcmSha384);
     expect(decoded.valueOrNull!.share[0], 2);
   });
@@ -86,7 +86,7 @@ void main() {
   test('ServerHello refuses retired 0xFF00', () {
     final ok = ServerHello(
       random: Uint8List(handshakeRandomBytes),
-      group: g,
+      group: g.named,
       share: Uint8List(g.serverShareBytes)..[0] = 2,
     ).encode();
     final body = decodeHandshake(ok).valueOrNull!.$2;

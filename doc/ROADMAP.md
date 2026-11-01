@@ -77,8 +77,9 @@ Exit gate: live handshake tests for **all three** RFC 10024 groups —
 | 0.4.3 | Documented failure modes (wrong concat, 1183-byte ek, SHA-256 vs SHA-384) | [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) | **Done** — local tests named in that doc |
 
 The 0.4 sentence was raw-pk only (2026-10-20). The current OpenSSL
-sentence, including the X.509 client and server flights, is in
-[CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md).
+sentence, including the X.509 client and server flights and the
+X25519 / secp256r1 / secp384r1 / MLKEM1024 fallback, is in
+[CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). Hybrid stays first.
 
 ## Slice 0.5 — datagram / HTTP production
 

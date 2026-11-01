@@ -23,7 +23,7 @@ void main() {
   test('HelloRetryRequest encodes selected_group + cookie, not a share', () {
     final cookie = Uint8List(tlsCookieBytes)..[0] = 9;
     final hrr = ServerHello.helloRetryRequest(
-      selectedGroup: p256,
+      selectedGroup: p256.named,
       cookie: cookie,
     );
     expect(hrr.isHelloRetryRequest, isTrue);
@@ -33,7 +33,7 @@ void main() {
     expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
     final out = decoded.valueOrNull!;
     expect(out.isHelloRetryRequest, isTrue);
-    expect(out.group, p256);
+    expect(out.group, p256.named);
     expect(out.share, isEmpty);
     expect(out.cookie, cookie);
     expect(out.cipherSuite, tlsCipherAes256GcmSha384);
@@ -46,15 +46,13 @@ void main() {
     );
   });
 
-  test('HRR without cookie is decode_failure', () {
+  test('HRR without a cookie still names the group', () {
     final hrr = ServerHello.helloRetryRequest(
-      selectedGroup: x25519,
+      selectedGroup: x25519.named,
       cookie: Uint8List(tlsCookieBytes)..[0] = 1,
     );
     final hs = hrr.encode();
-    // Drop the cookie extension: rebuild as SH-shaped HRR random + NamedGroup
-    // share with no cookie by decoding and re-encoding is hard; smash the
-    // extension type 44 (cookie) to 45 so parse misses it.
+    // Smash extension type 44 so the cookie is no longer a cookie.
     final smashed = Uint8List.fromList(hs);
     var flipped = false;
     for (var i = 0; i < smashed.length - 1; i++) {
@@ -66,14 +64,46 @@ void main() {
     }
     expect(flipped, isTrue);
     final r = ServerHello.decode(smashed);
-    expect(r.isFailure, isTrue);
-    expect(r.errorOrNull!.code, PqTransportErrorCode.decodeFailure);
+    expect(r.isSuccess, isTrue, reason: '${r.errorOrNull}');
+    expect(r.valueOrNull!.isHelloRetryRequest, isTrue);
+    expect(r.valueOrNull!.group, x25519.named);
+    expect(r.valueOrNull!.cookie, isNull);
+  });
+
+  test('cookie-less HRR mints the requested pure group', () async {
+    final client = PqTlsClient(
+      crypto: crypto,
+      offeredCipherSuites: const [tlsCipherAes256GcmSha384],
+    );
+    final ch1 = await client.startHandshake();
+    expect(ch1.isSuccess, isTrue, reason: '${ch1.errorOrNull}');
+    final hrr = ServerHello(
+      random: Uint8List.fromList(tlsHelloRetryRequestRandom),
+      group: TlsNamedGroup.mlKem1024,
+      share: Uint8List(0),
+      cipherSuite: tlsCipherAes256GcmSha384,
+    );
+    final wire = encodePlainRecord(
+      TlsRecord(type: tlsContentHandshake, payload: hrr.encode()),
+    );
+    final ch2 = await client.ingest(wire);
+    expect(ch2.isSuccess, isTrue, reason: '${ch2.errorOrNull}');
+    final hello = ClientHello.decode(
+      decodePlainRecord(ch2.valueOrNull!.single).valueOrNull!.payload,
+    );
+    expect(hello.valueOrNull!.group, TlsNamedGroup.mlKem1024);
+    expect(hello.valueOrNull!.cookie, isNull);
+    expect(
+      hello.valueOrNull!.share.length,
+      TlsNamedGroup.mlKem1024.clientShareBytes,
+    );
+    expect(client.helloRetryCount, 1);
   });
 
   test('real ServerHello encode omits cookie and is not HRR', () {
     final sh = ServerHello(
       random: Uint8List(handshakeRandomBytes)..[1] = 3,
-      group: x25519,
+      group: x25519.named,
       share: Uint8List(x25519.serverShareBytes)..[0] = 2,
       cookie: Uint8List(tlsCookieBytes)..[0] = 1,
     );
@@ -88,7 +118,7 @@ void main() {
     final cookie = Uint8List(tlsCookieBytes)..[3] = 7;
     final ch = ClientHello(
       random: Uint8List(handshakeRandomBytes)..[0] = 4,
-      group: x25519,
+      group: x25519.named,
       share: Uint8List(x25519.clientShareBytes)..[0] = 1,
       supportedGroups: [x25519.codepoint, p256.codepoint],
       cookie: cookie,
@@ -105,11 +135,11 @@ void main() {
   test('RFC 8446 message_hash replaces ClientHello1 in the transcript', () {
     final ch = ClientHello(
       random: Uint8List(handshakeRandomBytes)..[0] = 1,
-      group: x25519,
+      group: x25519.named,
       share: Uint8List(x25519.clientShareBytes)..[0] = 1,
     ).encode();
     final hrr = ServerHello.helloRetryRequest(
-      selectedGroup: p256,
+      selectedGroup: p256.named,
       cookie: Uint8List(tlsCookieBytes)..[0] = 2,
     ).encode();
     final t = Transcript();
@@ -159,7 +189,7 @@ void main() {
       final hrrRec = decodePlainRecord(hrrFlight.valueOrNull![0]);
       final hrr = ServerHello.decode(hrrRec.valueOrNull!.payload);
       expect(hrr.valueOrNull!.isHelloRetryRequest, isTrue);
-      expect(hrr.valueOrNull!.group, p256);
+      expect(hrr.valueOrNull!.group, p256.named);
       expect(hrr.valueOrNull!.cookie, isNotNull);
 
       final ch2 = await client.ingest(hrrFlight.valueOrNull![0]);
@@ -170,7 +200,7 @@ void main() {
       final ch2Body = ClientHello.decode(
         decodePlainRecord(ch2.valueOrNull![0]).valueOrNull!.payload,
       );
-      expect(ch2Body.valueOrNull!.group, p256);
+      expect(ch2Body.valueOrNull!.group, p256.named);
       expect(ch2Body.valueOrNull!.cookie, hrr.valueOrNull!.cookie);
 
       final shFlight = await server.ingest(ch2.valueOrNull![0]);
@@ -225,7 +255,7 @@ void main() {
       TlsRecord(
         type: tlsContentHandshake,
         payload: ServerHello.helloRetryRequest(
-          selectedGroup: p256,
+          selectedGroup: p256.named,
           cookie: Uint8List(tlsCookieBytes)..[0] = 1,
         ).encode(),
       ),
@@ -250,7 +280,7 @@ void main() {
     ).valueOrNull!.cookie!;
     final fake = ClientHello(
       random: Uint8List(handshakeRandomBytes),
-      group: x25519,
+      group: x25519.named,
       share: Uint8List(x25519.clientShareBytes)..[0] = 1,
       supportedGroups: [x25519.codepoint, p256.codepoint],
       cookie: cookie,
@@ -276,7 +306,7 @@ void main() {
     await server.ingest(ch1);
     final fake = ClientHello(
       random: Uint8List(handshakeRandomBytes),
-      group: p256,
+      group: p256.named,
       share: Uint8List(p256.clientShareBytes)..[0] = uncompressedPointPrefix,
       supportedGroups: [x25519.codepoint, p256.codepoint],
       cookie: Uint8List(tlsCookieBytes)..[0] = 0xff,
@@ -290,15 +320,49 @@ void main() {
     expect(r.errorOrNull!.message, contains('cookie mismatch'));
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  test('group not offered is mismatch, not HRR', () async {
-    final server = PqTlsServer(crypto: crypto, group: p256);
-    final client = PqTlsClient(crypto: crypto, group: x25519);
+  test(
+    'configured hybrid not offered selects X25519 and does not HRR',
+    () async {
+      final identity = PqTlsServerIdentity.generate(crypto);
+      final server = PqTlsServer(
+        crypto: crypto,
+        identity: identity,
+        group: p256,
+      );
+      final client = PqTlsClient(crypto: crypto, group: x25519);
+      final ch = (await client.startHandshake()).valueOrNull!;
+      final flight = await server.ingest(ch);
+      expect(flight.isSuccess, isTrue, reason: '${flight.errorOrNull}');
+      expect(flight.valueOrNull!, hasLength(2));
+      expect(server.helloRetryCount, 0);
+      final sh = ServerHello.decode(
+        decodePlainRecord(flight.valueOrNull![0]).valueOrNull!.payload,
+      );
+      expect(sh.valueOrNull!.group, TlsNamedGroup.x25519);
+      final afterSh = await client.ingest(flight.valueOrNull![0]);
+      expect(afterSh.isSuccess, isTrue, reason: '${afterSh.errorOrNull}');
+      final fin = await client.ingest(flight.valueOrNull![1]);
+      expect(fin.isSuccess, isTrue, reason: '${fin.errorOrNull}');
+      final done = await server.ingest(fin.valueOrNull!.single);
+      expect(done.isSuccess, isTrue, reason: '${done.errorOrNull}');
+      final ctx = Uint8List.fromList([9]);
+      expect(client.exporter('x', ctx, 16), server.exporter('x', ctx, 16));
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test('no usable share is mismatch, not HRR', () async {
+    final server = PqTlsServer(crypto: crypto, group: x25519);
+    final client = PqTlsClient(
+      crypto: crypto,
+      onlyShares: const [TlsNamedGroup.secP256r1MlKem768],
+    );
     final ch = (await client.startHandshake()).valueOrNull!;
     final r = await server.ingest(ch);
     expect(r.isFailure, isTrue);
     expect(r.errorOrNull!.message, contains('group mismatch'));
     expect(server.helloRetryCount, 0);
-  }, timeout: const Timeout(Duration(seconds: 30)));
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   test('PqTlsSocket completes an HRR handshake', () async {
     final identity = PqTlsServerIdentity.generate(crypto);

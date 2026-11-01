@@ -53,6 +53,14 @@ const int namedGroupSecP256r1MlKem768 = 0x11EB; // 4587
 const int namedGroupX25519MlKem768 = 0x11EC; // 4588
 const int namedGroupSecP384r1MlKem1024 = 0x11ED; // 4589
 
+/// Classical TLS 1.3 groups. These are not hybrid halves.
+const int namedGroupSecp256r1 = 0x0017; // 23
+const int namedGroupSecp384r1 = 0x0018; // 24
+const int namedGroupX25519 = 0x001D; // 29
+
+/// Pure ML-KEM-1024. IANA `MLKEM1024`. Not `SecP384r1MLKEM1024`.
+const int namedGroupMlKem1024 = 0x0202; // 514
+
 const int x25519MlKem768ClientShareBytes = 1216; // 1184 + 32
 const int x25519MlKem768ServerShareBytes = 1120; // 1088 + 32
 const int x25519MlKem768SharedSecretBytes = 64; // 32 + 32
@@ -183,6 +191,17 @@ const int tlsExtAlpn = 16;
 const int tlsExtClientCertificateType = 19;
 const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
+
+/// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.
+const int tlsExtEncryptedClientHello = 0xfe0d;
+const int tlsExtEchOuterExtensions = 0xfd00;
+const int echConfigVersion = 0xfe0d;
+
+/// RFC 9180 DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM.
+const int hpkeKemDhkemX25519HkdfSha256 = 0x0020;
+const int hpkeKdfHkdfSha256 = 0x0001;
+const int hpkeAeadAes128Gcm = 0x0001;
+const int hpkeAes128KeyBytes = 16;
 const int tlsServerNameTypeHostName = 0;
 const int tlsSignatureMldsa65 = 0x0905;
 const int tlsSignatureMldsa87 = 0x0906;
@@ -213,6 +232,9 @@ const int tlsAlertUnsupportedCertificate = 43;
 const int tlsAlertCertificateUnknown = 46;
 const int tlsAlertHandshakeFailure = 40;
 const int tlsAlertInternalError = 80;
+
+/// RFC 9849. Sent when a client offered ECH and the server did not accept it.
+const int tlsAlertEchRequired = 121;
 const int tlsMaxHelloRetry = 1;
 
 /// RFC 8446 §4.1.3 HelloRetryRequest.random = SHA-256("HelloRetryRequest").

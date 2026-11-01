@@ -49,7 +49,9 @@ Pure Dart. No native bindings. No `dart:ffi`.
   X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024,
   raw-pk and the X.509 flights in
   [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md). Not a browser.
-  Not WebPKI. Not a BoringSSL TLS peer. IANA `0x1302` is SHA-384.
+  Not WebPKI. BoringSSL 0.20261020.0 is X25519MLKEM768 plus X25519,
+  secp256r1, secp384r1, and MLKEM1024. Not the two NIST hybrids.
+  IANA `0x1302` is SHA-384.
 
 ## 3. Branching and commits
 

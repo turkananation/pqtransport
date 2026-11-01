@@ -20,7 +20,8 @@ BoringSSL verifies the OpenSSL leaf. curl does two GETs. Not a browser.
 | Auth, raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. This flight is not edited for X.509. |
 | Auth, X.509 client | `PqTlsClient` to `s_server`. ML-DSA-65 leaf, chain length 1, caller CA. DNS `localhost`. |
 | Auth, X.509 server | `s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65, chain length 1 on all three groups, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768. |
-| BoringSSL | 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. Not a TLS peer. |
+| BoringSSL | This script: 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. The TLS peer is `tool/interop/boringssl`. |
+| Classical / pure | X25519, secp256r1, secp384r1, and MLKEM1024, both directions, ML-DSA-65 chain length 1. Hybrid stays first. `x25519:secp256r1` finishes on X25519. The other three are HelloRetryRequest. Not MLKEM512. Not MLKEM768. Not TLS 1.2. |
 | curl | Two HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`. Not a browser. Not `curl --http3`. |
 | Finished | Each raw-pk and X.509 client group: OpenSSL logs `read finished` and `peerAuthenticated` is true. Each server group: `s_client` exits 0 and prints `Verify return code: 0`. |
 

@@ -78,8 +78,13 @@ dart2wasm, and dart2js via pqforge 0.4.5. Private-use `0xFF00` is retired.
 Concatenation is RFC 10024-aligned and unit-tested. Handshake interop
 with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and
 SecP384r1MLKEM1024 in `tool/interop/openssl` (2026-10-20, auth mode
-raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`. That is not
-an X.509 path and not BoringSSL.
+raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`. That raw-pk
+row is not an X.509 path. X.509, both directions, is
+[doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). BoringSSL 0.20261020.0
+is a TLS peer on X25519MLKEM768, and on X25519, secp256r1, secp384r1,
+and MLKEM1024
+([tool/interop/boringssl](tool/interop/boringssl)). Hybrid stays first.
+Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Not a browser. Not WebPKI.
 
 ## Install
 

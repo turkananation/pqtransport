@@ -32,11 +32,12 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | HKDF-SHA-384 schedule | Done | IANA `TLS_AES_256_GCM_SHA384` (`0x1302`). Default. |
 | HKDF-SHA-256 schedule | Done | ChaCha suite (`0x1303`) and UDP |
 | `PqTlsSocket` over any byte channel | Done | Serialised ingest; applicationData stream |
-| HelloRetryRequest on the wire | Done | Magic random, cookie ext 44, selected_group, ClientHello2 echo, `message_hash`. Once-only. |
+| HelloRetryRequest on the wire | Done | Magic random, cookie ext 44 when we send one, selected_group, ClientHello2 echo, `message_hash`. Once-only. A peer HRR may omit the cookie (BoringSSL does). |
 | SNI, ALPN, supported_versions, key_share extensions | Done | ClientHello ALPN default `http/1.1`. EncryptedExtensions carries the selected protocol (RFC 7301). `h2` is selectable. |
 | X.509 / certificate chains | Done | Opt-in. pqforge 0.4.9 parses, checks, and path-validates a caller-supplied chain of 1 to 8. No AIA, no system trust store. Raw public key stays the default. |
 | ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
-| OpenSSL 3.5.9 RFC 10024 groups | Done | Three groups. raw-pk unchanged. X.509 client to `s_server` (ML-DSA-65, chain length 1) and `s_client -verify_return_error` against `PqTlsSocket` (ML-DSA-65 chain length 1 on all three, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768). curl `--cacert` one HTTP/1.1 GET against each peer. BoringSSL verifies the OpenSSL leaf only. Not a browser. Not WebPKI. |
+| OpenSSL 3.5.9 RFC 10024 groups | Done | Three groups. raw-pk unchanged. X.509 client to `s_server` (ML-DSA-65, chain length 1) and `s_client -verify_return_error` against `PqTlsSocket` (ML-DSA-65 chain length 1 on all three, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768). curl `--cacert` one HTTP/1.1 GET against each peer. BoringSSL 0.20261020.0 verifies the OpenSSL leaf, and handshakes X25519MLKEM768 both directions (ML-DSA-65 chain length 1, one P-256 leaf, ML-DSA-65 raw public key). Same two peers, both directions, also finish X25519, secp256r1, secp384r1, and MLKEM1024 with ML-DSA-65 chain length 1. Hybrid stays first. Not MLKEM512. Not MLKEM768. Not the two NIST hybrids on BoringSSL. Not a browser. Not WebPKI. |
+| Encrypted Client Hello (RFC 9849) | Done | Self-interop. DHKEM(X25519, HKDF-SHA256) + HKDF-SHA256 + AES-128-GCM, composed from pqforge. `ech_required` on rejection. No cleartext retry. Not HelloRetryRequest. Not an OpenSSL flight. |
 
 ## UDP
 

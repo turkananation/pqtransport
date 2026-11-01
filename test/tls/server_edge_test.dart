@@ -86,15 +86,18 @@ void main() {
       final xShare = await _realShare(crypto, x);
       final hello = ClientHello(
         random: _random(1),
-        group: p,
+        group: p.named,
         share: pShare,
-        keyShares: [(group: p, share: pShare), (group: x, share: xShare)],
+        keyShares: [
+          (group: p.named, share: pShare),
+          (group: x.named, share: xShare),
+        ],
         certificateTypes: const [TlsCertificateType.x509],
         signatureSchemes: const [tlsSignatureMldsa65],
       );
       final decoded = ClientHello.decode(hello.encode());
       expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
-      expect(decoded.valueOrNull!.group, p);
+      expect(decoded.valueOrNull!.group, p.named);
       expect(decoded.valueOrNull!.offeredKeyShares, hasLength(2));
 
       final server = PqTlsServer(
@@ -110,32 +113,32 @@ void main() {
       final sh = ServerHello.decode(
         unwrapHandshake(flight.valueOrNull![0], quic: false).valueOrNull!,
       );
-      expect(sh.valueOrNull!.group, x);
+      expect(sh.valueOrNull!.group, x.named);
       expect(server.state, TlsState.serverHelloSent);
     },
     timeout: const Timeout(Duration(seconds: 45)),
   );
 
   test(
-    'unknown X25519 key share is skipped when the group was offered',
+    'unknown X448 key share is skipped when a hybrid share was offered',
     () async {
-      const x25519 = 0x001d;
+      const x448 = 0x001e;
       final group = HybridGroup.x25519MlKem768;
       final share = await _realShare(crypto, group);
       final hello = ClientHello(
         random: _random(2),
-        group: group,
+        group: group.named,
         share: share,
-        ignoredKeyShareGroups: const [x25519],
-        supportedGroups: [x25519, group.codepoint],
+        ignoredKeyShareGroups: const [x448],
+        supportedGroups: [x448, group.codepoint],
         certificateTypes: const [TlsCertificateType.x509],
         signatureSchemes: const [tlsSignatureMldsa65],
       );
       final decoded = ClientHello.decode(hello.encode());
       expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
       expect(decoded.valueOrNull!.offeredKeyShares, hasLength(1));
-      expect(decoded.valueOrNull!.group, group);
-      expect(decoded.valueOrNull!.supportedGroups, contains(x25519));
+      expect(decoded.valueOrNull!.group, group.named);
+      expect(decoded.valueOrNull!.supportedGroups, contains(x448));
 
       final server = PqTlsServer(crypto: crypto, identity: _leaf(crypto));
       final flight = await server.ingest(
@@ -151,9 +154,12 @@ void main() {
     final share = Uint8List(group.clientShareBytes)..[0] = 1;
     final hello = ClientHello(
       random: _random(3),
-      group: group,
+      group: group.named,
       share: share,
-      keyShares: [(group: group, share: share), (group: group, share: share)],
+      keyShares: [
+        (group: group.named, share: share),
+        (group: group.named, share: share),
+      ],
     );
     final decoded = ClientHello.decode(hello.encode());
     expect(decoded.isFailure, isTrue);
@@ -165,7 +171,7 @@ void main() {
     final group = HybridGroup.x25519MlKem768;
     final hello = ClientHello(
       random: _random(4),
-      group: group,
+      group: group.named,
       share: Uint8List(group.clientShareBytes),
       supportedGroups: const [0x001d],
     );

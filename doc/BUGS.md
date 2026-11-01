@@ -62,7 +62,7 @@ Do not vendor ChaCha or ECDH.
 | OPEN-01 | TLS | Compact private hellos. | RFC 8446 ClientHello/ServerHello + extensions. Compact body retired. Cipher IANA `0x1302`/`0x1303`. `test/tls/rfc8446_hello_test.dart`. |
 | OPEN-04 | TLS | Silent raw ML-DSA cert. | RFC 7250 `server_certificate_type = RawPublicKey` on CH + EncryptedExtensions. Payload still raw ML-DSA-65, not X.509. |
 | OPEN-11 | UDP | Unused `role` named args on `initiate`/`accept`. | Args removed. HKDF extra stays role-free (`udpSessionInfo('udp')`). |
-| OPEN-05 | TLS | HelloRetryRequest was a counter, not a wire HRR. | RFC 8446 HRR (`SHA-256("HelloRetryRequest")` random, cookie ext 44, `selected_group`). ClientHello2 echoes cookie. Transcript `message_hash`. Once-only. `test/tls/hrr_test.dart`. |
+| OPEN-05 | TLS | HelloRetryRequest was a counter, not a wire HRR. | RFC 8446 HRR (`SHA-256("HelloRetryRequest")` random, cookie ext 44, `selected_group`). This stack sends a cookie. A peer may omit it; BoringSSL does, and that HRR decodes. ClientHello2 echoes a cookie when one was sent. Our server still rejects a mismatch. Transcript `message_hash`. Once-only. `test/tls/hrr_test.dart`. |
 | OPEN-02 | TLS | SHA-256 schedule with private-use `0xFF00`. | IANA `0x1302` + HKDF-SHA-384. `0xFF00` retired. `test/tls/cipher_suite_test.dart`. |
 | OPEN-13 | TLS | ChaCha not wired. | `TransportAead.chacha20Poly1305` + IANA `0x1303`. Live handshake on VM **and dart2js** (pqforge 0.4.5). |
 | OPEN-12 | Coverage | Leftover DNS/UDP/TLS error paths. | Extra coverage tests; `lib/` line coverage 90.7%. |

@@ -11,7 +11,9 @@ import '../socket/pq_transport_socket.dart';
 import 'pq_tls_client.dart';
 import 'pq_tls_server.dart';
 import 'certificate_policy.dart';
+import 'ech.dart';
 import 'handshake.dart';
+import 'named_group.dart';
 import 'record.dart';
 import 'tls_state.dart';
 
@@ -35,6 +37,8 @@ final class PqTlsSocket {
     PqCertificateHook? verifyPeer,
     DateTime Function()? now,
     String? serverName,
+    List<TlsNamedGroup>? onlyShares,
+    EchConfig? ech,
   }) => PqTlsSocket._(
     inner,
     PqTlsClient(
@@ -50,6 +54,8 @@ final class PqTlsSocket {
       verifyPeer: verifyPeer,
       now: now,
       serverName: serverName,
+      onlyShares: onlyShares,
+      ech: ech,
     ),
     null,
   );
@@ -60,6 +66,7 @@ final class PqTlsSocket {
     PqTlsServerIdentity? identity,
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
+    EchServerConfig? ech,
   }) => PqTlsSocket._(
     inner,
     null,
@@ -68,6 +75,7 @@ final class PqTlsSocket {
       identity: identity,
       group: group,
       alpnProtocols: alpnProtocols,
+      ech: ech,
     ),
   );
 
@@ -98,6 +106,10 @@ final class PqTlsSocket {
 
   /// RFC 7301 protocol selected in EncryptedExtensions. Null if omitted.
   String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
+
+  /// Named group in ServerHello. Null before that message is accepted.
+  TlsNamedGroup? get negotiatedGroup =>
+      _client?.negotiatedGroup ?? _server?.negotiatedGroup;
 
   Future<Result<void, PqTransportError>> handshake({
     Duration timeout = const Duration(seconds: 20),

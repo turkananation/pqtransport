@@ -113,13 +113,15 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
 | HTTP/2 GET over mock TLS (ALPN `h2`) | Done |
-| OpenSSL 3.5.9 RFC 10024 raw-pk | Done — all three groups in `tool/interop/openssl`. The X.509 flights are a separate row in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md). Not BoringSSL. |
+| OpenSSL 3.5.9 RFC 10024 raw-pk | Done — all three groups in `tool/interop/openssl`. The X.509 flights are a separate row in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md). |
+| BoringSSL 0.20261020.0 X25519MLKEM768 | Done — both directions in `tool/interop/boringssl`. ML-DSA-65 chain length 1, one P-256 leaf, ML-DSA-65 raw public key. Not the other two RFC 10024 groups. |
+| X25519, secp256r1, secp384r1, MLKEM1024 | Done — both directions, OpenSSL 3.5.9 and BoringSSL 0.20261020.0. ML-DSA-65 chain length 1. Hybrid stays first. Not MLKEM512. Not MLKEM768. |
 
 ## What this release does *not* achieve
 
 Recorded so achievements cannot be misread:
 
-- BoringSSL as a TLS peer. `X509_verify_cert` on one OpenSSL leaf is not a handshake.
+- BoringSSL on SecP256r1MLKEM768 or SecP384r1MLKEM1024. Those groups are not in BoringSSL 0.20261020.0. The X25519MLKEM768 handshake is a separate row above. `X509_verify_cert` on one OpenSSL leaf is not that handshake.
 - QUIC 0-RTT (LIM-05, issue 55). Permanent. Not in this tree. RFC 9000
   §12.3 would put it in the Application Data packet number space; this
   stack does not send it.

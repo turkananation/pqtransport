@@ -2,6 +2,20 @@
 
 ### Added
 
+- Classical and pure ML-KEM-1024 handshakes, both directions
+  (2026-11-01). Groups: X25519 (`0x001D`), secp256r1 (`0x0017`),
+  secp384r1 (`0x0018`), and MLKEM1024 (`0x0202`). Suite
+  `TLS_AES_256_GCM_SHA384`. Auth on these flights is ML-DSA-65,
+  chain length 1, caller CA. The default ClientHello still sends the
+  hybrid share first, then X25519, and still lists the hybrid first in
+  `supported_groups`. OpenSSL 3.5.9 `s_server -groups x25519:secp256r1`
+  finishes on X25519 with no HelloRetryRequest. A peer that allows only
+  P-256, P-384, or MLKEM1024 gets HelloRetryRequest. BoringSSL
+  0.20261020.0 does the same four groups, both directions. Its
+  HelloRetryRequest has no cookie; that decodes. Our server still sends
+  a cookie and still rejects a mismatch. Not MLKEM512. Not MLKEM768.
+  Not X448. Not TLS 1.2. Not a browser. Not WebPKI. The hybrid raw-pk,
+  P-256 leaf, and chain-length-2 flights are not repeated here.
 - X.509 Certificate when RawPublicKey was not negotiated (OPEN-14).
   Opt-in `certificateTypes: [TlsCertificateType.x509]`. The default
   offer stays raw public key. A chain is 1 to 8 caller-supplied DER
@@ -17,7 +31,22 @@
   HTTP/1.1 GET against `s_server` and one against `PqTlsSocket`.
   BoringSSL 0.20261020.0 verifies the OpenSSL leaf
   (`X509_verify_cert`), which is not a BoringSSL TLS handshake.
+  The BoringSSL TLS peer is the next bullet.
   A browser handshake is not claimed. Not WebPKI. Not `curl --http3`.
+- Handshake interop with BoringSSL 0.20261020.0 on X25519MLKEM768 and
+  `TLS_AES_256_GCM_SHA384`, both directions (2026-11-01), in
+  `tool/interop/boringssl`. ML-DSA-65 X.509 chain length 1, one P-256
+  leaf, and ML-DSA-65 raw public key. The BoringSSL client pins that
+  raw public key. A wrong CA is rejected. Not SecP256r1MLKEM768. Not
+  SecP384r1MLKEM1024. Not a browser. Not WebPKI.
+- Encrypted Client Hello (RFC 9849), self-interop only (2026-11-01).
+  The suite is DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, and
+  AES-128-GCM, composed from pqforge X25519, HKDF, and AES-128-GCM.
+  pqforge does not export an HPKE type. A client given an `EchConfig`
+  fails closed: `ech_required`, no ClientHelloOuter continuation, and
+  no cleartext second hello. HelloRetryRequest under ECH is rejected
+  the same way. A server given an `EchServerConfig` does not resume
+  the outer hello. Not an OpenSSL flight. Not a browser.
 - Design record for OPEN-14 ([#43](https://github.com/turkananation/pqtransport/issues/43)):
   [doc/adr/ADR-0014-x509-certificate.md](doc/adr/ADR-0014-x509-certificate.md)
   and [doc/plans/OPEN-14-x509-certificate.md](doc/plans/OPEN-14-x509-certificate.md).

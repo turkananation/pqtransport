@@ -15,7 +15,8 @@ uses `PqForgeProfile.maximum`.
 | X.509 client | `PqTlsClient` to `s_server`, no `-enable_server_rpk`. ML-DSA-65 leaf, chain length 1, that CA as the only anchor. DNS `localhost`. All three groups. |
 | X.509 server | `openssl s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65 on all three groups, chain length 1, and chain length 2 on X25519MLKEM768 (leaf + intermediate, root is `-CAfile`). One P-256 leaf (`ecdsa_secp256r1_sha256`) on X25519MLKEM768. Certs are minted by pqforge. |
 | Order | X25519: ML-KEM then X25519. P-256 and P-384: ECDHE then ML-KEM. |
-| BoringSSL | 0.20261020.0 `X509_verify_cert` on the OpenSSL leaf and CA. Not a BoringSSL TLS handshake. |
+| BoringSSL | 0.20261020.0. `X509_verify_cert` on the OpenSSL leaf and CA, and a TLS peer (`tool/interop/boringssl`). Hybrid: X25519MLKEM768, both directions, ML-DSA-65 chain length 1, one P-256 leaf, ML-DSA-65 raw public key. Fallback: X25519, secp256r1, secp384r1, and MLKEM1024, both directions, ML-DSA-65 chain length 1. Suite `0x1302`. Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. |
+| Classical / pure | X25519 (`0x001D`), secp256r1 (`0x0017`), secp384r1 (`0x0018`), MLKEM1024 (`0x0202`). Both directions. ML-DSA-65 chain length 1. The default client offers the hybrid share and then X25519. `s_server -groups x25519:secp256r1` selects X25519 and does not retry. P-256-only, P-384-only, and MLKEM1024-only are HelloRetryRequest. Not MLKEM512. Not MLKEM768. Not TLS 1.2. |
 | curl | Two HTTPS GETs, both X25519MLKEM768, `--cacert`, `--http1.1`, curl linked to this OpenSSL. One against `s_server`. One against `PqTlsSocket`. Not `curl --http3`. Not a browser. |
 | Gate | `bash tool/interop/openssl/run.sh` |
 

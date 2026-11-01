@@ -86,4 +86,4 @@ X.509 is opt-in (`certificateTypes: [x509]`, chain 1 to 8).
 
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
 SecP256r1MLKEM768, and SecP384r1MLKEM1024, raw-pk and X.509
-both directions. Not a browser. Not WebPKI. Not a BoringSSL TLS peer.
+both directions. BoringSSL 0.20261020.0 is X25519MLKEM768 plus X25519, secp256r1, secp384r1, and MLKEM1024. Not a browser. Not WebPKI.

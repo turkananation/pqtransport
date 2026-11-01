@@ -33,7 +33,10 @@ export 'src/quic/recovery.dart';
 export 'src/socket/pq_transport_socket.dart';
 export 'src/tls/certificate_policy.dart';
 export 'src/tls/cipher_suite.dart';
+export 'src/tls/ech.dart'
+    show EchConfig, EchServerConfig, echAcceptConfirmationMatches;
 export 'src/tls/handshake.dart';
+export 'src/tls/named_group.dart';
 export 'src/tls/key_schedule.dart';
 export 'src/tls/machines.dart';
 export 'src/tls/pq_tls_client.dart';

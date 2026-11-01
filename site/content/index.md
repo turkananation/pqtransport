@@ -119,7 +119,7 @@ This layer may not invent a stronger claim than pqcrypto / pqforge.
 - RFC 10024-aligned hybrid encoding with unit-tested concatenation.
   Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
   SecP256r1MLKEM768, and SecP384r1MLKEM1024, raw-pk and X.509
-  both directions. Not a browser. Not WebPKI. Not a BoringSSL TLS peer.
+  both directions. BoringSSL 0.20261020.0 is X25519MLKEM768 plus X25519, secp256r1, secp384r1, and MLKEM1024. Not a browser. Not WebPKI.
   Not "interoperable with OpenSSL" with no version, group, or auth mode.
 - Live KEX in 0.1.0 is all three RFC 10024 groups.
 - TLS default suite is IANA `TLS_AES_256_GCM_SHA384` (`0x1302`, SHA-384).

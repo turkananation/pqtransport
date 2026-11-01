@@ -1,6 +1,7 @@
 #!/bin/sh
-# Build BoringSSL 0.20261020.0 and link boringssl_verify.
+# Build BoringSSL 0.20261020.0, boringssl_verify, and boringssl_peer.
 # Skips the work when the pin's COMMIT file already matches.
+# The last line is boringssl_verify. OpenSSL's run.sh depends on that.
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
@@ -8,9 +9,31 @@ repo=$(CDPATH= cd -- "$root/../../.." && pwd)
 # shellcheck disable=SC1091
 . "$root/pins.env"
 prefix="$root/.build"
-if [ -x "$prefix/bin/boringssl_verify" ] && [ -f "$prefix/COMMIT" ] \
+verify="$prefix/bin/boringssl_verify"
+peer="$prefix/bin/boringssl_peer"
+if [ -x "$verify" ] && [ -x "$peer" ] && [ -f "$prefix/COMMIT" ] \
+  && [ "$(cat "$prefix/COMMIT")" = "$BORINGSSL_COMMIT" ] \
+  && [ "$peer" -nt "$root/boringssl_peer.c" ] \
+  && [ "$verify" -nt "$root/boringssl_verify.c" ]; then
+  printf '%s\n' "$verify"
+  exit 0
+fi
+
+if [ -f "$prefix/lib/libssl.a" ] && [ -f "$prefix/COMMIT" ] \
   && [ "$(cat "$prefix/COMMIT")" = "$BORINGSSL_COMMIT" ]; then
-  printf '%s\n' "$prefix/bin/boringssl_verify"
+  mkdir -p "$prefix/bin"
+  c++ -O2 -o "$verify" \
+    "$root/boringssl_verify.c" \
+    -I"$prefix/include" \
+    "$prefix/lib/libcrypto.a" \
+    -pthread
+  c++ -O2 -o "$peer" \
+    "$root/boringssl_peer.c" \
+    -I"$prefix/include" \
+    "$prefix/lib/libssl.a" \
+    "$prefix/lib/libcrypto.a" \
+    -pthread -ldl
+  printf '%s\n' "$verify"
   exit 0
 fi
 
@@ -29,14 +52,21 @@ if [ "$got" != "$BORINGSSL_COMMIT" ]; then
   exit 1
 fi
 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX="$prefix"
+  -DCMAKE_INSTALL_PREFIX="$prefix" \
+  -DBUILD_TESTING=OFF
 ninja -C build bssl
 cmake --install build
 mkdir -p "$prefix/bin"
-c++ -O2 -o "$prefix/bin/boringssl_verify" \
+c++ -O2 -o "$verify" \
   "$root/boringssl_verify.c" \
   -I"$prefix/include" \
   "$prefix/lib/libcrypto.a" \
   -pthread
+c++ -O2 -o "$peer" \
+  "$root/boringssl_peer.c" \
+  -I"$prefix/include" \
+  "$prefix/lib/libssl.a" \
+  "$prefix/lib/libcrypto.a" \
+  -pthread -ldl
 printf '%s\n' "$BORINGSSL_COMMIT" > "$prefix/COMMIT"
-printf '%s\n' "$prefix/bin/boringssl_verify"
+printf '%s\n' "$verify"

@@ -50,15 +50,39 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
   chain length 2 on X25519MLKEM768) plus one P-256 leaf
   (`0x0403`) on X25519MLKEM768. KEX stays the hybrid group.
   P-384 uses `PqForgeProfile.maximum`. BoringSSL 0.20261020.0 runs
-  `X509_verify_cert` on the OpenSSL leaf. It is not a BoringSSL TLS
-  peer. curl linked to this OpenSSL completes one X25519MLKEM768
-  HTTP/1.1 GET with `--cacert` against `s_server` and one against
-  `PqTlsSocket`. Not a browser. Not WebPKI. Not `curl --http3`.
+  `X509_verify_cert` on the OpenSSL leaf, and is a TLS peer on
+  X25519MLKEM768 and `TLS_AES_256_GCM_SHA384`, both directions
+  (2026-11-01): ML-DSA-65 chain length 1, one P-256 leaf, and ML-DSA-65
+  raw public key. The BoringSSL client pins that raw public key. Not
+  SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Classical and pure
+  ML-KEM-1024, both directions, ML-DSA-65 chain length 1, suite
+  `0x1302` (2026-11-01): X25519 (`0x001D`), secp256r1 (`0x0017`),
+  secp384r1 (`0x0018`), and MLKEM1024 (`0x0202`), against OpenSSL 3.5.9
+  and BoringSSL 0.20261020.0. The default offer is still the hybrid
+  share, then X25519. The hybrid is selected when the peer offers it.
+  `s_server -groups x25519:secp256r1` finishes on X25519 with no retry.
+  A peer that allows only P-256, P-384, or MLKEM1024 gets
+  HelloRetryRequest. BoringSSL's HelloRetryRequest carries no cookie;
+  that decodes. Not MLKEM512. Not MLKEM768. Not X448. Not TLS 1.2.
+  The hybrid raw-pk, P-256 leaf, and chain-length-2 flights are not
+  repeated on these four groups. curl linked to this OpenSSL
+  completes one X25519MLKEM768 HTTP/1.1 GET with `--cacert` against
+  `s_server` and one against `PqTlsSocket`. Not a browser. Not WebPKI.
+  Not `curl --http3`.
 
 ADR-0014 is implemented for a caller-supplied chain of 1 to 8. There
 is no AIA fetch, no system trust store, and no browser flight. A
 browser-shaped ClientHello (the certificate-type extension omitted)
 is what the X.509 mode sends. A live Chrome handshake is not claimed.
+
+ECH (RFC 9849) is self-interop only. The suite is DHKEM(X25519,
+HKDF-SHA256), HKDF-SHA256, and AES-128-GCM, composed from pqforge
+X25519, HKDF, and AES-128-GCM. pqforge does not export an HPKE type.
+A client given an `EchConfig` fails closed: `ech_required`, no
+ClientHelloOuter continuation, and no cleartext second hello.
+HelloRetryRequest under ECH is rejected the same way. A server given
+an `EchServerConfig` does not resume the outer hello. Not an OpenSSL
+flight. Not a browser.
 
 ## Forbidden wording
 
@@ -75,16 +99,18 @@ Use instead:
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | The sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk and the X.509 flights named there. BoringSSL verifies that leaf only. curl is two HTTP/1.1 GETs. Nothing wider. |
+| Interoperable with OpenSSL | The sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, plus X25519, secp256r1, secp384r1, and MLKEM1024 as named there. BoringSSL 0.20261020.0 is the hybrid plus those same four groups, as named there. curl is two HTTP/1.1 GETs. Nothing wider. |
 
 Also forbidden in meaning, even if the substring differs:
 
 - "certified", "FIPS 140 module" as a positive claim.
 - "Production-ready post-quantum TLS" in the OpenSSL sense.
 - RFC-byte-exact TLS 1.3 interoperability with OpenSSL beyond the
-  three groups and the two auth modes in the sentence above. BoringSSL
-  is a leaf check, not a TLS peer. A browser handshake is not claimed.
-  WebPKI is not claimed.
+  three hybrid groups, the four fallback groups, and the auth modes in
+  the sentence above. BoringSSL is a TLS peer for X25519MLKEM768 and
+  those four groups, as named above. Not SecP256r1MLKEM768. Not
+  SecP384r1MLKEM1024. A browser handshake is not claimed. WebPKI is
+  not claimed.
 - Putting IANA `0x1302` on a SHA-256 schedule (that lie is closed: the
   `0x1302` path is SHA-384).
 - Web UDP / mDNS / raw QUIC when the target is a browser.
@@ -102,7 +128,7 @@ Also forbidden in meaning, even if the substring differs:
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
 | DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |
-| X25519 | RFC 7748 | Via pqforge |
+| X25519 | RFC 7748 | Via pqforge. Also a whole TLS group (`0x001D`) when the peer does not take the hybrid. |
 
 RFC 10024 note (normative): the group name `X25519MLKEM768` does **not**
 follow RFC 9954 §3.2 naming order. Shares and shared secrets are
