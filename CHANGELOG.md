@@ -2,14 +2,23 @@
 
 ### Added
 
+- X.509 Certificate when RawPublicKey was not negotiated (OPEN-14).
+  Opt-in `certificateTypes: [TlsCertificateType.x509]`. The default
+  offer stays raw public key. A chain is 1 to 8 caller-supplied DER
+  certificates, leaf first, checked by pqforge 0.4.9. Trust is anchors
+  and/or one self-signed SPKI pin, then an optional hook. A signature
+  alone is not authentication. No system trust store and no AIA.
+  OpenSSL 3.5.9 completes the three RFC 10024 groups with an ML-DSA-65
+  leaf. BoringSSL 0.20261020.0 verifies that leaf
+  (`X509_verify_cert`), which is not a BoringSSL TLS handshake. curl
+  linked to that OpenSSL does one X25519MLKEM768 GET with `--cacert`.
+  A browser handshake is not claimed.
 - Design record for OPEN-14 ([#43](https://github.com/turkananation/pqtransport/issues/43)):
   [doc/adr/ADR-0014-x509-certificate.md](doc/adr/ADR-0014-x509-certificate.md)
   and [doc/plans/OPEN-14-x509-certificate.md](doc/plans/OPEN-14-x509-certificate.md).
   Amended 2026-10-27: the certificate layer is pqforge
-  `lib/src/certificates/x509.dart` (0.4.8), exported for reuse.
-  pqtransport opts in. No wire change. The Certificate message is still
-  one RFC 7250 SubjectPublicKeyInfo. The OpenSSL sentence is unchanged
-  (3.5.9, three RFC 10024 groups, auth mode raw-pk).
+  `lib/src/certificates/x509.dart`, exported for reuse. The
+  implementation is the bullet above.
 - `IoTcpSocket` and `IoTcpServer` (`package:pqtransport/pqtransport_io.dart`).
   `PqTlsSocket` reassembles RFC 8446 records from the TCP byte stream
   and rejects a record whose version is not `0x0303` or whose length

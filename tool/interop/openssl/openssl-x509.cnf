@@ -1,0 +1,20 @@
+openssl_conf = openssl_init
+
+[openssl_init]
+
+[req]
+distinguished_name = req_dn
+prompt = no
+
+[req_dn]
+CN = localhost
+
+[ca_ext]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+
+[leaf_ext]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:localhost

@@ -8,5 +8,7 @@ bin="$(bash "$root/build.sh" | tail -n 1)"
 lib="$(cd "$(dirname "$bin")/../lib" && pwd)"
 export LD_LIBRARY_PATH="${lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export OPENSSL_CONF="${OPENSSL_CONF:-$root/openssl.cnf}"
+export BORINGSSL_VERIFY="$(bash "$root/../boringssl/build.sh" | tail -n 1)"
+bash "$root/build_curl.sh" >/dev/null
 cd "$repo"
 dart run tool/interop/openssl/handshake.dart "$bin"

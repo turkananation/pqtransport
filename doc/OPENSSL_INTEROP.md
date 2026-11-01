@@ -1,29 +1,24 @@
 # OpenSSL / BoringSSL interop
 
-Last updated: 2026-10-20
-
-**Status: three raw-pk fixtures are green. Do not widen them.**
+Last updated: 2026-10-31
 
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
 SecP256r1MLKEM768, and SecP384r1MLKEM1024 in
-[`tool/interop/openssl`](../tool/interop/openssl) (2026-10-20, auth mode
-raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
+[`tool/interop/openssl`](../tool/interop/openssl). SecP384r1MLKEM1024
+uses `PqForgeProfile.maximum`.
 
 | Item | Value |
 | --- | --- |
 | Groups | X25519MLKEM768 (`0x11EC`), SecP256r1MLKEM768 (`0x11EB`), SecP384r1MLKEM1024 (`0x11ED`) |
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`), SHA-384 |
-| Auth | RFC 7250 raw public key (ML-DSA-65 SPKI). Not an X.509 path. |
-| Order | X25519: ML-KEM then X25519. P-256 and P-384: ECDHE then ML-KEM. OpenSSL 3.5 uses the same slots. |
-| Peer | `openssl s_server -enable_server_rpk`, process, no `dart:ffi` |
-| Gate | `bash tool/interop/openssl/run.sh` fails unless each group logs `read finished` |
+| raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. |
+| X.509 | ML-DSA-65 leaf signed by an ML-DSA-65 CA. Chain length 1. The CA DER is the only anchor. DNS `localhost`. No `-enable_server_rpk`. |
+| Order | X25519: ML-KEM then X25519. P-256 and P-384: ECDHE then ML-KEM. |
+| BoringSSL | 0.20261020.0 `X509_verify_cert` on that same leaf and CA. The checker is the pqforge one. Not a BoringSSL TLS handshake. |
+| curl | One HTTPS GET, X25519MLKEM768, `--cacert` the CA, curl linked to this OpenSSL. Not `curl --http3`. Not a browser. |
+| Gate | `bash tool/interop/openssl/run.sh` |
 
-BoringSSL is not this fixture. X.509 certificate chains are not parsed.
-
-OPEN-14 is proposed in [ADR-0014](adr/ADR-0014-x509-certificate.md).
-The certificate layer is pqforge `lib/src/certificates/x509.dart`
-(0.4.8, not released). This fixture is unchanged: raw-pk, three groups.
-Merging the design does not change the sentence above.
+WebPKI, the system trust store, and a live Chrome flight are not this fixture.
 
 ## Still forbidden
 

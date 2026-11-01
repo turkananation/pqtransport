@@ -16,6 +16,7 @@ import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
 import 'cipher_suite.dart';
+import 'certificate_policy.dart';
 
 /// TLS 1.3 client with RFC 10024 hybrid key exchange.
 final class PqTlsClient {
@@ -26,7 +27,7 @@ final class PqTlsClient {
     List<int>? offeredCipherSuites,
     List<String>? alpnProtocols,
 
-    /// Skip ML-DSA CertificateVerify. This is not authentication.
+    /// Skip identity checks. This is not authentication.
     ///
     /// Production callers leave this false. True lets the handshake finish
     /// without checking the peer signature. Finished is still checked.
@@ -34,6 +35,13 @@ final class PqTlsClient {
     /// skip cannot be forgotten. A raw public key, an X.509 certificate,
     /// or a caller verify hook is a substitute. This flag is not.
     this.allowUnauthenticated = false,
+    this.certificateTypes = const [TlsCertificateType.rawPublicKey],
+    this.trustAnchors = const [],
+    this.trustedSpki,
+    this.verifyPeer,
+    this.now,
+    this.serverName,
+    this.signatureSchemes,
     this.quic = false,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
@@ -47,11 +55,34 @@ final class PqTlsClient {
   final List<int> offeredCipherSuites;
   final List<String> alpnProtocols;
 
-  /// Skip ML-DSA CertificateVerify. This is not authentication.
+  /// Skip identity checks. This is not authentication.
   ///
   /// See the constructor parameter. [peerAuthenticated] stays false when
   /// this is true.
   final bool allowUnauthenticated;
+
+  /// Default is raw public key only. `[x509]` is the OpenSSL, curl, and
+  /// browser shape: the ClientHello omits `server_certificate_type`.
+  final List<TlsCertificateType> certificateTypes;
+
+  /// DER trust anchors. Empty means the pin path, or fail closed.
+  final List<Uint8List> trustAnchors;
+
+  /// SubjectPublicKeyInfo of a self-signed leaf. Not a trust store.
+  final Uint8List? trustedSpki;
+
+  final PqCertificateHook? verifyPeer;
+
+  /// Clock for the certificate path. Tests pass this. Null is `now.toUtc()`.
+  final DateTime Function()? now;
+
+  /// SAN check. Null skips it, so an extension-less certificate can be pinned.
+  final String? serverName;
+
+  /// Overrides the ClientHello signature list. Null keeps the default:
+  /// ML-DSA only for a raw offer, and the schemes pqforge can verify when
+  /// X.509 is offered.
+  final List<int>? signatureSchemes;
 
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
@@ -71,6 +102,8 @@ final class PqTlsClient {
   String? selectedAlpn;
   var _peerAuthenticated = false;
   Uint8List? _peerPublicKey;
+  int? _certificateType;
+  List<Uint8List>? _certificateEntries;
 
   /// Handshake bytes that did not finish a message. RFC 8446 permits a
   /// handshake message to span records. OpenSSL sends one message per record.
@@ -250,15 +283,43 @@ final class PqTlsClient {
           return _fail('alpn not offered');
         }
         selectedAlpn = selected;
+        final type = _selectedCertificateType(ee.valueOrNull!);
+        if (type.isFailure) return _fatal(type.errorOrNull!, onWire: false);
+        _certificateType = type.valueOrNull;
         final d = driveTls(machine, TlsEvent.receiveEncryptedExtensions);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         transcript.add(msg);
       } else if (type == tlsHsCertificate) {
         final d = driveTls(machine, TlsEvent.receiveCertificate);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
-        final cert = decodeCertificate(msg);
-        if (cert.isFailure) return Result.failure(cert.errorOrNull!);
-        _peerPublicKey = cert.valueOrNull;
+        final cert = decodeCertificateEntries(msg);
+        if (cert.isFailure) return _fatal(cert.errorOrNull!);
+        final entries = cert.valueOrNull!;
+        if (_certificateType == tlsCertTypeRawPublicKey) {
+          if (entries.length != 1) {
+            return _fatal(PqTransportError.decodeFailure('raw public key'));
+          }
+          if (PqX509.parse(entries.single).certificate != null) {
+            return _fatal(PqTransportError.unsupportedCertificate('x509'));
+          }
+          final spki = decodeMlDsa65Spki(entries.single);
+          if (spki.isFailure) return _fatal(spki.errorOrNull!);
+          _peerPublicKey = spki.valueOrNull;
+        } else {
+          if (decodeMlDsa65Spki(entries.first).isSuccess &&
+              PqX509.parse(entries.first).certificate == null) {
+            return _fatal(
+              PqTransportError.unsupportedCertificate('raw public key'),
+            );
+          }
+          for (final der in entries) {
+            final one = PqX509.parse(der);
+            if (one.certificate == null) {
+              return _fatal(x509Failure(one.failure!));
+            }
+          }
+          _certificateEntries = entries;
+        }
         transcript.add(msg);
       } else if (type == tlsHsCertificateVerify) {
         final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
@@ -267,14 +328,43 @@ final class PqTlsClient {
         final sig = decodeCertVerify(msg);
         if (sig.isFailure) return Result.failure(sig.errorOrNull!);
         if (!allowUnauthenticated) {
-          final certPk = _peerPublicKey;
-          if (certPk == null) return _fail('cv without cert');
-          final ok = crypto.mlDsaVerify(
-            publicKey: certPk,
-            message: toSign,
-            signatureBytes: sig.valueOrNull!,
-          );
-          if (!ok) return _fail('ml-dsa verify failed');
+          if (_certificateType == tlsCertTypeRawPublicKey) {
+            final certPk = _peerPublicKey;
+            if (certPk == null) return _fail('cv without cert');
+            if (sig.valueOrNull!.scheme != tlsSignatureMldsa65 &&
+                sig.valueOrNull!.scheme != tlsSignatureMldsa87) {
+              return _fatal(PqTransportError.decryptError('signature_scheme'));
+            }
+            final ok = crypto.mlDsaVerify(
+              publicKey: certPk,
+              message: toSign,
+              signatureBytes: sig.valueOrNull!.signature,
+            );
+            if (!ok) return _fail('ml-dsa verify failed');
+          } else {
+            final entries = _certificateEntries;
+            if (entries == null) return _fail('cv without cert');
+            final clock = now == null ? DateTime.now().toUtc() : now!();
+            final leaf = authenticateX509(
+              entries: entries,
+              trustAnchors: trustAnchors,
+              trustedSpki: trustedSpki,
+              now: clock,
+              serverName: serverName,
+              verifyPeer: verifyPeer,
+              verify: sig.valueOrNull!,
+            );
+            if (leaf.isFailure) return _fatal(leaf.errorOrNull!);
+            final checked = verifyLeafSignature(
+              leaf: leaf.valueOrNull!,
+              verify: sig.valueOrNull!,
+              content: toSign,
+              mlDsaVerify: crypto.mlDsaVerify,
+            );
+            if (checked.isFailure) return _fatal(checked.errorOrNull!);
+            final key = leaf.valueOrNull!.publicKey;
+            if (key is PqX509MlDsaKey) _peerPublicKey = key.raw;
+          }
           _peerAuthenticated = true;
         }
         transcript.add(msg);
@@ -370,8 +460,55 @@ final class PqTlsClient {
     cipherSuites: offeredCipherSuites,
     alpnProtocols: alpnProtocols,
     supportedGroups: [for (final g in offeredGroups) g.codepoint],
+    serverName: serverName ?? 'localhost',
     cookie: cookie,
+    certificateTypes: certificateTypes,
+    signatureSchemes:
+        signatureSchemes ??
+        (certificateTypes.contains(TlsCertificateType.x509)
+            ? const [
+                tlsSignatureMldsa65,
+                tlsSignatureMldsa87,
+                tlsSignatureEcdsaP256Sha256,
+                tlsSignatureEcdsaP384Sha384,
+                tlsSignatureEd25519,
+                tlsSignatureRsaPssSha256,
+                tlsSignatureRsaPssSha384,
+                tlsSignatureRsaPssSha512,
+              ]
+            : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
   );
+
+  Result<int, PqTransportError> _selectedCertificateType(
+    EncryptedExtensions ee,
+  ) {
+    final selected = ee.serverCertificateType;
+    final rawOnly =
+        certificateTypes.length == 1 &&
+        certificateTypes.single == TlsCertificateType.rawPublicKey;
+    if (rawOnly) {
+      if (selected != tlsCertTypeRawPublicKey) {
+        return Result.failure(
+          PqTransportError.decodeFailure(
+            'EncryptedExtensions missing server_certificate_type (OPEN-04)',
+          ),
+        );
+      }
+      return Result.success(tlsCertTypeRawPublicKey);
+    }
+    final type = selected ?? tlsCertTypeX509;
+    if (type == tlsCertTypeRawPublicKey &&
+        !certificateTypes.contains(TlsCertificateType.rawPublicKey)) {
+      return Result.failure(
+        PqTransportError.unsupportedCertificate('raw public key'),
+      );
+    }
+    if (type == tlsCertTypeX509 &&
+        !certificateTypes.contains(TlsCertificateType.x509)) {
+      return Result.failure(PqTransportError.unsupportedCertificate('x509'));
+    }
+    return Result.success(type);
+  }
 
   Future<Result<Uint8List, PqTransportError>> _newClientShare(
     HybridGroup shareGroup,
@@ -412,6 +549,42 @@ final class PqTlsClient {
         ? TranscriptHashKind.sha384
         : TranscriptHashKind.sha256;
     return const Result.success(null);
+  }
+
+  PqTransportError? _certificateFailure;
+
+  Result<List<Uint8List>, PqTransportError> _fatal(
+    PqTransportError error, {
+    bool onWire = true,
+  }) {
+    _peerAuthenticated = false;
+    _peerPublicKey = null;
+    _pendingHandshake = Uint8List(0);
+    if (onWire) _certificateFailure = error;
+    driveTls(machine, TlsEvent.fatal);
+    return Result.failure(error);
+  }
+
+  /// One fatal Alert under the handshake write key, after a certificate
+  /// failure. Null for older failures, for QUIC, and before the caller
+  /// asks. The record is not sent by [ingest].
+  Uint8List? certificateAlert(PqTransportError error) {
+    if (!identical(error, _certificateFailure)) return null;
+    final alert = error.alert;
+    if (alert == null || quic) return null;
+    final payload = Uint8List.fromList([2, alert]);
+    final layer = records;
+    if (layer == null) {
+      return encodePlainRecord(
+        TlsRecord(type: tlsContentAlert, payload: payload),
+      );
+    }
+    return layer.protectWith(
+      trafficSecret: schedule.clientHandshakeTraffic,
+      iv: schedule.clientHandshakeIv,
+      inner: TlsRecord(type: tlsContentAlert, payload: payload),
+      epoch: TlsRecordEpoch.handshake,
+    );
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {

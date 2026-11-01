@@ -10,6 +10,8 @@ import '../core/lengths.dart';
 import '../socket/pq_transport_socket.dart';
 import 'pq_tls_client.dart';
 import 'pq_tls_server.dart';
+import 'certificate_policy.dart';
+import 'handshake.dart';
 import 'record.dart';
 import 'tls_state.dart';
 
@@ -25,6 +27,14 @@ final class PqTlsSocket {
     List<int>? offeredCipherSuites,
     List<String>? alpnProtocols,
     bool allowUnauthenticated = false,
+    List<TlsCertificateType> certificateTypes = const [
+      TlsCertificateType.rawPublicKey,
+    ],
+    List<Uint8List> trustAnchors = const [],
+    Uint8List? trustedSpki,
+    PqCertificateHook? verifyPeer,
+    DateTime Function()? now,
+    String? serverName,
   }) => PqTlsSocket._(
     inner,
     PqTlsClient(
@@ -34,6 +44,12 @@ final class PqTlsSocket {
       offeredCipherSuites: offeredCipherSuites,
       alpnProtocols: alpnProtocols,
       allowUnauthenticated: allowUnauthenticated,
+      certificateTypes: certificateTypes,
+      trustAnchors: trustAnchors,
+      trustedSpki: trustedSpki,
+      verifyPeer: verifyPeer,
+      now: now,
+      serverName: serverName,
     ),
     null,
   );
@@ -140,8 +156,11 @@ final class PqTlsSocket {
     if (c != null && !c.isComplete) {
       final out = await c.ingest(bytes);
       if (out.isFailure) {
+        final error = out.errorOrNull!;
+        final alert = c.certificateAlert(error);
+        if (alert != null) await _inner.send(alert);
         _recordDead = true;
-        _finishHandshake(Result.failure(out.errorOrNull!));
+        _finishHandshake(Result.failure(error));
         return;
       }
       for (final rec in out.valueOrNull!) {
@@ -160,8 +179,11 @@ final class PqTlsSocket {
     if (s != null && !s.isComplete) {
       final out = await s.ingest(bytes);
       if (out.isFailure) {
+        final error = out.errorOrNull!;
+        final alert = s.certificateAlert(error);
+        if (alert != null) await _inner.send(alert);
         _recordDead = true;
-        _finishHandshake(Result.failure(out.errorOrNull!));
+        _finishHandshake(Result.failure(error));
         return;
       }
       for (final rec in out.valueOrNull!) {
