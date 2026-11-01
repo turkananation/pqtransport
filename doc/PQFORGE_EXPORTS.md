@@ -1,14 +1,14 @@
 # pqforge exports pqtransport needs
 
-Last updated: 2026-10-01
+Last updated: 2026-11-02
 
 pqtransport must not vendor a second Kyber, a second X25519, or a second
 AES-GCM. When a primitive is missing, the correct move is a pqforge
 export, then a thin call here.
 
-Floor today: **pqforge 0.4.6** (SDK `^3.12.0`, depends on pqcrypto ^0.4.2,
-pointycastle ^4.0.0, cryptography ^2.9.0). Web-safe barrel
-`package:pqforge/pqforge.dart`. No `dart:ffi` in that barrel.
+Floor today: **pqforge 0.4.10**. The 0.4.6 notes below stay as history.
+**0.4.9** is the X.509 parser this package calls. **0.4.10** exports
+`PqHpke`. ECH calls that type. It does not keep a second HPKE.
 
 BLK-01 … BLK-05 landed in 0.4.4. **0.4.5** makes the sync ChaCha helper
 dart2js-safe. **0.4.6** exports AES-ECB (`aesEncryptBlock`) and
@@ -35,6 +35,7 @@ This file records what we consume and what is still not wired. IDs:
 | **AES-128-GCM + AES-ECB (OPEN-06)** | `aes128GcmEncrypt` / `Decrypt`, `aesEncryptBlock` (16- or 32-byte key) — QUIC Initial AEAD and header protection |
 | **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js-safe (Dart engine, 0.4.5). `supportsChaCha20Poly1305` is always `true`. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
 | **ChaCha20 keystream (OPEN-16)** | `chacha20` — RFC 8439 keystream, caller counter. QUIC header protection (RFC 9001 §5.4.4), pqforge 0.4.8. Not the Poly1305 AEAD. |
+| **RFC 9180 HPKE (0.4.10)** | `PqHpke.setupSender` / `setupRecipient`, `HpkeSuite.x25519Aes128Gcm`, base mode, from `PqTransportCrypto`. ECH only. Not X448. Not P-256, P-384, or P-521 HPKE. Not PSK or auth. |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |
@@ -44,7 +45,7 @@ This file records what we consume and what is still not wired. IDs:
 
 ## Consumed in this tree
 
-1. Bump `pqforge` to `^0.4.6`.
+1. Floor is `pqforge ^0.4.10`. The 0.4.6 bump is history.
 2. Call new helpers **only** from `PqTransportCrypto`.
 3. Live handshake tests for all three RFC 10024 groups.
 4. Local HMAC Expand loop deleted.
@@ -55,7 +56,6 @@ This file records what we consume and what is still not wired. IDs:
 | ID | Export | Why it waits |
 |---|---|---|
 | Expand-Label | — | Stays in pqtransport (TLS framing: `tls13` + label + context). |
-| HPKE base mode | — | RFC 9180 DHKEM(X25519, HKDF-SHA256) / HKDF-SHA256 / AES-128-GCM is composed in `ech.dart` from the X25519, HKDF-SHA256, and AES-128-GCM exports. No second X25519. Replace the composition when pqforge exports a named HPKE type. |
 
 OPEN-02 and OPEN-13 are **Fixed**.
 
