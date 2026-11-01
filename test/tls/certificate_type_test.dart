@@ -298,11 +298,12 @@ void main() {
         Uint8List(mlDsa87SignatureBytes),
       ),
       content: Uint8List(1),
-      mlDsaVerify: ({
-        required Uint8List publicKey,
-        required Uint8List message,
-        required Uint8List signatureBytes,
-      }) => true,
+      mlDsaVerify:
+          ({
+            required Uint8List publicKey,
+            required Uint8List message,
+            required Uint8List signatureBytes,
+          }) => true,
     );
     expect(checked.errorOrNull!.alert, tlsAlertDecryptError);
   });
@@ -329,11 +330,12 @@ void main() {
       leaf: leaf,
       verify: TlsCertificateVerify(0x0401, Uint8List(256)),
       content: Uint8List(1),
-      mlDsaVerify: ({
-        required Uint8List publicKey,
-        required Uint8List message,
-        required Uint8List signatureBytes,
-      }) => false,
+      mlDsaVerify:
+          ({
+            required Uint8List publicKey,
+            required Uint8List message,
+            required Uint8List signatureBytes,
+          }) => false,
     );
     expect(checked.errorOrNull!.alert, tlsAlertUnsupportedCertificate);
     expect(
