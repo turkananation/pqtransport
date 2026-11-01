@@ -8,11 +8,16 @@
   certificates, leaf first, checked by pqforge 0.4.9. Trust is anchors
   and/or one self-signed SPKI pin, then an optional hook. A signature
   alone is not authentication. No system trust store and no AIA.
-  OpenSSL 3.5.9 completes the three RFC 10024 groups with an ML-DSA-65
-  leaf. BoringSSL 0.20261020.0 verifies that leaf
-  (`X509_verify_cert`), which is not a BoringSSL TLS handshake. curl
-  linked to that OpenSSL does one X25519MLKEM768 GET with `--cacert`.
-  A browser handshake is not claimed.
+  OpenSSL 3.5.9, both directions, 2026-11-01. Client to `s_server`:
+  ML-DSA-65, chain length 1, all three RFC 10024 groups. Server,
+  `s_client -verify_return_error` against `PqTlsSocket`: ML-DSA-65 on
+  all three groups (chain length 1, and chain length 2 on
+  X25519MLKEM768) plus one P-256 leaf on X25519MLKEM768. ECDSA
+  CertificateVerify on the wire is DER. curl `--cacert` does one
+  HTTP/1.1 GET against `s_server` and one against `PqTlsSocket`.
+  BoringSSL 0.20261020.0 verifies the OpenSSL leaf
+  (`X509_verify_cert`), which is not a BoringSSL TLS handshake.
+  A browser handshake is not claimed. Not WebPKI. Not `curl --http3`.
 - Design record for OPEN-14 ([#43](https://github.com/turkananation/pqtransport/issues/43)):
   [doc/adr/ADR-0014-x509-certificate.md](doc/adr/ADR-0014-x509-certificate.md)
   and [doc/plans/OPEN-14-x509-certificate.md](doc/plans/OPEN-14-x509-certificate.md).
@@ -21,8 +26,9 @@
   implementation is the bullet above.
 - `IoTcpSocket` and `IoTcpServer` (`package:pqtransport/pqtransport_io.dart`).
   `PqTlsSocket` reassembles RFC 8446 records from the TCP byte stream
-  and rejects a record whose version is not `0x0303` or whose length
-  exceeds 2^14+256. `PqTlsServerIdentity.parse`, `parsePem`, and
+  and rejects a record whose version is not `0x0303`, except an initial
+  ClientHello which may be `0x0301` (RFC 8446 §5.1). A record length
+  above 2^14+256 is rejected. `PqTlsServerIdentity.parse`, `parsePem`, and
   `readMlDsaIdentityPem` load an RFC 9881 ML-DSA key from RFC 7468 PEM
   or RFC 5958 OneAsymmetricKey (seed, expanded key, or both). An
   encrypted private key is refused.
@@ -34,8 +40,8 @@
   context. TLS records use the header as AEAD additional data.
   Handshake messages may span records. Peer ML-DSA verification follows
   the key and signature sizes (ML-DSA-65 or ML-DSA-87), not the local
-  profile. X.509 path validation is not implemented. BoringSSL is not
-  this fixture.
+  profile. That bullet is the raw-pk flight. The X.509 flight is the
+  bullet above. BoringSSL is not this fixture.
 - `peerAuthenticated` on `PqTlsClient` and `PqTlsSocket` (IMP-22). True only after CertificateVerify succeeded. `allowUnauthenticated` is documented as not authentication and leaves the bit false. A server socket stays false (no client auth).
 - HTTP/2 on `PqTlsSocket` (OPEN-07 / slice 0.5.3). RFC 9113 preface,
   SETTINGS, HEADERS, DATA, CONTINUATION, PING, WINDOW_UPDATE, GOAWAY.

@@ -11,11 +11,12 @@ uses `PqForgeProfile.maximum`.
 | --- | --- |
 | Groups | X25519MLKEM768 (`0x11EC`), SecP256r1MLKEM768 (`0x11EB`), SecP384r1MLKEM1024 (`0x11ED`) |
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`), SHA-384 |
-| raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. |
-| X.509 | ML-DSA-65 leaf signed by an ML-DSA-65 CA. Chain length 1. The CA DER is the only anchor. DNS `localhost`. No `-enable_server_rpk`. |
+| raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. The raw-pk flight is not edited to make the X.509 flight pass. |
+| X.509 client | `PqTlsClient` to `s_server`, no `-enable_server_rpk`. ML-DSA-65 leaf, chain length 1, that CA as the only anchor. DNS `localhost`. All three groups. |
+| X.509 server | `openssl s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65 on all three groups, chain length 1, and chain length 2 on X25519MLKEM768 (leaf + intermediate, root is `-CAfile`). One P-256 leaf (`ecdsa_secp256r1_sha256`) on X25519MLKEM768. Certs are minted by pqforge. |
 | Order | X25519: ML-KEM then X25519. P-256 and P-384: ECDHE then ML-KEM. |
-| BoringSSL | 0.20261020.0 `X509_verify_cert` on that same leaf and CA. The checker is the pqforge one. Not a BoringSSL TLS handshake. |
-| curl | One HTTPS GET, X25519MLKEM768, `--cacert` the CA, curl linked to this OpenSSL. Not `curl --http3`. Not a browser. |
+| BoringSSL | 0.20261020.0 `X509_verify_cert` on the OpenSSL leaf and CA. Not a BoringSSL TLS handshake. |
+| curl | Two HTTPS GETs, both X25519MLKEM768, `--cacert`, `--http1.1`, curl linked to this OpenSSL. One against `s_server`. One against `PqTlsSocket`. Not `curl --http3`. Not a browser. |
 | Gate | `bash tool/interop/openssl/run.sh` |
 
 WebPKI, the system trust store, and a live Chrome flight are not this fixture.

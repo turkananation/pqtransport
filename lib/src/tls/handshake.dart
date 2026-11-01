@@ -41,6 +41,8 @@ final class ClientHello {
     this.cookie,
     this.certificateTypes = const [TlsCertificateType.rawPublicKey],
     this.signatureSchemes = const [tlsSignatureMldsa65, tlsSignatureMldsa87],
+    this.keyShares,
+    this.ignoredKeyShareGroups = const [],
   });
 
   final Uint8List random;
@@ -62,7 +64,25 @@ final class ClientHello {
 
   final List<int> signatureSchemes;
 
-  List<int> get offeredGroupCodepoints => supportedGroups ?? [group.codepoint];
+  /// Every key share this hello carries. Null means the single [group]
+  /// and [share] pair. A peer may send several; the server uses the one
+  /// for its group.
+  final List<({HybridGroup group, Uint8List share})>? keyShares;
+
+  /// Named groups this stack does not implement, encoded ahead of
+  /// [offeredKeyShares]. OpenSSL and browsers send X25519 beside a hybrid
+  /// group. Empty on a hello this stack writes for itself.
+  final List<int> ignoredKeyShareGroups;
+
+  List<({HybridGroup group, Uint8List share})> get offeredKeyShares =>
+      keyShares ?? [(group: group, share: share)];
+
+  List<int> get offeredGroupCodepoints =>
+      supportedGroups ??
+      [
+        ...ignoredKeyShareGroups,
+        for (final entry in offeredKeyShares) entry.group.codepoint,
+      ];
 
   bool get offersX509 =>
       certificateTypes == null ||
@@ -107,7 +127,7 @@ final class ClientHello {
     if (c != null) {
       b.add(_extCookie(c));
     }
-    b.add(_extKeyShareClient(group, share));
+    b.add(_extKeyShareClients(offeredKeyShares, ignoredKeyShareGroups));
     return b.takeBytes();
   }
 
@@ -177,16 +197,14 @@ final class ClientHello {
     if (groups.isFailure) return Result.failure(groups.errorOrNull!);
     final sigs = _parseSignatureAlgorithms(map);
     if (sigs.isFailure) return Result.failure(sigs.errorOrNull!);
-    final share = _parseKeyShareClient(map);
-    if (share.isFailure) return Result.failure(share.errorOrNull!);
-    final (group, keyShare) = share.valueOrNull!;
-    if (!groups.valueOrNull!.contains(group.codepoint)) {
-      return Result.failure(
-        PqTransportError.illegalParameter(PqLengthLabel.tlsKeyShare, 0, 1),
-      );
+    final shares = _parseKeyShareClient(map, groups.valueOrNull!);
+    if (shares.isFailure) return Result.failure(shares.errorOrNull!);
+    final offered = shares.valueOrNull!;
+    for (final entry in offered) {
+      final decoded = decodeClientShare(entry.group, entry.share);
+      if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     }
-    final decoded = decodeClientShare(group, keyShare);
-    if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+    final (group, keyShare) = (offered.first.group, offered.first.share);
     final sni = _parseServerName(map);
     if (sni.isFailure) return Result.failure(sni.errorOrNull!);
     final alpn = _parseAlpn(map);
@@ -208,6 +226,7 @@ final class ClientHello {
         cookie: cookie.valueOrNull,
         certificateTypes: rawPk.valueOrNull,
         signatureSchemes: sigs.valueOrNull!,
+        keyShares: offered.length == 1 ? null : offered,
       ),
     );
   }
@@ -893,11 +912,20 @@ Uint8List _extSignatureAlgorithms(List<int> schemes) {
   return _ext(tlsExtSignatureAlgorithms, _u16Vector(list.takeBytes()));
 }
 
-Uint8List _extKeyShareClient(HybridGroup group, Uint8List share) {
-  final entry = BytesBuilder(copy: false);
-  writeUint16(entry, group.codepoint);
-  writeOpaque16(entry, share);
-  return _ext(tlsExtKeyShare, _u16Vector(entry.takeBytes()));
+Uint8List _extKeyShareClients(
+  List<({HybridGroup group, Uint8List share})> shares,
+  List<int> ignoredGroups,
+) {
+  final list = BytesBuilder(copy: false);
+  for (final code in ignoredGroups) {
+    writeUint16(list, code);
+    writeOpaque16(list, Uint8List(32));
+  }
+  for (final entry in shares) {
+    writeUint16(list, entry.group.codepoint);
+    writeOpaque16(list, entry.share);
+  }
+  return _ext(tlsExtKeyShare, _u16Vector(list.takeBytes()));
 }
 
 Uint8List _extKeyShareServer(HybridGroup group, Uint8List share) {
@@ -1088,9 +1116,8 @@ Result<List<int>, PqTransportError> _parseSignatureAlgorithms(
   return Result.success(out);
 }
 
-Result<(HybridGroup, Uint8List), PqTransportError> _parseKeyShareClient(
-  Map<int, Uint8List> exts,
-) {
+Result<List<({HybridGroup group, Uint8List share})>, PqTransportError>
+_parseKeyShareClient(Map<int, Uint8List> exts, List<int> supportedGroups) {
   final data = exts[tlsExtKeyShare];
   if (data == null) {
     return Result.failure(PqTransportError.decodeFailure('missing key_share'));
@@ -1105,22 +1132,34 @@ Result<(HybridGroup, Uint8List), PqTransportError> _parseKeyShareClient(
   if (inner.isDone) {
     return Result.failure(PqTransportError.decodeFailure('empty key_share'));
   }
-  final cp = inner.u16();
-  if (cp.isFailure) return Result.failure(cp.errorOrNull!);
-  final group = HybridGroupContract.byCodepoint(cp.valueOrNull!);
-  if (group == null) {
+  final seen = <int>{};
+  final out = <({HybridGroup group, Uint8List share})>[];
+  while (!inner.isDone) {
+    final cp = inner.u16();
+    if (cp.isFailure) return Result.failure(cp.errorOrNull!);
+    final share = inner.opaque16(PqLengthLabel.hybridClientShare);
+    if (share.isFailure) return Result.failure(share.errorOrNull!);
+    final code = cp.valueOrNull!;
+    if (!supportedGroups.contains(code)) {
+      return Result.failure(
+        PqTransportError.illegalParameter(PqLengthLabel.tlsKeyShare, code, 1),
+      );
+    }
+    if (!seen.add(code)) {
+      return Result.failure(
+        PqTransportError.decodeFailure('duplicate key_share $code'),
+      );
+    }
+    final group = HybridGroupContract.byCodepoint(code);
+    if (group == null) continue;
+    out.add((group: group, share: share.valueOrNull!));
+  }
+  if (out.isEmpty) {
     return Result.failure(
-      PqTransportError.unsupported('named group ${cp.valueOrNull}'),
+      PqTransportError.unsupported('named group ${seen.join(',')}'),
     );
   }
-  final share = inner.opaque16(PqLengthLabel.hybridClientShare);
-  if (share.isFailure) return Result.failure(share.errorOrNull!);
-  if (!inner.isDone) {
-    return Result.failure(
-      PqTransportError.decodeFailure('extra key_share entries'),
-    );
-  }
-  return Result.success((group, share.valueOrNull!));
+  return Result.success(out);
 }
 
 Result<(HybridGroup, Uint8List), PqTransportError> _parseKeyShareServer(

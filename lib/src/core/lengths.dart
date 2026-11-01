@@ -143,6 +143,7 @@ const int mdnsProbeCount = 2;
 // ---------------------------------------------------------------------------
 
 const int tlsLegacyVersion = 0x0303; // recorded on the wire
+const int tlsCompatibleRecordVersion = 0x0301; // initial ClientHello only
 const int tls13Version = 0x0304;
 const int tlsRecordHeaderBytes = 5;
 const int tlsMaxPlaintextBytes = 16384;
@@ -202,6 +203,8 @@ const int tlsCertificateListMax = 8;
 const int tlsCompressionNull = 0;
 const int tlsLegacySessionIdMaxBytes = 32;
 const int tlsCookieBytes = 32;
+const int tlsAlertLevelWarning = 1;
+const int tlsAlertCloseNotify = 0;
 const int tlsAlertIllegalParameter = 47;
 const int tlsAlertUnexpectedMessage = 10;
 const int tlsAlertDecryptError = 51;

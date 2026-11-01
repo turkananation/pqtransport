@@ -17,6 +17,7 @@ import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
 import 'cipher_suite.dart';
+import 'certificate_policy.dart';
 
 final class PqTlsServerIdentity {
   PqTlsServerIdentity({
@@ -205,6 +206,7 @@ final class PqTlsServer {
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
   String? selectedAlpn;
+  Uint8List _pendingHandshake = Uint8List(0);
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -213,6 +215,16 @@ final class PqTlsServer {
   Future<Result<List<Uint8List>, PqTransportError>> ingest(
     Uint8List recordBytes,
   ) async {
+    if (!quic &&
+        recordBytes.isNotEmpty &&
+        recordBytes[0] == tlsContentChangeCipherSpec) {
+      final ignored = ignoreCompatibleChangeCipherSpec(recordBytes);
+      if (ignored.isFailure) {
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(ignored.errorOrNull!);
+      }
+      return const Result.success([]);
+    }
     if (state == TlsState.waitClientHello) {
       return _onClientHello(recordBytes);
     }
@@ -232,12 +244,22 @@ final class PqTlsServer {
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final rec = unwrapHandshake(recordBytes, quic: quic);
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
-    var helloBytes = rec.valueOrNull!;
-    if (quic) {
-      final n = handshakeWireLength(helloBytes);
-      if (n < 0 || n > helloBytes.length) return _fail('truncated ch');
-      helloBytes = slice(helloBytes, 0, n);
+    final chunk = rec.valueOrNull!;
+    _pendingHandshake = _pendingHandshake.isEmpty
+        ? chunk
+        : concatBytes([_pendingHandshake, chunk]);
+    if (_pendingHandshake.length > tlsHandshakeReassemblyMaxBytes) {
+      return _fail('handshake too large');
     }
+    final n = handshakeWireLength(_pendingHandshake);
+    if (n < 0 || _pendingHandshake.length < n) {
+      return const Result.success([]);
+    }
+    if (_pendingHandshake.length != n) {
+      return _fail('trailing client hello');
+    }
+    final helloBytes = _pendingHandshake;
+    _pendingHandshake = Uint8List(0);
     final ch = ClientHello.decode(helloBytes);
     if (ch.isFailure) return Result.failure(ch.errorOrNull!);
     final hello = ch.valueOrNull!;
@@ -252,7 +274,7 @@ final class PqTlsServer {
       return _fail('no mutually supported cipher');
     }
     _bindSuite(selected);
-    if (hello.group != group) {
+    if (hello.group != group && _shareFor(hello) == null) {
       return _emitHelloRetry(hello, helloBytes);
     }
     return _completeClientHello(hello, helloBytes);
@@ -269,7 +291,7 @@ final class PqTlsServer {
         !PqBytes.constantTimeEquals(got, expected)) {
       return _fail('cookie mismatch');
     }
-    if (hello.group != group) return _fail('second hello retry');
+    if (_shareFor(hello) == null) return _fail('second hello retry');
     return _completeClientHello(hello, helloBytes);
   }
 
@@ -309,7 +331,7 @@ final class PqTlsServer {
     final driven = driveTls(machine, TlsEvent.receiveClientHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     transcript.add(helloBytes);
-    final decoded = decodeClientShare(group, hello.share);
+    final decoded = decodeClientShare(group, _shareFor(hello)!);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final clientShare = decoded.valueOrNull!;
     if (!crypto.checkEncapsulationKey(clientShare.kemEncapsulationKey)) {
@@ -383,11 +405,13 @@ final class PqTlsServer {
           : encodeCertificate(identity.publicKey);
       transcript.add(cert);
       final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
-      final sig = identity.signContent != null
+      final signed = identity.signContent != null
           ? identity.signContent!(toSign)
           : crypto.mlDsaSign(secretKey: identity.secretKey, message: toSign);
+      final scheme = sendX509 ? identity.leafScheme : tlsSignatureMldsa65;
+      final sig = wireCertificateVerifySignature(scheme, signed);
       final cv = sendX509
-          ? encodeCertVerifyScheme(identity.leafScheme, sig)
+          ? encodeCertVerifyScheme(scheme, sig)
           : encodeCertVerify(sig);
       transcript.add(cv);
       final fin = encodeFinished(
@@ -444,14 +468,22 @@ final class PqTlsServer {
     if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
       return _fail('client finished mac');
     }
-    transcript.add(finBytes);
-    final driven = driveTls(machine, TlsEvent.receiveFinished);
-    if (driven.isFailure) return Result.failure(driven.errorOrNull!);
+    // RFC 8446 §7.1. Application keys do not cover client Finished.
     schedule.deriveApplication(
       hybridSharedSecret: _hybridSs!,
       applicationTranscriptHash: transcript.snapshot(),
     );
+    transcript.add(finBytes);
+    final driven = driveTls(machine, TlsEvent.receiveFinished);
+    if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     return const Result.success([]);
+  }
+
+  Uint8List? _shareFor(ClientHello hello) {
+    for (final entry in hello.offeredKeyShares) {
+      if (entry.group == group) return entry.share;
+    }
+    return null;
   }
 
   Result<({bool sendX509, int? echoType}), PqTransportError> _selectCertificate(
@@ -519,6 +551,7 @@ final class PqTlsServer {
   }
 
   Result<List<Uint8List>, PqTransportError> _fail(String why) {
+    _pendingHandshake = Uint8List(0);
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
   }

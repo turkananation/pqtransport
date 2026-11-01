@@ -1,16 +1,15 @@
 # OpenSSL 3.5 — RFC 10024 hybrid handshakes
 
-One live TLS 1.3 flight per group against OpenSSL `s_server`. The peer
-is a process. There is no `dart:ffi` and no checked-in transcript: each
-run generates an ML-DSA-65 key, starts `s_server`, and finishes the
-handshake or the script exits non-zero.
+One live TLS 1.3 flight per group against OpenSSL `s_server`, then
+`s_client` and curl against `PqTlsSocket`. The peer is a process.
+There is no `dart:ffi` and no checked-in transcript.
 
 ## What is claimed
 
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-SecP256r1MLKEM768, and SecP384r1MLKEM1024. raw-pk and one ML-DSA-65
-X.509 chain. SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
-BoringSSL verifies the leaf. curl does one GET. Not a browser.
+SecP256r1MLKEM768, and SecP384r1MLKEM1024. raw-pk and X.509.
+SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
+BoringSSL verifies the OpenSSL leaf. curl does two GETs. Not a browser.
 
 | Item | Value |
 | --- | --- |
@@ -18,11 +17,12 @@ BoringSSL verifies the leaf. curl does one GET. Not a browser.
 | Groups | `X25519MLKEM768` (`0x11EC`), `SecP256r1MLKEM768` (`0x11EB`), `SecP384r1MLKEM1024` (`0x11ED`) |
 | Order | X25519 is ML-KEM then classical (`ml_kem_slot` 0). P-256 and P-384 are classical then ML-KEM (`ml_kem_slot` 1). |
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`), HKDF-SHA-384 |
-| Auth, raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. |
-| Auth, X.509 | ML-DSA-65 leaf signed by an ML-DSA-65 CA. Chain length 1. The client trusts that CA only. DNS `localhost`. |
+| Auth, raw-pk | RFC 7250. `-enable_server_rpk` sends one ML-DSA-65 SubjectPublicKeyInfo. This flight is not edited for X.509. |
+| Auth, X.509 client | `PqTlsClient` to `s_server`. ML-DSA-65 leaf, chain length 1, caller CA. DNS `localhost`. |
+| Auth, X.509 server | `s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65, chain length 1 on all three groups, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768. |
 | BoringSSL | 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. Not a TLS peer. |
-| curl | One HTTPS GET on X25519MLKEM768 with `--cacert`, curl linked to this OpenSSL. Not a browser. Not `curl --http3`. |
-| Finished | Each group, both auth modes: OpenSSL logs `read finished`. `peerAuthenticated` is true. |
+| curl | Two HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`. Not a browser. Not `curl --http3`. |
+| Finished | Each raw-pk and X.509 client group: OpenSSL logs `read finished` and `peerAuthenticated` is true. Each server group: `s_client` exits 0 and prints `Verify return code: 0`. |
 
 ## Wire this fixture requires
 

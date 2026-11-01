@@ -42,14 +42,18 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
   cannot guarantee constant-time execution)."
 - Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
   SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`.
-  Two auth modes. raw-pk (2026-10-20): `-enable_server_rpk`, one ML-DSA-65
-  SubjectPublicKeyInfo. X.509: an ML-DSA-65 leaf signed by an ML-DSA-65
-  CA, chain length 1, that CA as the only caller-supplied anchor, DNS
-  `localhost`. P-384 uses `PqForgeProfile.maximum`. BoringSSL
-  0.20261020.0 runs `X509_verify_cert` on that leaf. It is not a
-  BoringSSL TLS peer. curl linked to this OpenSSL completes one
-  X25519MLKEM768 HTTPS GET with `--cacert`. Not a browser. Not WebPKI.
-  Not `curl --http3`.
+  raw-pk (2026-10-20): `-enable_server_rpk`, one ML-DSA-65
+  SubjectPublicKeyInfo. X.509 (2026-11-01), both directions. Client to
+  `s_server`: ML-DSA-65 leaf, chain length 1, caller CA, DNS
+  `localhost`. Server: `openssl s_client -verify_return_error` against
+  `PqTlsSocket`, ML-DSA-65 on all three groups (chain length 1, and
+  chain length 2 on X25519MLKEM768) plus one P-256 leaf
+  (`0x0403`) on X25519MLKEM768. KEX stays the hybrid group.
+  P-384 uses `PqForgeProfile.maximum`. BoringSSL 0.20261020.0 runs
+  `X509_verify_cert` on the OpenSSL leaf. It is not a BoringSSL TLS
+  peer. curl linked to this OpenSSL completes one X25519MLKEM768
+  HTTP/1.1 GET with `--cacert` against `s_server` and one against
+  `PqTlsSocket`. Not a browser. Not WebPKI. Not `curl --http3`.
 
 ADR-0014 is implemented for a caller-supplied chain of 1 to 8. There
 is no AIA fetch, no system trust store, and no browser flight. A
@@ -71,7 +75,7 @@ Use instead:
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | The sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk and the one ML-DSA-65 X.509 chain. BoringSSL verifies that leaf only. curl is one HTTPS GET. Nothing wider. |
+| Interoperable with OpenSSL | The sentence above: OpenSSL 3.5.9, the three RFC 10024 groups, raw-pk and the X.509 flights named there. BoringSSL verifies that leaf only. curl is two HTTP/1.1 GETs. Nothing wider. |
 
 Also forbidden in meaning, even if the substring differs:
 

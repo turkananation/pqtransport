@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:pqforge/pqforge.dart';
 import 'package:pqtransport/pqtransport_io.dart';
 
+import 'server_flight.dart';
+
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.length > 2) {
     stderr.writeln(
@@ -26,6 +28,7 @@ Future<void> main(List<String> args) async {
     '(X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024)',
   );
   await handshakeX509(args.single);
+  await handshakeServerFlight(args.single);
   exit(0);
 }
 

@@ -36,7 +36,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | SNI, ALPN, supported_versions, key_share extensions | Done | ClientHello ALPN default `http/1.1`. EncryptedExtensions carries the selected protocol (RFC 7301). `h2` is selectable. |
 | X.509 / certificate chains | Done | Opt-in. pqforge 0.4.9 parses, checks, and path-validates a caller-supplied chain of 1 to 8. No AIA, no system trust store. Raw public key stays the default. |
 | ChaCha20-Poly1305 records | Done | IANA `0x1303`. VM, dart2wasm, **and dart2js** via pqforge 0.4.5 Dart engine. |
-| OpenSSL 3.5.9 RFC 10024 groups | Done | Three groups, raw-pk and one ML-DSA-65 X.509 chain (leaf plus caller CA). BoringSSL 0.20261020.0 verifies that leaf only. curl linked to this OpenSSL does one X25519MLKEM768 GET with `--cacert`. Not a browser. Not WebPKI. |
+| OpenSSL 3.5.9 RFC 10024 groups | Done | Three groups. raw-pk unchanged. X.509 client to `s_server` (ML-DSA-65, chain length 1) and `s_client -verify_return_error` against `PqTlsSocket` (ML-DSA-65 chain length 1 on all three, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768). curl `--cacert` one HTTP/1.1 GET against each peer. BoringSSL verifies the OpenSSL leaf only. Not a browser. Not WebPKI. |
 
 ## UDP
 

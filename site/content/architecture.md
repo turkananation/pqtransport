@@ -81,9 +81,9 @@ RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
 (ChaCha20-Poly1305 + HKDF-SHA-256). Private-use `0xFF00` is retired.
 Handshake vs application epochs reset the record sequence. Finished is
 HMAC over the transcript (SHA-384 for `0x1302`, SHA-256 for `0x1303`).
-Certificate is one RFC 7250 ML-DSA SubjectPublicKeyInfo inside an
-RFC 8446 Certificate message (OPEN-04). Not an X.509 path.
+Certificate defaults to one RFC 7250 ML-DSA SubjectPublicKeyInfo.
+X.509 is opt-in (`certificateTypes: [x509]`, chain 1 to 8).
 
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
-raw-pk). Not X.509. Not BoringSSL.
+SecP256r1MLKEM768, and SecP384r1MLKEM1024, raw-pk and X.509
+both directions. Not a browser. Not WebPKI. Not a BoringSSL TLS peer.

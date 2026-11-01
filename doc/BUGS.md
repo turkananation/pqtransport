@@ -18,12 +18,8 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 ## Open bugs
 
-| ID | Sev | Component | Summary | Evidence |
-|---|---|---|---|---|
-| OPEN-14 | P1 | TLS | X.509 is not implemented. RawPublicKey is the only negotiated type. The design waits on pqforge 0.4.8 `PqX509`, then an opt-in chain of at most 8. | [#43](https://github.com/turkananation/pqtransport/issues/43). [ADR-0014](adr/ADR-0014-x509-certificate.md). |
-
-OPEN-15 (RFC 9002 loss recovery) is **Fixed**. LIM-01 remains the raw-pk
-OpenSSL limit. OPEN-14 does not widen that limit.
+None. OPEN-14 (X.509) is **Fixed**. LIM-01 remains the raw-pk OpenSSL
+row. The X.509 flights do not replace that row.
 
 ## Blocked on pqforge
 
@@ -80,3 +76,4 @@ Do not vendor ChaCha or ECDH.
 | OPEN-07 HTTP/3 | HTTP / QUIC | HTTP/3 frames without QPACK or STREAM mapping. | RFC 9000 STREAM decode + reassembly. RFC 9204 QPACK (static 99, dynamic, B.1–B.5). RFC 9114 session on `PqQuicConn` ALPN `h3`. GET/POST. Silent h3→h1 refused. `test/http/http3_test.dart`. |
 | OPEN-10 | DoH / DoT | `DohExchange` / `DotExchange` were thin adapters. No ALPN `dot`/`h2`, no URI template. | RFC 8484 `DohClient` POST and GET (`{?dns}`, unpadded base64url) on ALPN `h2` and `h3`. RFC 7858 `DotClient` requires ALPN `dot` and reassembles the length prefix. `test/dns/doh_dot_test.dart`. curl/nghttp2 and nghttp3 QPACK: `tool/interop`. |
 | OPEN-15 | QUIC | No loss detection, retransmission, or congestion window. `PqQuicConn` was an in-memory pair. | RFC 9002 §5–§7. `QuicLossRecovery` + `QuicNewReno`. Per-space packet and time thresholds, PTO (local budget, no idle timeout), lost STREAM/CRYPTO under a new packet number. Dropped 1-RTT STREAM and dropped server Initial recover. A silent peer stops. `test/quic/recovery_test.dart`. |
+| OPEN-14 | TLS | Opt-in X.509, chain 1..8, caller anchors. OpenSSL 3.5.9 both directions: `s_server` and `s_client -verify_return_error` against `PqTlsSocket` (ML-DSA-65 chain length 1 on three groups, chain length 2 on X25519MLKEM768, one P-256 leaf). curl `--cacert` HTTP/1.1 against both peers. Default offer stays raw public key. | [#43](https://github.com/turkananation/pqtransport/issues/43). `test/tls/certificate_type_test.dart`, `test/tls/server_edge_test.dart`, `tool/interop/openssl/server_flight.dart`. |

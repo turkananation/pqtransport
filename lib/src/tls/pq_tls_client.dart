@@ -382,6 +382,12 @@ final class PqTlsClient {
           return _fail('finished mac');
         }
         transcript.add(msg);
+        // RFC 8446 §7.1: application secrets are Hash(ClientHello..server
+        // Finished). Client Finished is not in that hash.
+        schedule.deriveApplication(
+          hybridSharedSecret: _hybridSs!,
+          applicationTranscriptHash: transcript.snapshot(),
+        );
         final clientFin = encodeFinished(
           schedule.finishedMac(
             schedule.clientFinishedKey,
@@ -399,10 +405,6 @@ final class PqTlsClient {
             epoch: TlsRecordEpoch.handshake,
           );
         }
-        schedule.deriveApplication(
-          hybridSharedSecret: _hybridSs!,
-          applicationTranscriptHash: transcript.snapshot(),
-        );
       } else {
         return _fail('hs type $type');
       }

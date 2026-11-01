@@ -113,14 +113,13 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | Flow control violation is an error | Done |
 | HTTP/1.1 GET over mock TLS | Done |
 | HTTP/2 GET over mock TLS (ALPN `h2`) | Done |
-| OpenSSL 3.5.9 RFC 10024 raw-pk | Done — all three groups in `tool/interop/openssl`. Not X.509. Not BoringSSL. |
+| OpenSSL 3.5.9 RFC 10024 raw-pk | Done — all three groups in `tool/interop/openssl`. The X.509 flights are a separate row in [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md). Not BoringSSL. |
 
 ## What this release does *not* achieve
 
 Recorded so achievements cannot be misread:
 
-- X.509 certificate chains. The OpenSSL fixture is RFC 7250 raw-pk only.
-- BoringSSL.
+- BoringSSL as a TLS peer. `X509_verify_cert` on one OpenSSL leaf is not a handshake.
 - QUIC 0-RTT (LIM-05, issue 55). Permanent. Not in this tree. RFC 9000
   §12.3 would put it in the Application Data packet number space; this
   stack does not send it.

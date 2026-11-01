@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Proposed.** Merging the design PR approves this record. It does not implement it. |
+| Status | **Accepted.** Implemented 2026-11-01. Client and server OpenSSL 3.5.9 flights are in [OPENSSL_INTEROP.md](../OPENSSL_INTEROP.md). |
 | Date | 2026-10-27. Amended the 2026-10-25 text of this same ADR. |
 | Issue | [OPEN-14 / #43](https://github.com/turkananation/pqtransport/issues/43) |
 | Slice | 0.6.2, after pqforge 0.4.8 exports the certificate layer |
