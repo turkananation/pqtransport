@@ -232,7 +232,8 @@ final class PqEncryptedUdpSocket {
     _isClient = false;
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
-    if (initiatorFlight.length < 7 || (initiatorFlight[0] & 0x80) == 0) {
+    if (initiatorFlight.length < quicMinClientInitialUdpBytes ||
+        (initiatorFlight[0] & 0x80) == 0) {
       return Result.failure(
         PqTransportError.illegalParameter(
           PqLengthLabel.datagram,

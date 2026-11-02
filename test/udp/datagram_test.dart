@@ -145,6 +145,13 @@ void main() {
         deploymentSalt: salt,
       );
       expect(reply.isSuccess, isTrue, reason: '${reply.errorOrNull}');
+      final serverInitial = reply.valueOrNull!;
+      expect(serverInitial[0] & 0xf0, 0xc0);
+      final serverPeer = QuicInitialCodec(
+        crypto: crypto,
+        keys: secrets.server,
+      ).open(serverInitial);
+      expect(serverPeer.isSuccess, isTrue, reason: '${serverPeer.errorOrNull}');
       final done = await a.completeInitiate(
         responderClassicalPublic: reply.valueOrNull!,
       );
