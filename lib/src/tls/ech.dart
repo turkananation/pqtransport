@@ -14,9 +14,9 @@ import 'record.dart';
 
 /// RFC 9849 ECHConfig for the one HPKE suite this stack seals.
 ///
-/// DHKEM(X25519, HKDF-SHA256) + HKDF-SHA256 + AES-128-GCM. The KEM, KDF,
-/// and AEAD are pqforge's. HPKE itself is not a pqforge type yet, so the
-/// base-mode composition stays here. No other KEM, and no cleartext retry.
+/// DHKEM(X25519, HKDF-SHA256) + HKDF-SHA256 + AES-128-GCM, via
+/// [PqHpke] (`HpkeSuite.x25519Aes128Gcm`, base mode). No other KEM,
+/// and no cleartext retry.
 final class EchConfig {
   EchConfig({
     required this.configId,
@@ -230,7 +230,10 @@ Future<Result<Uint8List, PqTransportError>> sealEchOuter({
     ignoredKeyShareGroups: inner.ignoredKeyShareGroups,
   );
   final partial = outer.encode();
-  final setup = await _setupBaseS(crypto, config);
+  final setup = await crypto.hpkeSetupBaseSender(
+    recipientPublicKey: config.publicKey,
+    info: _hpkeInfo(config),
+  );
   if (setup == null) {
     return Result.failure(PqTransportError.internalError('ech hpke setup'));
   }
@@ -247,7 +250,14 @@ Future<Result<Uint8List, PqTransportError>> sealEchOuter({
     );
   }
   final aad = slice(zeroed, tlsHandshakeHeaderBytes, zeroed.length);
-  final sealed = setup.context.seal(crypto, aad, padded);
+  Uint8List? sealed;
+  try {
+    sealed = setup.context.seal(padded, aad: aad);
+  } on PqForgeAuthTagException {
+    sealed = null;
+  } on PqForgeException {
+    sealed = null;
+  }
   if (sealed == null || sealed.length != payloadLen) {
     return Result.failure(PqTransportError.internalError('ech seal length'));
   }
@@ -281,8 +291,7 @@ Future<Result<Uint8List, PqTransportError>> openEchOuter({
     return Result.failure(PqTransportError.decryptError('ech payload'));
   }
   aad.fillRange(parsed.payloadStartInBody, parsed.payloadEnd, 0);
-  final context = await _setupBaseR(
-    crypto,
+  final context = await crypto.hpkeSetupBaseRecipient(
     enc: parsed.enc,
     recipientSecret: server.secretKey,
     recipientPublic: server.config.publicKey,
@@ -291,7 +300,14 @@ Future<Result<Uint8List, PqTransportError>> openEchOuter({
   if (context == null) {
     return Result.failure(PqTransportError.decryptError('ech hpke'));
   }
-  final opened = context.open(crypto, aad, parsed.payload);
+  Uint8List? opened;
+  try {
+    opened = context.open(parsed.payload, aad: aad);
+  } on PqForgeAuthTagException {
+    opened = null;
+  } on PqForgeException {
+    opened = null;
+  }
   if (opened == null) {
     return Result.failure(PqTransportError.decryptError('ech payload'));
   }
@@ -746,225 +762,5 @@ Uint8List _hpkeInfo(EchConfig config) {
   out.setRange(0, 7, utf8.encode('tls ech'));
   out[7] = 0;
   out.setRange(8, out.length, encoded);
-  return out;
-}
-
-final class _HpkeContext {
-  _HpkeContext(this.key, this.baseNonce);
-
-  final Uint8List key;
-  final Uint8List baseNonce;
-  var _seq = 0;
-
-  Uint8List? seal(
-    PqTransportCrypto crypto,
-    Uint8List aad,
-    Uint8List plaintext,
-  ) {
-    final nonce = _nonce();
-    _seq++;
-    return crypto.aeadSeal(
-      key: key,
-      nonce: nonce,
-      plaintext: plaintext,
-      aad: aad,
-      aead: TransportAead.aes128Gcm,
-    );
-  }
-
-  Uint8List? open(
-    PqTransportCrypto crypto,
-    Uint8List aad,
-    Uint8List ciphertext,
-  ) {
-    final nonce = _nonce();
-    _seq++;
-    try {
-      return crypto.aeadOpen(
-        key: key,
-        nonce: nonce,
-        ciphertextWithTag: ciphertext,
-        aad: aad,
-        aead: TransportAead.aes128Gcm,
-      );
-    } on ArgumentError {
-      rethrow;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Uint8List _nonce() {
-    final n = Uint8List.fromList(baseNonce);
-    var seq = _seq;
-    for (var i = n.length - 1; i >= 0; i--) {
-      n[i] ^= seq & 0xff;
-      seq >>= 8;
-    }
-    return n;
-  }
-}
-
-Future<({Uint8List enc, _HpkeContext context})?> _setupBaseS(
-  PqTransportCrypto crypto,
-  EchConfig config,
-) async {
-  final ephemeral = await crypto.x25519KeyGen();
-  final dh = await crypto.x25519Agree(
-    secretKey: ephemeral.secretKey,
-    remotePublicKey: config.publicKey,
-  );
-  final secret = _kemSharedSecret(
-    crypto,
-    dh: dh,
-    enc: ephemeral.publicKey,
-    recipientPublic: config.publicKey,
-  );
-  final context = _keySchedule(crypto, secret, _hpkeInfo(config));
-  return (enc: ephemeral.publicKey, context: context);
-}
-
-Future<_HpkeContext?> _setupBaseR(
-  PqTransportCrypto crypto, {
-  required Uint8List enc,
-  required Uint8List recipientSecret,
-  required Uint8List recipientPublic,
-  required Uint8List info,
-}) async {
-  if (enc.length != x25519ShareBytes) return null;
-  final dh = await crypto.x25519Agree(
-    secretKey: recipientSecret,
-    remotePublicKey: enc,
-  );
-  final secret = _kemSharedSecret(
-    crypto,
-    dh: dh,
-    enc: enc,
-    recipientPublic: recipientPublic,
-  );
-  return _keySchedule(crypto, secret, info);
-}
-
-Uint8List _kemSharedSecret(
-  PqTransportCrypto crypto, {
-  required Uint8List dh,
-  required Uint8List enc,
-  required Uint8List recipientPublic,
-}) {
-  final suite = _kemSuiteId();
-  final context = concatBytes([enc, recipientPublic]);
-  final prk = _labeledExtract(crypto, suite, Uint8List(0), 'eae_prk', dh);
-  return _labeledExpand(
-    crypto,
-    suite,
-    prk,
-    'shared_secret',
-    context,
-    sha256HashBytes,
-  );
-}
-
-_HpkeContext _keySchedule(
-  PqTransportCrypto crypto,
-  Uint8List sharedSecret,
-  Uint8List info,
-) {
-  final suite = _hpkeSuiteId();
-  final pskIdHash = _labeledExtract(
-    crypto,
-    suite,
-    Uint8List(0),
-    'psk_id_hash',
-    Uint8List(0),
-  );
-  final infoHash = _labeledExtract(
-    crypto,
-    suite,
-    Uint8List(0),
-    'info_hash',
-    info,
-  );
-  final ksContext = concatBytes([
-    Uint8List.fromList([0]),
-    pskIdHash,
-    infoHash,
-  ]);
-  final secret = _labeledExtract(
-    crypto,
-    suite,
-    sharedSecret,
-    'secret',
-    Uint8List(0),
-  );
-  final key = _labeledExpand(
-    crypto,
-    suite,
-    secret,
-    'key',
-    ksContext,
-    hpkeAes128KeyBytes,
-  );
-  final nonce = _labeledExpand(
-    crypto,
-    suite,
-    secret,
-    'base_nonce',
-    ksContext,
-    aeadNonceBytes,
-  );
-  return _HpkeContext(key, nonce);
-}
-
-Uint8List _labeledExtract(
-  PqTransportCrypto crypto,
-  Uint8List suiteId,
-  Uint8List salt,
-  String label,
-  Uint8List ikm,
-) {
-  final labeled = concatBytes([
-    Uint8List.fromList(utf8.encode('HPKE-v1')),
-    suiteId,
-    Uint8List.fromList(utf8.encode(label)),
-    ikm,
-  ]);
-  final usedSalt = salt.isEmpty ? Uint8List(sha256HashBytes) : salt;
-  return crypto.hkdfExtract(usedSalt, labeled);
-}
-
-Uint8List _labeledExpand(
-  PqTransportCrypto crypto,
-  Uint8List suiteId,
-  Uint8List prk,
-  String label,
-  Uint8List info,
-  int length,
-) {
-  final labeled = BytesBuilder(copy: false);
-  writeUint16(labeled, length);
-  labeled.add(utf8.encode('HPKE-v1'));
-  labeled.add(suiteId);
-  labeled.add(utf8.encode(label));
-  labeled.add(info);
-  return crypto.hkdfExpand(prk, labeled.takeBytes(), length);
-}
-
-Uint8List _kemSuiteId() {
-  final out = Uint8List(3 + 2);
-  out.setRange(0, 3, utf8.encode('KEM'));
-  out[3] = (hpkeKemDhkemX25519HkdfSha256 >> 8) & 0xff;
-  out[4] = hpkeKemDhkemX25519HkdfSha256 & 0xff;
-  return out;
-}
-
-Uint8List _hpkeSuiteId() {
-  final out = Uint8List(4 + 6);
-  out.setRange(0, 4, utf8.encode('HPKE'));
-  out[4] = (hpkeKemDhkemX25519HkdfSha256 >> 8) & 0xff;
-  out[5] = hpkeKemDhkemX25519HkdfSha256 & 0xff;
-  out[6] = (hpkeKdfHkdfSha256 >> 8) & 0xff;
-  out[7] = hpkeKdfHkdfSha256 & 0xff;
-  out[8] = (hpkeAeadAes128Gcm >> 8) & 0xff;
-  out[9] = hpkeAeadAes128Gcm & 0xff;
   return out;
 }

@@ -77,11 +77,10 @@ is what the X.509 mode sends. A live Chrome handshake is not claimed.
 
 ECH (RFC 9849) is self-interop, and one BoringSSL 0.20261020.0
 flight (2026-11-01). The suite is DHKEM(X25519, HKDF-SHA256),
-HKDF-SHA256, and AES-128-GCM, composed from pqforge X25519, HKDF, and
-AES-128-GCM. pqforge does not export an HPKE type. Both directions,
-group X25519MLKEM768, suite `TLS_AES_256_GCM_SHA384`, ML-DSA-65 chain
-length 1. The inner name is `localhost`. The public name is
-`public.example`. A client given an `EchConfig` fails closed:
+HKDF-SHA256, and AES-128-GCM, via `PqHpke` (pqforge 0.4.10). Both
+directions, group X25519MLKEM768, suite `TLS_AES_256_GCM_SHA384`,
+ML-DSA-65 chain length 1. The inner name is `localhost`. The public
+name is `public.example`. A client given an `EchConfig` fails closed:
 `ech_required`, no ClientHelloOuter continuation, and no cleartext
 second hello. HelloRetryRequest under ECH is rejected the same way.
 A server given an `EchServerConfig` does not resume the outer hello.

@@ -87,6 +87,54 @@ final class PqTransportCrypto {
     remotePublicKey: remotePublicKey,
   );
 
+  /// RFC 9180 base-mode setup for the one ECH suite: DHKEM(X25519,
+  /// HKDF-SHA256), HKDF-SHA256, AES-128-GCM. The caller supplies the
+  /// `tls ech` info. This is not the other HPKE KEMs.
+  Future<({Uint8List enc, HpkeContext context})?> hpkeSetupBaseSender({
+    required Uint8List recipientPublicKey,
+    required Uint8List info,
+  }) async {
+    try {
+      return await PqHpke.setupSender(
+        suite: HpkeSuite.x25519Aes128Gcm,
+        mode: HpkeMode.base,
+        recipientPublicKey: recipientPublicKey,
+        info: info,
+      );
+    } on ArgumentError {
+      return null;
+    } on PqForgeException {
+      return null;
+    }
+  }
+
+  /// Recipient side of [hpkeSetupBaseSender]. [recipientSecret] and
+  /// [recipientPublic] are the X25519 key from [x25519KeyGen].
+  Future<HpkeContext?> hpkeSetupBaseRecipient({
+    required Uint8List enc,
+    required Uint8List recipientSecret,
+    required Uint8List recipientPublic,
+    required Uint8List info,
+  }) async {
+    try {
+      return await PqHpke.setupRecipient(
+        suite: HpkeSuite.x25519Aes128Gcm,
+        mode: HpkeMode.base,
+        enc: enc,
+        recipientKey: HpkeKeyPair(
+          kem: HpkeKem.x25519HkdfSha256,
+          secretKey: recipientSecret,
+          publicKey: recipientPublic,
+        ),
+        info: info,
+      );
+    } on ArgumentError {
+      return null;
+    } on PqForgeException {
+      return null;
+    }
+  }
+
   /// Generates a P-256 key pair.
   Future<({Uint8List publicKey, Uint8List secretKey})> p256KeyGen({
     Uint8List? seed,
