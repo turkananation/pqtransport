@@ -14,7 +14,13 @@ AEAD open. Send path uses swissarmyknife `Throttler`. Encrypted session
 is X25519MLKEM768, SecP256r1MLKEM768, or SecP384r1MLKEM1024 with
 identical HKDF extra on both roles.
 
-Reliability states exist; they are not a full ACK/retransmit protocol.
+The handshake is a QUIC Initial long header. The client datagram is
+padded to 1200 bytes, and the server discards anything shorter. The
+server answers with its own Initial. A peer opens the client packet
+with the client initial keys and the server packet with the server
+initial keys, both from the client's destination connection ID.
+Application data is a QUIC short header. A dropped frame is sent
+again under a new packet number. Not ECN. Not `curl --http3`.
 
 ## TLS 1.3
 

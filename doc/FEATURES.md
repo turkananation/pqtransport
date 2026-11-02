@@ -50,7 +50,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Encrypted session (X25519MLKEM768) | Done | Identical HKDF extra both roles |
 | Encrypted session (SecP256r1MLKEM768) | Done | Same session install; P-256 ECDH |
 | Encrypted session (SecP384r1MLKEM1024) | Done | Requires `PqForgeProfile.maximum` |
-| Reliability machine | Partial | States exist; not a full ACK/retransmit protocol |
+| Reliability | Done | Client Initial is a long header padded to 1200 bytes. The server discards a shorter datagram and answers with its own Initial. A peer opens the client packet with the client initial keys and the server packet with the server initial keys, both from the client's destination connection ID. Data is a 1-RTT short header. RFC 9002 loss recovery. Not ECN. Not `curl --http3`. |
 
 ## DNS / DoH / DoT
 

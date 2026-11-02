@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
+import 'package:swissarmyknife/swissarmyknife.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -121,12 +122,36 @@ void main() {
         deploymentSalt: salt,
       );
       expect(flight.isSuccess, isTrue);
+      final initial = flight.valueOrNull!;
+      expect(
+        initial.length,
+        greaterThanOrEqualTo(quicMinClientInitialUdpBytes),
+      );
+      expect(initial[0] & 0xf0, 0xc0);
+      final dcidLen = initial[5];
+      final dcid = Uint8List.sublistView(initial, 6, 6 + dcidLen);
+      final secrets = QuicInitialSecrets.derive(
+        crypto: crypto,
+        destinationConnectionId: dcid,
+      );
+      final peer = QuicInitialCodec(
+        crypto: crypto,
+        keys: secrets.client,
+      ).open(initial);
+      expect(peer.isSuccess, isTrue, reason: '${peer.errorOrNull}');
       final reply = await b.accept(
         kemSecretKey: kem.secretKey,
         initiatorFlight: flight.valueOrNull!,
         deploymentSalt: salt,
       );
       expect(reply.isSuccess, isTrue, reason: '${reply.errorOrNull}');
+      final serverInitial = reply.valueOrNull!;
+      expect(serverInitial[0] & 0xf0, 0xc0);
+      final serverPeer = QuicInitialCodec(
+        crypto: crypto,
+        keys: secrets.server,
+      ).open(serverInitial);
+      expect(serverPeer.isSuccess, isTrue, reason: '${serverPeer.errorOrNull}');
       final done = await a.completeInitiate(
         responderClassicalPublic: reply.valueOrNull!,
       );
@@ -214,6 +239,64 @@ void main() {
         expect(window.isDuplicate(seq.valueOrNull!), isTrue);
       },
     );
+
+    test('a dropped datagram is retransmitted once under RFC 9002', () async {
+      final net = MemoryDatagramNetwork();
+      final clock = QuicManualClock();
+      final epA = const PqEndpoint('10.1.0.1', 4100);
+      final epB = const PqEndpoint('10.1.0.2', 4100);
+      final drop = _DropNext(net.bind(epA));
+      final a = PqEncryptedUdpSocket(
+        raw: PqUdpSocket(channel: drop, throttleWindow: Duration.zero),
+        crypto: crypto,
+        clock: clock,
+      );
+      final b = PqEncryptedUdpSocket(
+        raw: PqUdpSocket(channel: net.bind(epB), throttleWindow: Duration.zero),
+        crypto: crypto,
+        clock: clock,
+      );
+      final kem = crypto.kemKeyGen();
+      final salt = crypto.randomBytes(16);
+      final flight = await a.initiate(
+        peerKemPublicKey: kem.publicKey,
+        deploymentSalt: salt,
+      );
+      final reply = await b.accept(
+        kemSecretKey: kem.secretKey,
+        initiatorFlight: flight.valueOrNull!,
+        deploymentSalt: salt,
+      );
+      await a.completeInitiate(responderClassicalPublic: reply.valueOrNull!);
+
+      final got = <PqDatagram>[];
+      b.incoming.listen(got.add);
+      final sent = await a.send(Uint8List.fromList([9, 8, 7]), epB);
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      await _flush();
+      expect(got, isEmpty);
+      expect(drop.dropped, hasLength(1));
+      final wire = drop.dropped.single;
+      expect(peekDatagramSequence(wire).isFailure, isTrue);
+      final quic = b.openPacket(wire);
+      expect(quic.isSuccess, isTrue, reason: '${quic.errorOrNull}');
+      final frames = decodeQuicPayload(quic.valueOrNull!.payload);
+      expect(frames.isSuccess, isTrue, reason: '${frames.errorOrNull}');
+      expect(frames.valueOrNull!.streams.single.data, [9, 8, 7]);
+
+      final deadline = a.lossRecovery.lossDetectionDeadline;
+      expect(deadline, isNotNull);
+      clock.advance(deadline!.difference(clock.now()));
+      final driven = await a.driveLossDetection();
+      expect(driven.isSuccess, isTrue, reason: '${driven.errorOrNull}');
+      await _flush();
+      expect(got, hasLength(1));
+      expect(got.single.payload, [9, 8, 7]);
+
+      net.deliver(epA, epB, drop.dropped.single);
+      await _flush();
+      expect(got, hasLength(1));
+    });
 
     test('P-256 group completes a live UDP handshake', () async {
       final net = MemoryDatagramNetwork();
@@ -323,4 +406,49 @@ void main() {
       expect(r.isFailure, isTrue);
     });
   });
+}
+
+Future<void> _flush() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
+}
+
+final class _DropNext implements PqDatagramChannel {
+  _DropNext(this.inner);
+
+  final PqDatagramChannel inner;
+  final List<Uint8List> dropped = [];
+  var _armed = true;
+
+  @override
+  Stream<PqDatagramIn> get incoming => inner.incoming;
+
+  @override
+  bool get isClosed => inner.isClosed;
+
+  @override
+  Future<Result<void, PqTransportError>> send(
+    Uint8List data,
+    PqEndpoint peer,
+  ) async {
+    if (_armed) {
+      _armed = false;
+      dropped.add(Uint8List.fromList(data));
+      return const Result.success(null);
+    }
+    return inner.send(data, peer);
+  }
+
+  @override
+  Future<Result<void, PqTransportError>> joinMulticast(PqEndpoint group) =>
+      inner.joinMulticast(group);
+
+  @override
+  Future<Result<void, PqTransportError>> leaveMulticast(PqEndpoint group) =>
+      inner.leaveMulticast(group);
+
+  @override
+  Future<void> close() => inner.close();
 }

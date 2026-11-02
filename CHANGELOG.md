@@ -2,6 +2,16 @@
 
 ### Added
 
+- Encrypted UDP loss recovery is RFC 9002 (OPEN-20, option A). The
+  handshake is a QUIC Initial long header. The client datagram is
+  padded to 1200 bytes. Initial keys are RFC 9001 §5.2, from the
+  destination connection ID, so a peer opens that packet with
+  `QuicInitialCodec` and no session key. The server discards a client
+  datagram under 1200 bytes and answers with a server Initial. A peer
+  opens that with the server initial keys from the same connection ID.
+  Application data is a 1-RTT short header. The peer opens it with
+  `QuicPacketCodec`. A lost frame is sealed again under a new packet number. The HKDF extra is
+  unchanged. Not ECN. Not `curl --http3`.
 - Classical and pure ML-KEM-1024 handshakes, both directions
   (2026-11-01). Groups: X25519 (`0x001D`), secp256r1 (`0x0017`),
   secp384r1 (`0x0018`), and MLKEM1024 (`0x0202`). Suite
