@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:pqforge/pqforge.dart' hide requireLength;
@@ -12,6 +13,8 @@ import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
 import '../socket/pq_transport_socket.dart';
+import '../tls/key_schedule.dart';
+import '../quic/initial.dart';
 import '../quic/packet.dart';
 import '../quic/recovery.dart';
 import 'pq_datagram.dart';
@@ -58,14 +61,15 @@ final class PqUdpSocket {
 /// Live key agreement is implemented for all three RFC 10024 groups.
 /// [HybridGroup.secP384r1MlKem1024] requires `PqForgeProfile.maximum`.
 ///
-/// After the session is up, loss recovery is [QuicLossRecovery]: RFC 9002
-/// packet threshold, time threshold, and PTO. A lost payload is a RFC 9000
-/// STREAM frame sent again under a new packet number. The receiver's ACK
-/// is a RFC 9000 ACK frame. The replay window drops a repeated packet
-/// number before AEAD open, and a repeated stream offset is delivered once.
+/// After the session is up, the bytes on the wire are QUIC 1-RTT packets:
+/// RFC 9000 §17.3 short header, RFC 9001 packet protection and header
+/// protection, RFC 9000 ACK and STREAM frames, RFC 9002 loss recovery.
+/// The initiator seals with the client keys and the responder with the
+/// server keys. A peer opens them with [QuicPacketCodec], the same opener
+/// [PqQuicConn] uses for 1-RTT. The packet is not a QUIC Initial, and a
+/// stack that never ran this handshake does not have the traffic secret.
+/// Not `curl --http3`. Not ECN.
 ///
-/// The outer bytes stay `version || header || nonce || ciphertext`. They
-/// are not a QUIC long or short header. A QUIC peer will not accept them.
 /// [clock] is the caller-supplied clock. [driveLossDetection] runs when
 /// its deadline is due. A [QuicSystemClock] also arms a timer.
 final class PqEncryptedUdpSocket {
@@ -81,11 +85,14 @@ final class PqEncryptedUdpSocket {
   final HybridGroup group;
   final QuicLossRecovery _recovery;
 
-  PqDatagramCodec? _codec;
+  QuicPacketCodec? _sealCodec;
+  QuicPacketCodec? _openCodec;
+  Uint8List? _localCid;
+  Uint8List? _peerCid;
+  var _isClient = true;
   final ReplayWindow _replay = ReplayWindow();
   final QuicAckProcessor _received = QuicAckProcessor();
   final Set<int> _deliveredOffsets = <int>{};
-  int _nonceCounter = 0;
   int _sendOffset = 0;
   PqEndpoint? _peer;
   final StreamController<PqDatagram> _plain =
@@ -101,7 +108,7 @@ final class PqEncryptedUdpSocket {
 
   Stream<PqDatagram> get incoming => _plain.stream;
 
-  bool get isEstablished => _codec != null;
+  bool get isEstablished => _sealCodec != null;
 
   /// 32-byte application session key length after HKDF. Test seam only.
   int? get sessionKeyLength => _sessionKey?.length;
@@ -115,6 +122,7 @@ final class PqEncryptedUdpSocket {
     required Uint8List peerKemPublicKey,
     required Uint8List deploymentSalt,
   }) async {
+    _isClient = true;
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final sized = requireLength(
@@ -202,6 +210,7 @@ final class PqEncryptedUdpSocket {
     required Uint8List initiatorFlight,
     required Uint8List deploymentSalt,
   }) async {
+    _isClient = false;
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
     final need = group.classicalShareBytes + group.kemCiphertextBytes;
@@ -256,9 +265,10 @@ final class PqEncryptedUdpSocket {
 
   /// Directly install a 32-byte session key (tests / out-of-band).
   /// Does not start [incoming]. The handshake paths do.
-  void installSessionKey(Uint8List key) {
+  void installSessionKey(Uint8List key, {bool client = true}) {
+    _isClient = client;
     _sessionKey = Uint8List.fromList(key);
-    _codec = PqDatagramCodec(key: Uint8List.fromList(key), crypto: crypto);
+    _installQuic(_sessionKey!);
     _recovery.markHandshakeConfirmed();
     _recovery.markPeerAddressValidated();
   }
@@ -276,9 +286,81 @@ final class PqEncryptedUdpSocket {
     );
     zeroize(hybridSs);
     _sessionKey = key;
-    _codec = PqDatagramCodec(key: key, crypto: crypto);
+    _installQuic(key);
     _recovery.markHandshakeConfirmed();
     _recovery.markPeerAddressValidated();
+  }
+
+  void _installQuic(Uint8List sessionKey) {
+    final schedule = TlsKeySchedule(crypto);
+    final base = crypto.hkdfExtractSha384(
+      Uint8List(schedule.hashLen),
+      sessionKey,
+    );
+    final clientSecret = schedule.expandLabel(
+      base,
+      quicLabelClientIn,
+      Uint8List(0),
+      schedule.hashLen,
+    );
+    final serverSecret = schedule.expandLabel(
+      base,
+      quicLabelServerIn,
+      Uint8List(0),
+      schedule.hashLen,
+    );
+    final clientKeys = quicKeysFromTls(
+      schedule: schedule,
+      trafficSecret: clientSecret,
+    );
+    final serverKeys = quicKeysFromTls(
+      schedule: schedule,
+      trafficSecret: serverSecret,
+    );
+    _localCid = _connectionId(sessionKey, client: _isClient);
+    _peerCid = _connectionId(sessionKey, client: !_isClient);
+    _sealCodec = QuicPacketCodec.fromKeys(
+      crypto,
+      _isClient ? clientKeys : serverKeys,
+    );
+    _openCodec = QuicPacketCodec.fromKeys(
+      crypto,
+      _isClient ? serverKeys : clientKeys,
+    );
+  }
+
+  Uint8List _connectionId(Uint8List sessionKey, {required bool client}) {
+    return crypto.hkdf(
+      ikm: sessionKey,
+      salt: Uint8List(0),
+      info: Uint8List.fromList(
+        utf8.encode(
+          client ? 'pqtransport udp cid client' : 'pqtransport udp cid server',
+        ),
+      ),
+      length: quicShortDcidBytes,
+    );
+  }
+
+  /// Opens one 1-RTT packet with this socket's receive keys.
+  /// A long header is rejected. This is the opener [PqQuicConn] uses.
+  Result<({int packetNumber, Uint8List payload}), PqTransportError> openPacket(
+    Uint8List wire,
+  ) {
+    final codec = _openCodec;
+    final local = _localCid;
+    if (codec == null || local == null) {
+      return Result.failure(PqTransportError.handshakeFailure('no session'));
+    }
+    if (wire.length < 1 + quicShortDcidBytes || (wire[0] & 0x80) != 0) {
+      return Result.failure(PqTransportError.decodeFailure('not short header'));
+    }
+    for (var i = 0; i < local.length; i++) {
+      if (wire[1 + i] != local[i]) {
+        return Result.failure(PqTransportError.decodeFailure('dcid'));
+      }
+    }
+    return codec.open(wire);
   }
 
   Future<void> _listen() async {
@@ -289,16 +371,12 @@ final class PqEncryptedUdpSocket {
   }
 
   Future<void> _onDatagram(PqDatagramIn d) async {
-    final codec = _codec;
-    if (codec == null || _plain.isClosed) return;
-    final seq = peekDatagramSequence(d.data);
-    if (seq.isFailure) return;
-    if (_replay.isDuplicate(seq.valueOrNull!)) return;
-    final opened = codec.open(d.data);
-    if (opened.isFailure) return;
-    final pkt = opened.valueOrNull!;
-    if (_replay.remember(pkt.sequence).isFailure) return;
-    final frames = decodeQuicPayload(pkt.payload);
+    final opened = openPacket(d.data);
+    if (opened.isFailure || _plain.isClosed) return;
+    final pn = opened.valueOrNull!.packetNumber;
+    if (_replay.isDuplicate(pn)) return;
+    if (_replay.remember(pn).isFailure) return;
+    final frames = decodeQuicPayload(opened.valueOrNull!.payload);
     if (frames.isFailure) return;
     final payload = frames.valueOrNull!;
     _peer = d.peer;
@@ -311,11 +389,11 @@ final class PqEncryptedUdpSocket {
       if (stream.id != 0) continue;
       if (!_deliveredOffsets.add(stream.offset)) continue;
       if (!_plain.isClosed) {
-        _plain.add(PqDatagram(sequence: pkt.sequence, payload: stream.data));
+        _plain.add(PqDatagram(sequence: pn, payload: stream.data));
       }
     }
     if (!payload.ackEliciting) return;
-    _received.onReceived(pkt.sequence);
+    _received.onReceived(pn);
     await _seal(
       peer: d.peer,
       frames: const [],
@@ -393,8 +471,9 @@ final class PqEncryptedUdpSocket {
     required bool inFlight,
     bool probe = false,
   }) async {
-    final codec = _codec;
-    if (codec == null) {
+    final codec = _sealCodec;
+    final dcid = _peerCid;
+    if (codec == null || dcid == null) {
       return Result.failure(PqTransportError.handshakeFailure('no session'));
     }
     const space = QuicPacketNumberSpace.application;
@@ -407,11 +486,11 @@ final class PqEncryptedUdpSocket {
     for (final frame in frames) {
       body.add(frame.encode());
     }
-    if (body.length == 0) return const Result.success(null);
-    final nonce = _nextNonce();
-    final sealed = codec.seal(
-      PqDatagram(sequence: pn, payload: body.takeBytes()),
-      nonce: nonce,
+    if (body.isEmpty) return const Result.success(null);
+    final sealed = codec.protect(
+      dcid: dcid,
+      packetNumber: pn,
+      payload: body.takeBytes(),
     );
     if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
     final wire = sealed.valueOrNull!;
@@ -453,16 +532,6 @@ final class PqEncryptedUdpSocket {
     final result = _tail.then((_) => job());
     _tail = result.then<void>((_) {}, onError: (_) {});
     return result;
-  }
-
-  Uint8List _nextNonce() {
-    final n = Uint8List(aeadNonceBytes);
-    var v = _nonceCounter++;
-    for (var i = aeadNonceBytes - 1; i >= 0 && v > 0; i--) {
-      n[i] = v & 0xff;
-      v >>= 8;
-    }
-    return n;
   }
 
   Future<void> close() async {

@@ -252,6 +252,13 @@ void main() {
       await _flush();
       expect(got, isEmpty);
       expect(drop.dropped, hasLength(1));
+      final wire = drop.dropped.single;
+      expect(peekDatagramSequence(wire).isFailure, isTrue);
+      final quic = b.openPacket(wire);
+      expect(quic.isSuccess, isTrue, reason: '${quic.errorOrNull}');
+      final frames = decodeQuicPayload(quic.valueOrNull!.payload);
+      expect(frames.isSuccess, isTrue, reason: '${frames.errorOrNull}');
+      expect(frames.valueOrNull!.streams.single.data, [9, 8, 7]);
 
       final deadline = a.lossRecovery.lossDetectionDeadline;
       expect(deadline, isNotNull);
