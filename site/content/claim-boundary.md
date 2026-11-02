@@ -18,7 +18,7 @@ later role (Client Integration) may not upgrade a claim made here.
 | Package | Floor | Role |
 | --- | --- | --- |
 | pqcrypto | 0.4.1 (via pqforge) | FIPS 203/204/205 primitives, KATs |
-| pqforge | **0.4.5** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures |
+| pqforge | **0.4.10** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures, X.509, `PqHpke` |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
 | pqtransport | 0.1.0 in this tree | Protocol layer |
 

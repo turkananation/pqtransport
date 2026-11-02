@@ -131,6 +131,35 @@ void main() {
       plaintext,
     );
   });
+
+  test('ECH HPKE setup is PqHpke base mode, not a local schedule', () async {
+    final pair = await crypto.x25519KeyGen();
+    final info = Uint8List.fromList([1, 2, 3, 4]);
+    final setup = await crypto.hpkeSetupBaseSender(
+      recipientPublicKey: pair.publicKey,
+      info: info,
+    );
+    expect(setup, isNotNull);
+    final aad = Uint8List.fromList([9]);
+    final plaintext = Uint8List.fromList([7, 7, 7]);
+    final sealed = setup!.context.seal(plaintext, aad: aad);
+    final opened = await crypto.hpkeSetupBaseRecipient(
+      enc: setup.enc,
+      recipientSecret: pair.secretKey,
+      recipientPublic: pair.publicKey,
+      info: info,
+    );
+    expect(opened, isNotNull);
+    expect(opened!.open(sealed, aad: aad), plaintext);
+    expect(
+      () => opened.open(sealed, aad: aad),
+      throwsA(isA<PqForgeAuthTagException>()),
+    );
+    expect(
+      crypto.hpkeSetupBaseSender(recipientPublicKey: Uint8List(31), info: info),
+      completion(isNull),
+    );
+  });
 }
 
 Uint8List _hex(String s) {

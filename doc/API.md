@@ -10,7 +10,7 @@ imports only `package:pqtransport/pqtransport.dart`.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.6
+  pqforge: ^0.4.10
   swissarmyknife: ^0.1.0
 ```
 
