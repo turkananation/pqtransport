@@ -61,17 +61,16 @@ final class PqUdpSocket {
 /// Live key agreement is implemented for all three RFC 10024 groups.
 /// [HybridGroup.secP384r1MlKem1024] requires `PqForgeProfile.maximum`.
 ///
-/// After the session is up, the bytes on the wire are QUIC 1-RTT packets:
-/// RFC 9000 §17.3 short header, RFC 9001 packet protection and header
-/// protection, RFC 9000 ACK and STREAM frames, RFC 9002 loss recovery.
-/// The initiator seals with the client keys and the responder with the
-/// server keys. A peer opens them with [QuicPacketCodec], the same opener
-/// [PqQuicConn] uses for 1-RTT. The packet is not a QUIC Initial, and a
-/// stack that never ran this handshake does not have the traffic secret.
-/// Not `curl --http3`. Not ECN.
+/// After the session is up, every datagram is a QUIC packet.
 ///
-/// [clock] is the caller-supplied clock. [driveLossDetection] runs when
-/// its deadline is due. A [QuicSystemClock] also arms a timer.
+/// The handshake is a RFC 9000 Initial long header. The client datagram
+/// is padded to 1200 bytes. Initial keys are RFC 9001 §5.2, derived from
+/// the destination connection ID, so a peer opens that packet with
+/// [QuicInitialCodec] and no session key. Application data is a RFC 9000
+/// §17.3 short header with RFC 9001 protection from [quicKeysFromTls].
+/// The peer opens it with [QuicPacketCodec], the same opener [PqQuicConn]
+/// uses. Loss recovery is RFC 9002. The HKDF extra is unchanged. Not ECN.
+/// Not `curl --http3`.
 final class PqEncryptedUdpSocket {
   PqEncryptedUdpSocket({
     required this.raw,
@@ -146,8 +145,20 @@ final class PqEncryptedUdpSocket {
         ssKem: enc.sharedSecret,
         salt: deploymentSalt,
       );
-      return Result.success(
-        Uint8List.fromList([...classical.publicKey, ...enc.ciphertext]),
+      _localCid = crypto.randomBytes(quicShortDcidBytes);
+      _peerCid = crypto.randomBytes(quicShortDcidBytes);
+      final flight = Uint8List.fromList([
+        ...classical.publicKey,
+        ...enc.ciphertext,
+      ]);
+      return _protectInitial(
+        crypto,
+        dcid: _peerCid!,
+        scid: _localCid!,
+        keyDcid: _peerCid!,
+        cryptoData: flight,
+        fromClient: true,
+        padToMinimum: true,
       );
     } on Object catch (e) {
       zeroize(classical.secretKey);
@@ -170,10 +181,18 @@ final class PqEncryptedUdpSocket {
     }
     Uint8List? ssClassical;
     try {
+      final opened = _openInitial(
+        crypto,
+        responderClassicalPublic,
+        fromClient: false,
+        keyDcid: _peerCid!,
+      );
+      if (opened.isFailure) return Result.failure(opened.errorOrNull!);
+      final responderKey = opened.valueOrNull!.crypto;
       ssClassical = await crypto.classicalAgree(
         group,
         secretKey: p.classicalSecret,
-        remotePublicKey: responderClassicalPublic,
+        remotePublicKey: responderKey,
       );
       final combined = combineSharedSecret(
         group: group,
@@ -187,7 +206,7 @@ final class PqEncryptedUdpSocket {
         extra: Uint8List.fromList([
           ...p.ciphertext,
           ...p.classicalPublic,
-          ...responderClassicalPublic,
+          ...responderKey,
         ]),
       );
       _pendingInitiate = null;
@@ -213,18 +232,32 @@ final class PqEncryptedUdpSocket {
     _isClient = false;
     final compatible = crypto.requireGroup(group);
     if (compatible.isFailure) return Result.failure(compatible.errorOrNull!);
-    final need = group.classicalShareBytes + group.kemCiphertextBytes;
-    if (initiatorFlight.length != need) {
+    if (initiatorFlight.length < 7 || (initiatorFlight[0] & 0x80) == 0) {
       return Result.failure(
         PqTransportError.illegalParameter(
           PqLengthLabel.datagram,
           initiatorFlight.length,
+          quicMinClientInitialUdpBytes,
+        ),
+      );
+    }
+    final opened = _openInitial(crypto, initiatorFlight, fromClient: true);
+    if (opened.isFailure) return Result.failure(opened.errorOrNull!);
+    final flight = opened.valueOrNull!.crypto;
+    final need = group.classicalShareBytes + group.kemCiphertextBytes;
+    if (flight.length != need) {
+      return Result.failure(
+        PqTransportError.illegalParameter(
+          PqLengthLabel.datagram,
+          flight.length,
           need,
         ),
       );
     }
-    final peerClassical = initiatorFlight.sublist(0, group.classicalShareBytes);
-    final ct = initiatorFlight.sublist(group.classicalShareBytes);
+    _localCid = opened.valueOrNull!.dcid;
+    _peerCid = opened.valueOrNull!.scid;
+    final peerClassical = flight.sublist(0, group.classicalShareBytes);
+    final ct = flight.sublist(group.classicalShareBytes);
     final classical = await crypto.classicalKeyGen(group);
     Uint8List? ssKem;
     Uint8List? ssClassical;
@@ -251,7 +284,15 @@ final class PqEncryptedUdpSocket {
         ]),
       );
       await _listen();
-      return Result.success(classical.publicKey);
+      return _protectInitial(
+        crypto,
+        dcid: _peerCid!,
+        scid: _localCid!,
+        keyDcid: _localCid!,
+        cryptoData: classical.publicKey,
+        fromClient: false,
+        padToMinimum: false,
+      );
     } on Object catch (e) {
       return Result.failure(
         PqTransportError.handshakeFailure('udp accept: ${e.runtimeType}'),
@@ -317,8 +358,8 @@ final class PqEncryptedUdpSocket {
       schedule: schedule,
       trafficSecret: serverSecret,
     );
-    _localCid = _connectionId(sessionKey, client: _isClient);
-    _peerCid = _connectionId(sessionKey, client: !_isClient);
+    _localCid ??= _connectionId(sessionKey, client: _isClient);
+    _peerCid ??= _connectionId(sessionKey, client: !_isClient);
     _sealCodec = QuicPacketCodec.fromKeys(
       crypto,
       _isClient ? clientKeys : serverKeys,
@@ -561,3 +602,83 @@ final class _PendingInitiate {
 
 Uint8List concatSalt(Uint8List salt, Uint8List transcript) =>
     Uint8List.fromList([...salt, ...transcript]);
+
+Result<Uint8List, PqTransportError> _protectInitial(
+  PqTransportCrypto crypto, {
+  required Uint8List dcid,
+  required Uint8List scid,
+  required Uint8List keyDcid,
+  required Uint8List cryptoData,
+  required bool fromClient,
+  required bool padToMinimum,
+}) {
+  final secrets = QuicInitialSecrets.derive(
+    crypto: crypto,
+    destinationConnectionId: keyDcid,
+  );
+  final codec = QuicInitialCodec(
+    crypto: crypto,
+    keys: fromClient ? secrets.client : secrets.server,
+  );
+  var payload = QuicCryptoFrame(offset: 0, data: cryptoData).encode();
+  Result<Uint8List, PqTransportError>? sealed;
+  for (var n = 0; n < 4; n++) {
+    sealed = codec.protect(
+      dcid: dcid,
+      scid: scid,
+      packetNumber: 0,
+      payload: payload,
+    );
+    if (sealed.isFailure) return sealed;
+    final wire = sealed.valueOrNull!;
+    if (!padToMinimum || wire.length >= quicMinClientInitialUdpBytes) {
+      return sealed;
+    }
+    final deficit = quicMinClientInitialUdpBytes - wire.length;
+    payload = Uint8List(payload.length + deficit)..setAll(0, payload);
+  }
+  return sealed!;
+}
+
+Result<({Uint8List dcid, Uint8List scid, Uint8List crypto}), PqTransportError>
+_openInitial(
+  PqTransportCrypto crypto,
+  Uint8List wire, {
+  required bool fromClient,
+  Uint8List? keyDcid,
+}) {
+  if (wire.length < 7 || (wire[0] & 0xf0) != 0xc0) {
+    return Result.failure(PqTransportError.decodeFailure('not initial'));
+  }
+  final dcidLen = wire[5];
+  if (wire.length < 6 + dcidLen + 1) {
+    return Result.failure(PqTransportError.decodeFailure('short dcid'));
+  }
+  final dcid = Uint8List.sublistView(wire, 6, 6 + dcidLen);
+  final scidLen = wire[6 + dcidLen];
+  final scidAt = 7 + dcidLen;
+  if (wire.length < scidAt + scidLen) {
+    return Result.failure(PqTransportError.decodeFailure('short scid'));
+  }
+  final scid = Uint8List.sublistView(wire, scidAt, scidAt + scidLen);
+  final secrets = QuicInitialSecrets.derive(
+    crypto: crypto,
+    destinationConnectionId: keyDcid ?? dcid,
+  );
+  final opened = QuicInitialCodec(
+    crypto: crypto,
+    keys: fromClient ? secrets.client : secrets.server,
+  ).open(wire);
+  if (opened.isFailure) return Result.failure(opened.errorOrNull!);
+  final frames = decodeQuicPayload(opened.valueOrNull!.payload);
+  if (frames.isFailure) return Result.failure(frames.errorOrNull!);
+  final cryptoFrames = frames.valueOrNull!.crypto;
+  if (cryptoFrames.isEmpty) {
+    return Result.failure(PqTransportError.decodeFailure('no CRYPTO'));
+  }
+  return Result.success((
+    dcid: Uint8List.fromList(dcid),
+    scid: Uint8List.fromList(scid),
+    crypto: cryptoFrames.single.data,
+  ));
+}

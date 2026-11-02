@@ -122,6 +122,23 @@ void main() {
         deploymentSalt: salt,
       );
       expect(flight.isSuccess, isTrue);
+      final initial = flight.valueOrNull!;
+      expect(
+        initial.length,
+        greaterThanOrEqualTo(quicMinClientInitialUdpBytes),
+      );
+      expect(initial[0] & 0xf0, 0xc0);
+      final dcidLen = initial[5];
+      final dcid = Uint8List.sublistView(initial, 6, 6 + dcidLen);
+      final secrets = QuicInitialSecrets.derive(
+        crypto: crypto,
+        destinationConnectionId: dcid,
+      );
+      final peer = QuicInitialCodec(
+        crypto: crypto,
+        keys: secrets.client,
+      ).open(initial);
+      expect(peer.isSuccess, isTrue, reason: '${peer.errorOrNull}');
       final reply = await b.accept(
         kemSecretKey: kem.secretKey,
         initiatorFlight: flight.valueOrNull!,

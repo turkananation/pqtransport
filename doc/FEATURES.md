@@ -50,7 +50,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Encrypted session (X25519MLKEM768) | Done | Identical HKDF extra both roles |
 | Encrypted session (SecP256r1MLKEM768) | Done | Same session install; P-256 ECDH |
 | Encrypted session (SecP384r1MLKEM1024) | Done | Requires `PqForgeProfile.maximum` |
-| Reliability | Done | After the session exists, the wire image is a QUIC 1-RTT short header (RFC 9000 §17.3) with RFC 9001 packet protection. Payload is a STREAM frame. The peer answers with an ACK frame and opens the packet with `QuicPacketCodec`, the same opener as `PqQuicConn`. RFC 9002 loss detection, PTO, and NewReno. A lost frame is sealed again under a new packet number. Not a QUIC Initial. Not `curl --http3`. Not ECN. |
+| Reliability | Done | Handshake is a QUIC Initial long header, client datagram padded to 1200 bytes. A peer opens it with `QuicInitialCodec` from the destination connection ID (RFC 9001 §5.2). Data is a 1-RTT short header opened with `QuicPacketCodec`. RFC 9002 loss recovery. Not ECN. Not `curl --http3`. |
 
 ## DNS / DoH / DoT
 

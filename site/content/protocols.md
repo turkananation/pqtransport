@@ -14,11 +14,10 @@ AEAD open. Send path uses swissarmyknife `Throttler`. Encrypted session
 is X25519MLKEM768, SecP256r1MLKEM768, or SecP384r1MLKEM1024 with
 identical HKDF extra on both roles.
 
-Reliability is a QUIC 1-RTT packet once the session exists. The header
-is RFC 9000 §17.3, the protection is RFC 9001, and loss recovery is
-RFC 9002. The peer opens it with the same short-header opener as a
-QUIC connection. A dropped frame is sent again under a new packet
-number. It is not a QUIC Initial, and it is not `curl --http3`.
+The handshake is a QUIC Initial long header. The client datagram is
+padded to 1200 bytes. A peer opens it from the destination connection
+ID alone. Application data is a QUIC short header. A dropped frame is
+sent again under a new packet number. Not ECN. Not `curl --http3`.
 
 ## TLS 1.3
 
