@@ -23,6 +23,7 @@ final class EchConfig {
     required this.publicKey,
     required this.publicName,
     required this.maximumNameLength,
+    this.wire,
   }) {
     if (publicKey.length != x25519ShareBytes) {
       throw ArgumentError.value(publicKey.length, 'publicKey');
@@ -37,6 +38,10 @@ final class EchConfig {
     if (name.isEmpty || name.length > 255) {
       throw ArgumentError.value(publicName, 'publicName');
     }
+    final stored = wire;
+    if (stored != null && stored.isEmpty) {
+      throw ArgumentError.value(stored.length, 'wire');
+    }
   }
 
   final int configId;
@@ -46,12 +51,96 @@ final class EchConfig {
   /// RFC 9849 §6.1.3. Padding uses this, not the public name's length.
   final int maximumNameLength;
 
+  /// Original ECHConfig bytes. BoringSSL's generator writes two cipher
+  /// suites. HPKE info is those bytes, not a re-encoding that drops one.
+  final Uint8List? wire;
+
+  /// One ECHConfig. A parsed config returns the bytes it was given.
   Uint8List encode() {
+    final stored = wire;
+    if (stored != null) return Uint8List.fromList(stored);
     final contents = _contents();
     final b = BytesBuilder(copy: false);
     writeUint16(b, echConfigVersion);
     writeOpaque16(b, contents);
     return b.takeBytes();
+  }
+
+  /// ECHConfigList: a u16 length prefix around one [encode].
+  Uint8List encodeList() {
+    final config = encode();
+    final b = BytesBuilder(copy: false);
+    writeOpaque16(b, config);
+    return b.takeBytes();
+  }
+
+  /// Parse one ECHConfig. Extra HPKE suites are kept in [wire]. The
+  /// suite this stack seals is HKDF-SHA256 + AES-128-GCM, which must
+  /// be present. Other suites are not sealed.
+  static Result<EchConfig, PqTransportError> parse(Uint8List wire) {
+    if (wire.length < 4) {
+      return Result.failure(PqTransportError.decodeFailure('ech config'));
+    }
+    if (readUint16(wire, 0) != echConfigVersion) {
+      return Result.failure(PqTransportError.decodeFailure('ech version'));
+    }
+    final contentsLen = readUint16(wire, 2);
+    if (wire.length != 4 + contentsLen) {
+      return Result.failure(PqTransportError.decodeFailure('ech config'));
+    }
+    final r = ByteReader(slice(wire, 4, wire.length));
+    final configId = r.u8();
+    final kem = r.u16();
+    final publicKey = r.opaque16(PqLengthLabel.tlsKeyShare);
+    final suites = r.opaque16(PqLengthLabel.tlsCipherSuite);
+    final maxName = r.u8();
+    final name = r.opaque8(PqLengthLabel.tlsHello);
+    final extensions = r.opaque16(PqLengthLabel.tlsExtension);
+    if (!r.isDone ||
+        configId.isFailure ||
+        kem.isFailure ||
+        publicKey.isFailure ||
+        suites.isFailure ||
+        maxName.isFailure ||
+        name.isFailure ||
+        extensions.isFailure) {
+      return Result.failure(PqTransportError.decodeFailure('ech config'));
+    }
+    if (kem.valueOrNull != hpkeKemDhkemX25519HkdfSha256) {
+      return Result.failure(PqTransportError.unsupported('ech kem'));
+    }
+    final suiteBytes = suites.valueOrNull!;
+    if (suiteBytes.length < 4 || suiteBytes.length.isOdd) {
+      return Result.failure(PqTransportError.decodeFailure('ech suites'));
+    }
+    var hasAes = false;
+    for (var i = 0; i + 3 < suiteBytes.length; i += 4) {
+      if (readUint16(suiteBytes, i) == hpkeKdfHkdfSha256 &&
+          readUint16(suiteBytes, i + 2) == hpkeAeadAes128Gcm) {
+        hasAes = true;
+      }
+    }
+    if (!hasAes) {
+      return Result.failure(PqTransportError.unsupported('ech aead'));
+    }
+    final nameBytes = name.valueOrNull!;
+    if (nameBytes.isEmpty || nameBytes.length > 255) {
+      return Result.failure(PqTransportError.decodeFailure('ech public name'));
+    }
+    try {
+      final publicName = utf8.decode(nameBytes);
+      return Result.success(
+        EchConfig(
+          configId: configId.valueOrNull!,
+          publicKey: publicKey.valueOrNull!,
+          publicName: publicName,
+          maximumNameLength: maxName.valueOrNull!,
+          wire: Uint8List.fromList(wire),
+        ),
+      );
+    } on FormatException {
+      return Result.failure(PqTransportError.decodeFailure('ech public name'));
+    }
   }
 
   Uint8List _contents() {
@@ -217,7 +306,21 @@ Future<Result<Uint8List, PqTransportError>> openEchOuter({
       );
     }
   }
-  if (_containsExtension(opened, tlsExtEchOuterExtensions)) {
+  if (_containsExtension(opened, tlsExtEncryptedClientHello) &&
+      !_innerEchIsMarker(opened)) {
+    return Result.failure(
+      PqTransportError.illegalParameter(
+        PqLengthLabel.tlsExtension,
+        tlsExtEncryptedClientHello,
+        1,
+      ),
+    );
+  }
+  final expanded = _expandOuterExtensions(
+    slice(opened, 0, consumed),
+    outerHandshake,
+  );
+  if (expanded == null) {
     return Result.failure(
       PqTransportError.illegalParameter(
         PqLengthLabel.tlsExtension,
@@ -226,10 +329,7 @@ Future<Result<Uint8List, PqTransportError>> openEchOuter({
       ),
     );
   }
-  final body = _restoreSessionId(
-    slice(opened, 0, consumed),
-    parsed.outerSessionId,
-  );
+  final body = _restoreSessionId(expanded, parsed.outerSessionId);
   return Result.success(encodeHandshake(tlsHsClientHello, body));
 }
 
@@ -498,6 +598,110 @@ int? _clientHelloBodyLength(Uint8List body) {
   i += 2 + extLen;
   if (i > body.length) return null;
   return i;
+}
+
+bool _innerEchIsMarker(Uint8List body) {
+  final data = _extensionData(body, tlsExtEncryptedClientHello);
+  return data != null && data.length == 1 && data[0] == 1;
+}
+
+/// RFC 9849 Appendix A. BoringSSL's client sends this instead of copying
+/// the outer extensions into the encrypted hello. Absent, [body] is unchanged.
+Uint8List? _expandOuterExtensions(Uint8List body, Uint8List outerHandshake) {
+  final hello = _bodyLayout(body);
+  final outer = _locateExtensions(outerHandshake);
+  if (hello == null || outer == null) return null;
+  final exts = slice(body, hello.extStart, hello.extStart + hello.extLen);
+  var at = -1;
+  var dataLen = 0;
+  var p = 0;
+  while (p + 4 <= exts.length) {
+    final type = readUint16(exts, p);
+    final len = readUint16(exts, p + 2);
+    if (p + 4 + len > exts.length) return null;
+    if (type == tlsExtEchOuterExtensions) {
+      if (at != -1) return null;
+      at = p;
+      dataLen = len;
+    }
+    p += 4 + len;
+  }
+  if (p != exts.length) return null;
+  if (at == -1) return body;
+  final data = slice(exts, at + 4, at + 4 + dataLen);
+  if (data.isEmpty) return null;
+  final listLen = data[0];
+  if (listLen != data.length - 1 || listLen == 0 || listLen.isOdd) return null;
+  final outerExt = slice(
+    outerHandshake,
+    outer.extensionsOffset,
+    outer.extensionsOffset + outer.extensionsLength,
+  );
+  final copied = BytesBuilder(copy: false);
+  var o = 0;
+  for (var i = 1; i < data.length; i += 2) {
+    final want = readUint16(data, i);
+    if (want == tlsExtEncryptedClientHello) return null;
+    var found = false;
+    while (o + 4 <= outerExt.length) {
+      final type = readUint16(outerExt, o);
+      final len = readUint16(outerExt, o + 2);
+      if (o + 4 + len > outerExt.length) return null;
+      final next = o + 4 + len;
+      if (type == want) {
+        copied.add(slice(outerExt, o, next));
+        o = next;
+        found = true;
+        break;
+      }
+      o = next;
+    }
+    if (!found) return null;
+  }
+  final replacement = copied.takeBytes();
+  final rebuilt = BytesBuilder(copy: false);
+  rebuilt.add(slice(exts, 0, at));
+  rebuilt.add(replacement);
+  rebuilt.add(slice(exts, at + 4 + dataLen, exts.length));
+  final extBytes = rebuilt.takeBytes();
+  if (extBytes.length > 0xffff) return null;
+  final out = BytesBuilder(copy: false);
+  out.add(slice(body, 0, hello.extField));
+  writeUint16(out, extBytes.length);
+  out.add(extBytes);
+  return out.takeBytes();
+}
+
+Uint8List? _extensionData(Uint8List body, int type) {
+  final hello = _bodyLayout(body);
+  if (hello == null) return null;
+  var p = hello.extStart;
+  final end = p + hello.extLen;
+  while (p + 4 <= end) {
+    final found = readUint16(body, p);
+    final len = readUint16(body, p + 2);
+    if (p + 4 + len > end) return null;
+    if (found == type) return slice(body, p + 4, p + 4 + len);
+    p += 4 + len;
+  }
+  return null;
+}
+
+({int extField, int extStart, int extLen})? _bodyLayout(Uint8List body) {
+  if (body.length < 2 + handshakeRandomBytes + 1) return null;
+  var i = 2 + handshakeRandomBytes;
+  final sidLen = body[i];
+  i += 1 + sidLen;
+  if (i + 2 > body.length) return null;
+  final suiteLen = readUint16(body, i);
+  i += 2 + suiteLen;
+  if (i >= body.length) return null;
+  final compLen = body[i];
+  i += 1 + compLen;
+  if (i + 2 > body.length) return null;
+  final extLen = readUint16(body, i);
+  if (i + 2 + extLen > body.length) return null;
+  return (extField: i, extStart: i + 2, extLen: extLen);
 }
 
 bool _containsExtension(Uint8List body, int type) {

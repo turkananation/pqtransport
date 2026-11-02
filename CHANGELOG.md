@@ -39,14 +39,18 @@
   leaf, and ML-DSA-65 raw public key. The BoringSSL client pins that
   raw public key. A wrong CA is rejected. Not SecP256r1MLKEM768. Not
   SecP384r1MLKEM1024. Not a browser. Not WebPKI.
-- Encrypted Client Hello (RFC 9849), self-interop only (2026-11-01).
-  The suite is DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, and
-  AES-128-GCM, composed from pqforge X25519, HKDF, and AES-128-GCM.
-  pqforge does not export an HPKE type. A client given an `EchConfig`
-  fails closed: `ech_required`, no ClientHelloOuter continuation, and
-  no cleartext second hello. HelloRetryRequest under ECH is rejected
-  the same way. A server given an `EchServerConfig` does not resume
-  the outer hello. Not an OpenSSL flight. Not a browser.
+- Encrypted Client Hello (RFC 9849), self-interop, plus one BoringSSL
+  0.20261020.0 flight, both directions (2026-11-01). The suite is
+  DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, and AES-128-GCM, composed
+  from pqforge X25519, HKDF, and AES-128-GCM. pqforge does not export
+  an HPKE type. Group X25519MLKEM768, suite `TLS_AES_256_GCM_SHA384`,
+  ML-DSA-65 chain length 1. Inner name `localhost`. Public name
+  `public.example`. A client given an `EchConfig` fails closed:
+  `ech_required`, no ClientHelloOuter continuation, and no cleartext
+  second hello. HelloRetryRequest under ECH is rejected the same way.
+  A server given an `EchServerConfig` does not resume the outer hello.
+  A BoringSSL server without the ECH key gets that alert and no second
+  ClientHello. Not an OpenSSL flight. Not DNS. Not GREASE. Not a browser.
 - Design record for OPEN-14 ([#43](https://github.com/turkananation/pqtransport/issues/43)):
   [doc/adr/ADR-0014-x509-certificate.md](doc/adr/ADR-0014-x509-certificate.md)
   and [doc/plans/OPEN-14-x509-certificate.md](doc/plans/OPEN-14-x509-certificate.md).
