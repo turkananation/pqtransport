@@ -54,8 +54,8 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `PqDatagram` / `PqDatagramCodec` | AEAD envelope |
 | `peekDatagramSequence` | Cheap replay check |
 | `ReplayWindow` | Sliding anti-replay |
-| `PqEncryptedUdpSocket` | Hybrid session then AEAD datagrams |
-| `udpStateMachine` | Reliability states |
+| `PqEncryptedUdpSocket` | Hybrid session, then AEAD datagrams. Loss recovery is RFC 9002 (`driveLossDetection`, caller-supplied clock). |
+| `udpStateMachine` | Unused sketch. Not the live loss detector. |
 
 ## TLS
 

@@ -50,7 +50,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Encrypted session (X25519MLKEM768) | Done | Identical HKDF extra both roles |
 | Encrypted session (SecP256r1MLKEM768) | Done | Same session install; P-256 ECDH |
 | Encrypted session (SecP384r1MLKEM1024) | Done | Requires `PqForgeProfile.maximum` |
-| Reliability machine | Partial | States exist; not a full ACK/retransmit protocol |
+| Reliability | Done | RFC 9002 loss detection, PTO, and NewReno via `QuicLossRecovery`, after the session exists. Payload is a RFC 9000 STREAM frame. The peer's reply is a RFC 9000 ACK frame. A lost frame is sealed again under a new packet number. The replay window drops a repeated packet number. A repeated stream offset is delivered once. The outer header is still the pqtransport datagram, not a QUIC packet. Not a QUIC peer. Not ECN. |
 
 ## DNS / DoH / DoT
 

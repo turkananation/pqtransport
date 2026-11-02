@@ -15,6 +15,8 @@ enum UdpEvent {
   close,
 }
 
+/// Names from an earlier sketch. The live session does not step this
+/// machine. Loss detection is `QuicLossRecovery` on `PqEncryptedUdpSocket`.
 StateMachine<UdpState, UdpEvent> udpStateMachine() {
   final m = StateMachine<UdpState, UdpEvent>(initialState: UdpState.idle);
   m.addTransition(UdpState.idle, UdpEvent.bind, UdpState.bound);

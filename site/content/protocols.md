@@ -14,7 +14,11 @@ AEAD open. Send path uses swissarmyknife `Throttler`. Encrypted session
 is X25519MLKEM768, SecP256r1MLKEM768, or SecP384r1MLKEM1024 with
 identical HKDF extra on both roles.
 
-Reliability states exist; they are not a full ACK/retransmit protocol.
+Reliability is RFC 9002 loss detection and PTO once the session exists.
+A dropped datagram is a RFC 9000 STREAM frame sent again under a new
+packet number. The acknowledgement is a RFC 9000 ACK frame. The outer
+header is still the pqtransport datagram, not a QUIC packet, so a QUIC
+peer will not accept it.
 
 ## TLS 1.3
 
