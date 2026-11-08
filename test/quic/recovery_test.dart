@@ -490,10 +490,9 @@ void main() {
       expect(loss.ptoCount, 0);
     });
 
-    test('LIM-05: 0-RTT is not a fourth packet number space', () {
-      // RFC 9000 §12.3: 0-RTT shares Application Data with 1-RTT.
-      // Issue 55 forbids sending it. The PTO rule in RFC 9002 §6.2.1
-      // is what this stack implements instead.
+    test('0-RTT shares the application packet number space', () {
+      // RFC 9000 §12.3. RFC 9002 §6.2.1 still disarms the PTO until
+      // the handshake is confirmed, including when 0-RTT was sent.
       expect(QuicPacketNumberSpace.values, [
         QuicPacketNumberSpace.initial,
         QuicPacketNumberSpace.handshake,

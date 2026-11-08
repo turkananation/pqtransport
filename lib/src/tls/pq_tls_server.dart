@@ -16,6 +16,7 @@ import 'key_schedule.dart';
 import 'machines.dart';
 import 'record.dart';
 import 'tls_state.dart';
+import 'resumption.dart';
 import 'cipher_suite.dart';
 import 'certificate_policy.dart';
 import 'ech.dart';
@@ -187,6 +188,7 @@ final class PqTlsServer {
     List<String>? alpnProtocols,
     this.quic = false,
     this.ech,
+    this.earlyData,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        identity =
            identity ??
@@ -205,6 +207,12 @@ final class PqTlsServer {
   /// The outer hello is not resumed.
   final EchServerConfig? ech;
 
+  /// Single-use 0-RTT tickets. Null rejects every resumption.
+  final QuicEarlyDataStore? earlyData;
+
+  Uint8List? earlyTrafficSecret;
+  bool earlyDataAccepted = false;
+
   final StateMachine<TlsState, TlsEvent> machine = tlsServerMachine();
   final Transcript transcript = Transcript();
   late final TlsKeySchedule schedule = TlsKeySchedule(crypto);
@@ -214,6 +222,7 @@ final class PqTlsServer {
   TlsCipherSuite _suite = TlsCipherSuite.aes256GcmSha384;
   var helloRetryCount = 0;
   String? selectedAlpn;
+  var _pskSelected = false;
 
   /// Group this server put in ServerHello. Null until that choice is made.
   TlsNamedGroup? negotiatedGroup;
@@ -369,6 +378,55 @@ final class PqTlsServer {
     return Result.success([wrapHandshake(hrrBytes, quic: quic)]);
   }
 
+  Result<void, PqTransportError> _acceptPsk(
+    ClientHello hello,
+    Uint8List helloBytes,
+  ) {
+    _pskSelected = false;
+    earlyDataAccepted = false;
+    earlyTrafficSecret = null;
+    if (hello.pskIdentity == null) {
+      if (hello.earlyData) {
+        return Result.failure(
+          PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+        );
+      }
+      return const Result.success(null);
+    }
+    if (ech != null) {
+      return Result.failure(PqTransportError.unsupported('0-rtt with ech'));
+    }
+    final store = earlyData;
+    final binder = hello.pskBinder;
+    if (store == null || binder == null) return const Result.success(null);
+    final ticket = store.find(hello.pskIdentity!);
+    if (ticket == null || ticket.cipherSuite != _suite.codepoint) {
+      return const Result.success(null);
+    }
+    schedule.usePsk(ticket.psk);
+    final truncated = truncatePskBinders(helloBytes, binder.length);
+    final binderKey = schedule.resumptionBinderKey();
+    final expected = schedule.binderVerifyData(
+      binderKey,
+      schedule.transcriptHash(truncated),
+    );
+    zeroize(binderKey);
+    if (!PqBytes.constantTimeEquals(expected, binder)) {
+      schedule.clearPsk();
+      store.take(hello.pskIdentity!);
+      return Result.failure(PqTransportError.decryptError('psk binder'));
+    }
+    store.take(hello.pskIdentity!);
+    _pskSelected = true;
+    if (hello.earlyData) {
+      earlyDataAccepted = true;
+      earlyTrafficSecret = schedule.clientEarlyTraffic(
+        schedule.transcriptHash(helloBytes),
+      );
+    }
+    return const Result.success(null);
+  }
+
   Future<Result<List<Uint8List>, PqTransportError>> _completeClientHello(
     ClientHello hello,
     Uint8List helloBytes,
@@ -376,6 +434,8 @@ final class PqTlsServer {
   ) async {
     final driven = driveTls(machine, TlsEvent.receiveClientHello);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
+    final psk = _acceptPsk(hello, helloBytes);
+    if (psk.isFailure) return Result.failure(psk.errorOrNull!);
     transcript.add(helloBytes);
     final clientShare = _shareFor(hello, selected);
     if (clientShare == null) return _fail('group mismatch');
@@ -402,6 +462,7 @@ final class PqTlsServer {
       share: accepted.valueOrNull!.serverShare,
       legacySessionId: hello.legacySessionId,
       cipherSuite: _suite.codepoint,
+      selectedPsk: _pskSelected,
     );
     final shBytes = ech == null
         ? sh.encode()
@@ -427,6 +488,7 @@ final class PqTlsServer {
     final ee = encodeEncryptedExtensions(
       serverCertificateType: echoType,
       alpnProtocol: selectedAlpn,
+      earlyData: earlyDataAccepted,
     );
     transcript.add(ee);
     final cert = sendX509

@@ -11,6 +11,7 @@ import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
 import 'certificate_policy.dart';
+import 'resumption.dart';
 import 'cipher_suite.dart';
 import 'ech.dart';
 import 'handshake.dart';
@@ -58,6 +59,9 @@ final class PqTlsClient {
     /// RFC 9849 configuration. When set, the wire hello is ClientHelloOuter
     /// and rejection fails closed. There is no cleartext retry.
     this.ech,
+
+    /// RFC 8446 resumption ticket. QUIC only. Sends early_data and a PSK.
+    this.ticket,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -104,6 +108,12 @@ final class PqTlsClient {
 
   /// Null means this client does not offer ECH.
   final EchConfig? ech;
+
+  /// Set only for a QUIC resumption. Null is a full handshake.
+  final QuicResumptionTicket? ticket;
+
+  Uint8List? earlyTrafficSecret;
+  bool earlyDataAccepted = false;
 
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
@@ -172,7 +182,28 @@ final class PqTlsClient {
       _localShares.add(minted.valueOrNull!);
     }
     final hello = _clientHello();
-    final encoded = hello.encode();
+    var encoded = hello.encode();
+    final resumed = ticket;
+    if (resumed != null) {
+      if (!quic || ech != null) {
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(PqTransportError.unsupported('quic 0-rtt'));
+      }
+      if (!offeredCipherSuites.contains(resumed.cipherSuite)) {
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(
+          PqTransportError.handshakeFailure('ticket cipher suite'),
+        );
+      }
+      final built = buildEarlyClientHello(
+        baseHello: encoded,
+        schedule: schedule,
+        ticket: resumed,
+        now: now == null ? DateTime.now().toUtc() : now!(),
+      );
+      encoded = built.hello;
+      earlyTrafficSecret = built.earlySecret;
+    }
     if (ech == null) {
       transcript.add(encoded);
       return Result.success(wrapHandshake(encoded, quic: quic));
@@ -289,6 +320,14 @@ final class PqTlsClient {
       return Result.failure(secret.errorOrNull!);
     }
     _hybridSs = secret.valueOrNull!;
+    final resumed = ticket;
+    if (sh.valueOrNull!.selectedPsk) {
+      if (resumed == null) return _fail('psk not offered');
+      schedule.usePsk(resumed.psk);
+    } else {
+      schedule.clearPsk();
+      earlyTrafficSecret = null;
+    }
     schedule.deriveHandshake(
       hybridSharedSecret: _hybridSs!,
       handshakeTranscriptHash: transcript.snapshot(),
@@ -343,6 +382,10 @@ final class PqTlsClient {
           return _fail('alpn not offered');
         }
         selectedAlpn = selected;
+        if (ee.valueOrNull!.earlyData) {
+          if (ticket == null) return _fail('early_data not offered');
+          earlyDataAccepted = true;
+        }
         final type = _selectedCertificateType(ee.valueOrNull!);
         if (type.isFailure) return _fatal(type.errorOrNull!, onWire: false);
         _certificateType = type.valueOrNull;

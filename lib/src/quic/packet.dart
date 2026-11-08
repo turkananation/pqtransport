@@ -7,13 +7,21 @@ import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
 
-enum QuicConnectionState { idle, handshake, ready, draining, closed, failed }
+enum QuicConnectionState {
+  idle,
+  handshake,
+  ready,
+  draining,
+  closed,
+  failed,
+  zeroRtt,
+}
 
-enum QuicConnectionEvent { start, handshakeDone, close, fatal, drain }
+enum QuicConnectionEvent { start, handshakeDone, close, fatal, drain, early }
 
-enum QuicStreamState { idle, open, halfClosed, closed, reset }
+enum QuicStreamState { idle, open, halfClosed, closed, reset, zeroRtt }
 
-enum QuicStreamEvent { open, data, fin, reset, close }
+enum QuicStreamEvent { open, data, fin, reset, close, early, confirm }
 
 StateMachine<QuicConnectionState, QuicConnectionEvent> quicConnMachine() {
   final m = StateMachine<QuicConnectionState, QuicConnectionEvent>(
@@ -74,6 +82,26 @@ StateMachine<QuicConnectionState, QuicConnectionEvent> quicConnMachine() {
     QuicConnectionEvent.close,
     QuicConnectionState.closed,
   );
+  m.addTransition(
+    QuicConnectionState.handshake,
+    QuicConnectionEvent.early,
+    QuicConnectionState.zeroRtt,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.handshakeDone,
+    QuicConnectionState.ready,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.fatal,
+    QuicConnectionState.failed,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.close,
+    QuicConnectionState.closed,
+  );
   return m;
 }
 
@@ -113,6 +141,26 @@ StateMachine<QuicStreamState, QuicStreamEvent> quicStreamMachine() {
   );
   m.addTransition(
     QuicStreamState.halfClosed,
+    QuicStreamEvent.reset,
+    QuicStreamState.reset,
+  );
+  m.addTransition(
+    QuicStreamState.idle,
+    QuicStreamEvent.early,
+    QuicStreamState.zeroRtt,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
+    QuicStreamEvent.confirm,
+    QuicStreamState.open,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
+    QuicStreamEvent.fin,
+    QuicStreamState.halfClosed,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
     QuicStreamEvent.reset,
     QuicStreamState.reset,
   );

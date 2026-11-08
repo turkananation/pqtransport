@@ -28,10 +28,10 @@ handshake is not. Production DoH over our TLS is `DohClient.h2` or
 `DohClient.h3` after ALPN, which the [Cookbook](cookbook) shows.
 
 BoringSSL does not complete SecP256r1MLKEM768 or SecP384r1MLKEM1024.
-ECH has no OpenSSL flight. There is no `curl --http3`. QUIC 0-RTT is
-not sent. The encrypted UDP path speaks a QUIC Initial and a 1-RTT
-short header to itself. A third-party HTTP/3 client has not completed
-that path.
+ECH has no OpenSSL flight. There is no `curl --http3`. QUIC 0-RTT
+is sent to this stack only: a long header beside the Initial and
+the 1-RTT short header. A third-party HTTP/3 client has not completed
+that path. Early data is replayable.
 
 ## Groups the TLS peers selected
 

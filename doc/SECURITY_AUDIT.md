@@ -19,7 +19,7 @@ production hardening.
 | P2 incomplete protocol | 0 | OPEN-10 fixed |
 | P3 hygiene | 0 | OPEN-12 Fixed |
 | Blocked on pqforge | 0 | BLK-01 … BLK-05 consumed in 0.4.4 |
-| Honest limits | 5 | LIM-01 … LIM-05 |
+| Honest limits | 4 | LIM-01 … LIM-04. LIM-05 (0-RTT) is implemented. |
 
 No P0 against the documented 0.1.0 claim. Several P1s against an
 OpenSSL / IANA / profile-footgun reading of the same code. Read
@@ -80,13 +80,16 @@ Handshake and application epochs have independent counters
 (`TlsRecordEpoch`). Mixing them again would reuse nonces under the
 same key.
 
-### S7 — QUIC 0-RTT (LIM-05 / residual)
+### S7 — QUIC 0-RTT (LIM-05)
 
 AES and ChaCha20 header protection are done (OPEN-06, OPEN-16).
-0-RTT is not implemented (LIM-05, issue 55). RFC 9000 §12.3 would put
-it in the Application Data space; this stack does not send it, and
-RFC 9002 §6.2.1 keeps that PTO disarmed until the handshake is
-confirmed. CRYPTO frames carry a live encapsulate.
+0-RTT is self-interop. RFC 9000 §12.3 puts it in the Application
+Data space with 1-RTT. It is not a fourth space. RFC 9002 §6.2.1
+keeps that PTO disarmed until the handshake is confirmed. Early
+data is replayable. The server ticket is single-use, so a second
+connection with the same ticket completes and accepts no early
+data. Rejected early data is not resent as 1-RTT. ECH and 0-RTT
+together are refused. CRYPTO frames carry a live encapsulate.
 
 ### S8 — UDP HKDF extra is shared (by design)
 

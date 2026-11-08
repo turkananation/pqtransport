@@ -20,7 +20,6 @@ These do not get a version number:
 | CMVP / FIPS 140 module | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 | Hard constant-time execution / hard erasure | VM, dart2js, dart2wasm cannot guarantee either |
 | Browser raw UDP / mDNS / QUIC sockets | Browsers do not expose them. [PLATFORM_SUPPORT.md](PLATFORM_SUPPORT.md) |
-| QUIC 0-RTT | Permanent non-goal (LIM-05, issue 55). Not a fourth packet number space. |
 | Classical-only fallback after a PQ hello | Law 3 / law 9 |
 | Direct `pqcrypto` dependency | Crypto stays one stack (`pqforge`) unless a documented exception lands |
 | `dart:ffi` / `SecureSocket` on the PQ path | Law 1 |
@@ -108,7 +107,7 @@ stays the default).
 
 0.6.2 does not include AIA, OCSP, CT, the system trust store, or Merkle
 Tree Certificates. A chain longer than 8 is a failure, not a later
-fallback. 0-RTT stays LIM-05. The raw-pk OpenSSL flight is not edited
+fallback. The raw-pk OpenSSL flight is not edited
 to produce 0.6.2. Default client offer stays RawPublicKey. 0.6.3
 verifies algorithms 5, 7, 8, 10, 13, 14, 15, and 16, and checks NSEC and
 NSEC3 denial from a caller-supplied trust anchor. Ed448 uses an empty
@@ -129,12 +128,12 @@ Never parallelize:
 
 ## Suggested next coding turn (when directed)
 
-1. OPEN-21 optional SLH-DSA archival signature for mDNS TXT, one
-   parameter set pqforge already exports. The default announce path
-   stays ML-DSA-65.
-   [#50](https://github.com/turkananation/pqtransport/issues/50).
-   Do not start 0-RTT (LIM-05). NSEC and NSEC3 denial are already in
-   the validating stub.
+OPEN-21 (optional SLH-DSA-SHA2-128f on mDNS TXT) and LIM-05 (QUIC
+0-RTT) are implemented in this tree. Issues
+[#50](https://github.com/turkananation/pqtransport/issues/50) and
+[#55](https://github.com/turkananation/pqtransport/issues/55) stay
+open until the owner closes them. Neither is a non-goal. 0-RTT is
+not a fourth packet number space.
 
 Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
 carry a real TLS handshake (OPEN-06). HTTP/2 on `PqTlsSocket` is Done.

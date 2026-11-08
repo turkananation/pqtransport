@@ -108,6 +108,8 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | DNS RR round-trip; pointer cycle rejected | Done |
 | CircuitBreaker opens; cache expires at TTL | Done |
 | mDNS probe/announce/browse; ML-DSA TXT verify / mutate-fail | Done |
+| Optional SLH-DSA-SHA2-128f mDNS TXT (`pqslh=`); mutate fails | Done. Default announce stays ML-DSA-65. Not the other eleven sets. Not TLS CertificateVerify. |
+| QUIC 0-RTT early data, accepted once and empty on replay | Done. Application Data space, shared with 1-RTT. Not a fourth space. |
 | CRYPTO frame carries 1216-byte share | Done (live ClientHello; OPEN-06) |
 | Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
@@ -122,9 +124,9 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 Recorded so achievements cannot be misread:
 
 - BoringSSL on SecP256r1MLKEM768 or SecP384r1MLKEM1024. Those groups are not in BoringSSL 0.20261020.0. The X25519MLKEM768 handshake is a separate row above. `X509_verify_cert` on one OpenSSL leaf is not that handshake.
-- QUIC 0-RTT (LIM-05, issue 55). Permanent. Not in this tree. RFC 9000
-  §12.3 would put it in the Application Data packet number space; this
-  stack does not send it.
+- Third-party QUIC 0-RTT. This tree speaks 0-RTT to itself. Early
+  data is replayable. A replayed ticket is not accepted. Transport
+  parameters are not remembered. Not `curl --http3`.
 - Connection migration, ECN, multipath, anti-amplification, and
   Handshake packet protection. Loss detection, PTO, and NewReno are in
   tree. ChaCha header protection still fails closed.

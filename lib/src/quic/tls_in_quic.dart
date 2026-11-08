@@ -11,6 +11,7 @@ import '../tls/key_schedule.dart';
 import '../tls/pq_tls_client.dart';
 import '../tls/pq_tls_server.dart';
 import '../tls/record.dart';
+import '../tls/resumption.dart';
 import '../tls/tls_state.dart';
 import 'packet.dart';
 
@@ -83,11 +84,13 @@ final class QuicTlsHandshake {
     PqTransportCrypto? crypto,
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
+    QuicResumptionTicket? ticket,
   }) : _client = PqTlsClient(
          crypto: crypto,
          group: group,
          quic: true,
          alpnProtocols: alpnProtocols,
+         ticket: ticket,
        ),
        _server = null;
 
@@ -96,6 +99,7 @@ final class QuicTlsHandshake {
     HybridGroup group = HybridGroup.x25519MlKem768,
     PqTlsServerIdentity? identity,
     List<String>? alpnProtocols,
+    QuicEarlyDataStore? earlyData,
   }) : _client = null,
        _server = PqTlsServer(
          crypto: crypto,
@@ -103,6 +107,7 @@ final class QuicTlsHandshake {
          identity: identity,
          quic: true,
          alpnProtocols: alpnProtocols,
+         earlyData: earlyData,
        );
 
   final PqTlsClient? _client;
@@ -117,6 +122,13 @@ final class QuicTlsHandshake {
       (_client?.isComplete ?? false) || (_server?.isComplete ?? false);
 
   String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
+
+  Uint8List? get earlyTrafficSecret =>
+      _client?.earlyTrafficSecret ?? _server?.earlyTrafficSecret;
+
+  bool get earlyDataAccepted =>
+      (_client?.earlyDataAccepted ?? false) ||
+      (_server?.earlyDataAccepted ?? false);
 
   Uint8List exporterBytes(String label, Uint8List context, int length) {
     final c = _client;

@@ -114,6 +114,7 @@ const String udpSessionInfoPrefix = 'pqtransport udp-session v1';
 
 const int dnsPort = 53;
 const int mdnsPort = 5353;
+const String mdnsSlhDsaName = 'SLH-DSA-SHA2-128f';
 const String mdnsIpv4Group = '224.0.0.251';
 const String mdnsIpv6Group = 'ff02::fb';
 const int dnsMessageMaxBytes = 65535;
@@ -295,6 +296,7 @@ const int tlsContentAlert = 21;
 const int tlsContentChangeCipherSpec = 20;
 const int tlsHsClientHello = 1;
 const int tlsHsServerHello = 2;
+const int tlsHsNewSessionTicket = 4;
 const int tlsHsEncryptedExtensions = 8;
 const int tlsHsCertificate = 11;
 const int tlsHsCertificateVerify = 15;
@@ -313,6 +315,8 @@ const int tlsExtAlpn = 16;
 const int tlsExtClientCertificateType = 19;
 const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
+const int tlsExtPreSharedKey = 41;
+const int tlsExtEarlyData = 42;
 
 /// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.
 const int tlsExtEncryptedClientHello = 0xfe0d;
@@ -403,6 +407,10 @@ const String tlsLabelCApTraffic = 'c ap traffic';
 const String tlsLabelSApTraffic = 's ap traffic';
 const String tlsLabelFinished = 'finished';
 const String tlsLabelExpMaster = 'exp master';
+const String tlsLabelResMaster = 'res master';
+const String tlsLabelResumption = 'resumption';
+const String tlsLabelResBinder = 'res binder';
+const String tlsLabelCEarlyTraffic = 'c e traffic';
 const String tlsLabelExporter = 'exporter';
 const String tlsLabelIv = 'iv';
 const String tlsLabelKey = 'key';
@@ -414,6 +422,10 @@ const int handshakeTimestampWindowMs = 2000;
 // ---------------------------------------------------------------------------
 
 const int quicVersion1 = 0x00000001;
+
+/// RFC 9001 §4.6.1. QUIC tickets carry this instead of a byte limit.
+/// Flow control is the limit.
+const int quicEarlyDataUnlimited = 0xffffffff;
 const int quicMaxStreamDataDefault = 65536;
 const int quicMaxDataDefault = 262144;
 const int quicHeaderProtectionSampleBytes = 16;

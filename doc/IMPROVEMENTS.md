@@ -76,7 +76,6 @@ Do not vendor these. Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | Use `PqForgeCombiner.combine()` as the TLS combiner | Reverses X25519MLKEM768 (FIX-02, BLK-04) |
 | `SecureSocket` "just for HTTP" | Abandons the package |
 | Direct `pqcrypto` / `pointycastle` dependency | Splits the crypto story |
-| QUIC 0-RTT | LIM-05 |
 | Browser raw UDP | LIM-04 |
 | Coverage of `test/` in the quoted percentage | Quote `lib/` only |
 

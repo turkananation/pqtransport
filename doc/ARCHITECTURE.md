@@ -187,7 +187,8 @@ is usable without a socket: packet number spaces, RTT, loss, PTO, and a
 `QuicNewReno` window. `PqQuicConn` seals lost STREAM and CRYPTO bytes
 under a new packet number and pads a client Initial so the UDP datagram
 is at least 1200 bytes. It does not mint Handshake packet-protection
-keys, does not send 0-RTT, and does not implement ECN, migration, or the
+keys, sends 0-RTT only as an Application Data long header, and does
+not implement ECN, migration, or the
 anti-amplification limit. A silent peer stops after `quicMaxPtoCount`
 probes because `max_idle_timeout` is not negotiated. A caller can set a
 local idle timeout. ChaCha20 header protection uses the pqforge 0.4.8

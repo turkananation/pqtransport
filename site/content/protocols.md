@@ -96,12 +96,15 @@ in the [Cookbook](cookbook#dns-stub). The programs are
 
 Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
 `ff02::fb` (`joinMdnsGroups`). Optional ML-DSA-65 TXT (`pqsig=`).
-EventBus announcements per client. Real LAN mDNS uses
+An optional second field, `pqslh=`, is SLH-DSA-SHA2-128f and is not
+the default. EventBus announcements per client. Real LAN mDNS uses
 `IoDatagramChannel.joinMulticast`. Browsers have no raw UDP (LIM-04).
-SLH-DSA signed records are not the interactive default.
+SLH-DSA-SHA2-128f is archival only. The other eleven sets are not
+used here, and TLS CertificateVerify stays ML-DSA.
 
 The call is `beginProbe`, two `completeProbe`s, then `announce`.
-`signTxt` takes `crypto`, `secretKey`, `name`, and `body`. Both are
+`signTxt` takes `crypto`, `secretKey`, `name`, and `body`.
+`signTxtArchival` is the optional SLH-DSA-SHA2-128f path. Both are
 in the [Cookbook](cookbook#mdns). The program is
 `example/mdns_discovery.dart`.
 
@@ -110,8 +113,11 @@ in the [Cookbook](cookbook#mdns). The program is
 1-RTT short-header HP and Initial long-header HP. AES for Initial and
 for an AES 1-RTT suite. ChaCha20 header protection (RFC 9001 §5.4.4)
 uses the pqforge keystream. CRYPTO frames carry a live TLS handshake
-(RFC 9001, no TLS records). ACK processor is present. QUIC 0-RTT is not
-implemented (LIM-05, issue 55). It is not a fourth packet number space.
+(RFC 9001, no TLS records). ACK processor is present. QUIC 0-RTT is
+self-interop. It is a long header in the Application Data packet
+number space, shared with 1-RTT, not a fourth space. Early data is
+replayable. A replayed ticket completes and accepts none. The
+Application Data PTO stays off until the handshake is confirmed.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3

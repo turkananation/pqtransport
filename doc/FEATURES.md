@@ -75,12 +75,12 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09). Cache key is the DNS canonical name |
-| ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
-| EventBus announcements | Done | Per-client bus |
+| ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails. Default announce path |
+| SLH-DSA-SHA2-128f archival TXT | Done | Optional `pqslh=`. Not the default. Not TLS CertificateVerify. `test/mdns/mdns_test.dart` |
 | `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |
 | TCP `IoTcpSocket` / `IoTcpServer` | Done | Record reassembly is in `PqTlsSocket` (RFC 8446 §5.1) |
 | ML-DSA identity PEM | Done | RFC 7468 + RFC 5958 + RFC 9881. No encrypted PKCS#8. |
-| SLH-DSA signed records | Not started | Sister profile: archival only, after ML-DSA |
+| EventBus announcements | Done | Per-client bus |
 
 ## QUIC / HTTP
 
@@ -95,7 +95,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
 | `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |
-| 0-RTT | Not implemented | LIM-05, issue 55. Permanent. RFC 9000 §12.3 would share the Application Data space with 1-RTT. This stack does not send early data. |
+| 0-RTT | Done | Self-interop. Long header in the Application Data space, shared with 1-RTT (RFC 9000 §12.3). Not a fourth space. Replayable. Single-use ticket. PTO stays off until the handshake is confirmed (RFC 9002 §6.2.1). `test/quic/early_data_test.dart` |
 | HTTP/1.1 request/response | Done | |
 | HTTP/1.1 GET over `PqTlsSocket` | Done | |
 | HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |

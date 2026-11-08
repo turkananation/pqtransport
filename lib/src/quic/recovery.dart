@@ -41,12 +41,10 @@ final class QuicManualClock implements QuicClock {
 
 /// RFC 9000 §12.3 packet number spaces. A number is never reused in a space.
 ///
-/// There are three spaces. 0-RTT is not a fourth space: the RFC puts
-/// 0-RTT and 1-RTT in Application Data. This stack does not send 0-RTT
-/// (LIM-05, issue 55), so Application Data numbers are 1-RTT only.
-/// RFC 9002 §6.2.1 keeps that space's PTO disarmed until the handshake
-/// is confirmed, which is the rule that stops a sender retransmitting
-/// early data the peer may be unable to decrypt.
+/// There are three spaces. 0-RTT is not a fourth space: RFC 9000 §12.3
+/// puts 0-RTT and 1-RTT in Application Data. RFC 9002 §6.2.1 keeps that
+/// space's PTO disarmed until the handshake is confirmed. Lost 0-RTT is
+/// retransmitted as 1-RTT after that, under a new packet number.
 enum QuicPacketNumberSpace { initial, handshake, application }
 
 /// Bytes that must be carried in a new packet when the original is lost
@@ -229,9 +227,9 @@ final class QuicRecoveryEvent {
 /// client Initial. A silent peer still stops, because [maxPtoCount] stands
 /// in for the idle timeout this stack does not negotiate.
 /// Application Data PTO is disarmed until [markHandshakeConfirmed]
-/// (RFC 9002 §6.2.1). That rule is also why LIM-05 does not need a
-/// separate 0-RTT timer: early data is not sent, and 0-RTT would have
-/// shared this space (RFC 9000 §12.3).
+/// (RFC 9002 §6.2.1). 0-RTT shares that space with 1-RTT (RFC 9000
+/// §12.3). Lost 0-RTT is retransmitted later as 1-RTT under a new
+/// packet number. Rejected 0-RTT is abandoned, not resent.
 final class QuicLossRecovery {
   QuicLossRecovery({
     QuicClock? clock,
@@ -381,6 +379,36 @@ final class QuicLossRecovery {
   bool shouldSend(QuicRetransmittable frame) {
     if (frame is QuicRetransmitPing) return true;
     return !_delivered.contains(frame.token);
+  }
+
+  /// Forget frames whose token matches [drop]. A packet that then has
+  /// nothing left to send leaves the in-flight set. Rejected 0-RTT uses
+  /// this so the STREAM is not sealed again as 1-RTT.
+  void abandonFrames(bool Function(String token) drop) {
+    final space = QuicPacketNumberSpace.application;
+    final outstanding = _outstanding[space]!;
+    final removed = <({int sentBytes, bool inFlight})>[];
+    for (final pn in outstanding.keys.toList()) {
+      final packet = outstanding[pn]!;
+      var touched = false;
+      for (final frame in packet.frames) {
+        if (frame is QuicRetransmitPing) continue;
+        if (!drop(frame.token)) continue;
+        _delivered.add(frame.token);
+        touched = true;
+      }
+      if (!touched || _unackedFrames(packet).isNotEmpty) continue;
+      if (packet.inFlight) {
+        removed.add((sentBytes: packet.sentBytes, inFlight: true));
+        packet.inFlight = false;
+      }
+      outstanding.remove(pn);
+      _sentAck[space]!.inFlight.remove(pn);
+    }
+    if (removed.isEmpty) return;
+    controller.removeFromBytesInFlight(removed);
+    _lossTime[space] = null;
+    _setLossDetectionTimer();
   }
 
   /// Oldest in-flight ack-eliciting data in [space], for a PTO probe.

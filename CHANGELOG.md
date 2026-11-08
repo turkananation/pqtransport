@@ -7,6 +7,23 @@ DNS server, not a browser, and not WebPKI.
 
 ### Added
 
+- QUIC 0-RTT (RFC 9000 §17.2.3, RFC 9001, RFC 8446 PSK-DHE). A
+  resumption ticket is a 1-RTT NewSessionTicket. The next connection
+  may call `writeEarly` before `start`. The packet is a long header
+  in the Application Data packet number space, shared with 1-RTT.
+  It is not a fourth space. The Application Data PTO stays disarmed
+  until the handshake is confirmed. Lost 0-RTT is sealed again as
+  1-RTT. Rejected early data is not. The ticket store is single-use:
+  a replay completes the handshake and accepts no early data. The
+  `early_data` maximum is `0xffffffff`. Transport parameters are not
+  remembered; the local flow-control window is the limit. ECH and
+  0-RTT together are refused. Self-interop only. Not `curl --http3`.
+  `test/quic/early_data_test.dart`.
+- Optional mDNS TXT archival signature SLH-DSA-SHA2-128f (`pqslh=`,
+  `signTxtArchival` / `verifyTxtArchival`). The default announce path
+  stays ML-DSA-65 (`pqsig=`). Not TLS CertificateVerify. Not the
+  other eleven FIPS 205 sets. A mutated TXT fails closed.
+  `test/mdns/mdns_test.dart`.
 - DNSSEC validates algorithms 5 (RSASHA1), 7 (RSASHA1-NSEC3-SHA1),
   8 (RSASHA256), 10 (RSASHA512), 13 (ECDSAP256SHA256),
   14 (ECDSAP384SHA384), 15 (Ed25519), and 16 (Ed448). RSA is PKCS#1 v1.5 through
@@ -154,10 +171,10 @@ DNS server, not a browser, and not WebPKI.
   to at least 1200 bytes (RFC 9000 §14.1). The congestion window blocks
   sends. A peer that never ACKs stops after `quicMaxPtoCount` probes
   (this stack does not negotiate `max_idle_timeout`). No ECN, migration,
-  multipath, or anti-amplification limit. 0-RTT is not implemented
-  (LIM-05, issue 55): it is not a fourth packet number space
-  (RFC 9000 §12.3), and the Application Data PTO stays disarmed until
-  the handshake is confirmed (RFC 9002 §6.2.1).
+  multipath, or anti-amplification limit. 0-RTT shares this
+  Application Data space (RFC 9000 §12.3). It is not a fourth packet
+  number space. The Application Data PTO stays disarmed until the
+  handshake is confirmed (RFC 9002 §6.2.1).
   `test/quic/recovery_test.dart`.
 - DNS-over-HTTPS and DNS-over-TLS (OPEN-10 / slice 0.5.5). RFC 8484
   URI template `{?dns}` (unpadded base64url), POST and GET
@@ -179,7 +196,7 @@ DNS server, not a browser, and not WebPKI.
 - Initial secrets from DCID + salt (RFC 9001 §5.2 / Appendix A.1 pin).
   AES-128-GCM via pqforge `aes128GcmEncrypt`. Floor **pqforge ^0.4.6**.
 - ChaCha20 QUIC header protection is **not** implemented; 1-RTT ChaCha
-  fails closed. 0-RTT remains a non-goal (LIM-05).
+  fails closed.
 
 ### Tests
 
