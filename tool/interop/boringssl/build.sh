@@ -53,7 +53,9 @@ if [ "$got" != "$BORINGSSL_COMMIT" ]; then
 fi
 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$prefix" \
-  -DBUILD_TESTING=OFF >&2
+  -DBUILD_TESTING=OFF \
+  -DCMAKE_C_FLAGS="-Wno-error=stringop-overflow" \
+  -DCMAKE_CXX_FLAGS="-Wno-error=stringop-overflow" >&2
 ninja -C build bssl >&2
 cmake --install build >&2
 mkdir -p "$prefix/bin"
