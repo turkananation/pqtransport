@@ -112,7 +112,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-16 | P2 | **Fixed** | RFC 9001 §5.4.4 ChaCha20 header protection. pqforge 0.4.8 |
 | OPEN-17 | P2 | **Fixed** | RFC 9000 §4 flow control. `test/quic/lifecycle_test.dart` |
 | OPEN-18 | P2 | **Fixed** | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM |
-| OPEN-19 | P2 | **Fixed** | ECDSAP256SHA256 RRSIG (RFC 4034/4035). Canonical RDATA order, zone bit, 32-bit serial validity. AD is not consulted. `test/dns/dnssec_test.dart` |
+| OPEN-19 | P2 | **Fixed** | Validating stub. Algorithms 8, 13, 14, 15. Trust anchor, NSEC, DO bit, TC-over-TCP, CNAME. NSEC3 denial fails closed (no SHA-1 in pqforge). `test/dns/stub_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 

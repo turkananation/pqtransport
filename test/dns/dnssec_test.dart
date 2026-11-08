@@ -201,14 +201,18 @@ void main() {
   });
 
   test('AD is not validation', () async {
-    final response = DnsMessage(
-      id: 9,
-      flags: 0x8420,
-      questions: [const DnsQuestion(name: 'www.example.com.', type: DnsType.a)],
-      answers: rrset,
+    final client = PqDnsClient(
+      exchange: (q) async => encodeDnsMessage(
+        DnsMessage(
+          id: (q[0] << 8) | q[1],
+          flags: 0x8420,
+          questions: [
+            const DnsQuestion(name: 'www.example.com.', type: DnsType.a),
+          ],
+          answers: rrset,
+        ),
+      ).valueOrNull!,
     );
-    final wire = encodeDnsMessage(response).valueOrNull!;
-    final client = PqDnsClient(exchange: (_) async => wire);
     final looked = await client.lookup('www.example.com.', DnsType.a);
     expect(looked.isSuccess, isTrue);
     expect(looked.valueOrNull!.flags & 0x0020, 0x0020);

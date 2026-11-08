@@ -7,6 +7,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
 import '../socket/pq_transport_socket.dart';
+import 'dnssec.dart';
 import 'doh_dot.dart';
 import 'records.dart';
 import 'wire.dart';
@@ -28,17 +29,21 @@ typedef DnsExchange = Future<Uint8List> Function(Uint8List query);
 
 /// Resolver with TTL cache and circuit breaker around every external hop.
 ///
-/// The AD bit on a response is not validation. This client does not verify
-/// an RRSIG. `verifyDnssecRrset` takes a caller-supplied DNSKEY.
+/// The query sets the DO bit (RFC 3225). The response id must match. A
+/// truncated response is retried on [tcp] when that exchange is set. The AD
+/// bit is not validation. [lookup] does not verify an RRSIG and does not
+/// follow CNAME. [resolve] follows CNAME. [authenticateDns] is the validator.
 final class PqDnsClient {
   PqDnsClient({
     required this.exchange,
+    this.tcp,
     DateTime Function()? clock,
     this.failureThreshold = 2,
   }) : cache = Cache<DnsCacheKey, DnsMessage>(clock: clock),
        breaker = CircuitBreaker(failureThreshold: failureThreshold);
 
   final DnsExchange exchange;
+  final DnsExchange? tcp;
   final Cache<DnsCacheKey, DnsMessage> cache;
   final CircuitBreaker breaker;
   final int failureThreshold;
@@ -48,26 +53,74 @@ final class PqDnsClient {
     String name,
     DnsType type,
   ) async {
-    final key = DnsCacheKey(name, type);
+    final canonical = dnsNameKey(name);
+    if (canonical == null) {
+      return Result.failure(PqTransportError.decodeFailure('dns name'));
+    }
+    final key = DnsCacheKey(canonical, type);
     final hit = cache.get(key);
     if (hit != null) return Result.success(hit);
     final id = _rand.nextInt(0x10000);
     final q = DnsMessage(
       id: id,
       questions: [DnsQuestion(name: name, type: type)],
+      additional: [DnsOpt(flags: ednsFlagDo)],
     );
     final encoded = encodeDnsMessage(q);
     if (encoded.isFailure) return Result.failure(encoded.errorOrNull!);
-    final exec = await breaker.execute(() => exchange(encoded.valueOrNull!));
+    final query = encoded.valueOrNull!;
+    final first = await _once(exchange, query, id, name, type);
+    if (first.isFailure) return Result.failure(first.errorOrNull!);
+    final msg = first.valueOrNull!;
+    if ((msg.flags & dnsFlagTc) == 0) {
+      cache.put(key, msg, ttl: msg.minTtl());
+      return Result.success(msg);
+    }
+    if (tcp == null) {
+      return Result.failure(PqTransportError.unsupported('truncated dns'));
+    }
+    final again = await _once(tcp!, query, id, name, type);
+    if (again.isFailure) return Result.failure(again.errorOrNull!);
+    if ((again.valueOrNull!.flags & dnsFlagTc) != 0) {
+      return Result.failure(PqTransportError.unsupported('truncated dns'));
+    }
+    cache.put(key, again.valueOrNull!, ttl: again.valueOrNull!.minTtl());
+    return again;
+  }
+
+  /// RFC 1034. Follows CNAME up to [dnsCnameLimit]. Does not validate.
+  Future<Result<DnsMessage, PqTransportError>> resolve(
+    String name,
+    DnsType type,
+  ) => followCname(lookup: lookup, name: name, type: type);
+
+  Future<Result<DnsMessage, PqTransportError>> _once(
+    DnsExchange via,
+    Uint8List query,
+    int id,
+    String name,
+    DnsType type,
+  ) async {
+    final exec = await breaker.execute(() => via(query));
     if (exec.isFailure) {
       return Result.failure(
         PqTransportError.circuitOpen(exec.errorOrNull!.toString()),
       );
     }
     final decoded = decodeDnsMessage(exec.valueOrNull!);
-    if (decoded.isFailure) return decoded;
+    if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final msg = decoded.valueOrNull!;
-    cache.put(key, msg, ttl: msg.minTtl());
+    if (msg.id != id) {
+      return Result.failure(PqTransportError.unexpectedMessage('dns id'));
+    }
+    if (msg.questions.isNotEmpty) {
+      final q = msg.questions.first;
+      if (q.type != type || !dnsNamesEqual(q.name, name)) {
+        return Result.failure(
+          PqTransportError.unexpectedMessage('dns question'),
+        );
+      }
+    }
     return Result.success(msg);
   }
 }
@@ -100,6 +153,12 @@ final class PqDnsResolver {
       PqTransportError.circuitOpen('all dns transports open or missing'),
     );
   }
+
+  /// CNAME chase across the same failover as [lookup].
+  Future<Result<DnsMessage, PqTransportError>> resolve(
+    String name,
+    DnsType type,
+  ) => followCname(lookup: lookup, name: name, type: type);
 }
 
 /// DNS-over-HTTPS POST body hook. Production clients use [DohClient],
@@ -167,4 +226,46 @@ final class DotExchange {
     }
     return waiter.future.timeout(const Duration(seconds: 10));
   }
+}
+
+/// RFC 1034 CNAME chase. Stops when the answer is not a CNAME, or when the
+/// target records are already in that message.
+Future<Result<DnsMessage, PqTransportError>> followCname({
+  required Future<Result<DnsMessage, PqTransportError>> Function(
+    String name,
+    DnsType type,
+  )
+  lookup,
+  required String name,
+  required DnsType type,
+}) async {
+  var current = name;
+  final seen = <String>{};
+  for (var hop = 0; hop < dnsCnameLimit; hop++) {
+    final id = dnsNameKey(current);
+    if (id == null || !seen.add(id)) {
+      return Result.failure(PqTransportError.unsupported('cname loop'));
+    }
+    final msg = await lookup(current, type);
+    if (msg.isFailure) return msg;
+    if (type == DnsType.cname) return msg;
+    final links = [
+      for (final rr in msg.valueOrNull!.answers)
+        if (rr is DnsCname && dnsNamesEqual(rr.name, current)) rr,
+    ];
+    if (links.isEmpty) return msg;
+    final target = links.first.canonical;
+    final here = [
+      for (final rr in msg.valueOrNull!.answers)
+        if (rr is! DnsCname &&
+            rr is! DnsRrsig &&
+            rr is! DnsOpt &&
+            dnsNamesEqual(rr.name, target) &&
+            dnsRecordType(rr) == dnsTypeValue(type))
+          rr,
+    ];
+    if (here.isNotEmpty) return msg;
+    current = target;
+  }
+  return Result.failure(PqTransportError.unsupported('cname limit'));
 }

@@ -19,6 +19,11 @@ enum DnsType {
   dnskey,
   ds,
   rrsig,
+  soa,
+  nsec,
+  nsec3,
+  nsec3param,
+  opaque,
 }
 
 int dnsTypeValue(DnsType t) => switch (t) {
@@ -37,6 +42,11 @@ int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.dnskey => dnsTypeDnskey,
   DnsType.ds => dnsTypeDs,
   DnsType.rrsig => dnsTypeRrsig,
+  DnsType.soa => dnsTypeSoa,
+  DnsType.nsec => dnsTypeNsec,
+  DnsType.nsec3 => dnsTypeNsec3,
+  DnsType.nsec3param => dnsTypeNsec3param,
+  DnsType.opaque => 0,
 };
 
 DnsType? dnsTypeFromValue(int v) => switch (v) {
@@ -55,6 +65,10 @@ DnsType? dnsTypeFromValue(int v) => switch (v) {
   dnsTypeDnskey => DnsType.dnskey,
   dnsTypeDs => DnsType.ds,
   dnsTypeRrsig => DnsType.rrsig,
+  dnsTypeSoa => DnsType.soa,
+  dnsTypeNsec => DnsType.nsec,
+  dnsTypeNsec3 => DnsType.nsec3,
+  dnsTypeNsec3param => DnsType.nsec3param,
   _ => null,
 };
 
@@ -258,6 +272,98 @@ final class DnsRrsig extends DnsRecord {
   final String signer;
   final Uint8List signature;
 }
+
+/// RFC 1035 SOA.
+final class DnsSoa extends DnsRecord {
+  DnsSoa({
+    required super.name,
+    required this.mname,
+    required this.rname,
+    required this.serial,
+    required this.refresh,
+    required this.retry,
+    required this.expire,
+    required this.minimum,
+    super.ttl = 300,
+  }) : super(type: DnsType.soa);
+
+  final String mname;
+  final String rname;
+  final int serial;
+  final int refresh;
+  final int retry;
+  final int expire;
+  final int minimum;
+}
+
+/// RFC 4034 NSEC. [types] is the wire type bitmap.
+final class DnsNsec extends DnsRecord {
+  DnsNsec({
+    required super.name,
+    required this.next,
+    required this.types,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec);
+
+  final String next;
+  final Uint8List types;
+}
+
+/// RFC 5155 NSEC3. The hash is raw owner bytes, not a presentation name.
+final class DnsNsec3 extends DnsRecord {
+  DnsNsec3({
+    required super.name,
+    required this.hashAlgorithm,
+    required this.flags,
+    required this.iterations,
+    required this.salt,
+    required this.next,
+    required this.types,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec3);
+
+  final int hashAlgorithm;
+  final int flags;
+  final int iterations;
+  final Uint8List salt;
+  final Uint8List next;
+  final Uint8List types;
+}
+
+/// RFC 5155 NSEC3PARAM.
+final class DnsNsec3param extends DnsRecord {
+  DnsNsec3param({
+    required super.name,
+    required this.hashAlgorithm,
+    required this.flags,
+    required this.iterations,
+    required this.salt,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec3param);
+
+  final int hashAlgorithm;
+  final int flags;
+  final int iterations;
+  final Uint8List salt;
+}
+
+/// RFC 3597. An RR this codec does not interpret. [rdata] is the raw body.
+final class DnsOpaque extends DnsRecord {
+  DnsOpaque({
+    required super.name,
+    required this.typeCode,
+    required this.rdata,
+    super.ttl = 0,
+    super.klass = dnsClassIn,
+  }) : super(type: DnsType.opaque);
+
+  final int typeCode;
+  final Uint8List rdata;
+}
+
+/// Wire type of [rr]. Opaque records keep the code from the message.
+int dnsRecordType(DnsRecord rr) =>
+    rr is DnsOpaque ? rr.typeCode : dnsTypeValue(rr.type);
 
 final class DnsMessage {
   const DnsMessage({

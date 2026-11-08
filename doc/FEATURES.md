@@ -64,14 +64,16 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | DoH POST and GET `application/dns-message` | Done | RFC 8484. `DohClient.h2` / `DohClient.h3`. URI template `{?dns}`, unpadded base64url. Wrong media type fails closed. |
 | DoT length-prefix framing | Done | RFC 7858. `DotClient` requires ALPN `dot` and reassembles split TCP frames. A non-`dot` ALPN fails closed. |
 | nghttp2/curl and nghttp3 QPACK | Done | `tool/interop`. HTTP/2 prior-knowledge DoH via curl. QPACK both ways vs libnghttp3 1.11.0. Not live `curl --http3` (hybrid QUIC vs classical TLS). |
-| DNSSEC (RRSIG/DS verify) | Done | ECDSAP256SHA256 (algorithm 13) only. The signature check is `PqEcdsaP256.verify`. RRset order is canonical RDATA. The zone bit is required. Validity is 32-bit serial arithmetic; a span of 2^31 seconds or more fails closed. SHA-256 DS (digest type 2) matches a caller-supplied DNSKEY. The AD bit is not consulted. Not RSASHA256. Not NSEC/NSEC3. Not a recursive resolver. `test/dns/dnssec_test.dart` |
+| DNSSEC (RRSIG/DS verify) | Done | Algorithms 8 (RSASHA256), 13 (ECDSAP256SHA256), 14 (ECDSAP384SHA384), and 15 (Ed25519), each via pqforge. Canonical RDATA order. Zone bit required. 32-bit serial validity. Wildcard owner when `labels` is smaller. DS digests SHA-256 and SHA-384. `test/dns/dnssec_test.dart`, `test/dns/stub_test.dart` |
+| Validating stub | Done | DO bit, matching id, TC retry over TCP, CNAME chase. Trust starts at a caller-supplied DS or DNSKEY and walks zone cuts. NSEC name error and NODATA. NSEC3 decodes; denial fails closed because SHA-1 is not in pqforge. Not a recursive resolver. The AD bit is not validation. |
+| SOA and unknown RR | Done | RFC 1035 SOA. RFC 3597 opaque type and rdata. |
 | Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 
 ## mDNS
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09) |
+| Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09). Cache key is the DNS canonical name |
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
 | `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |

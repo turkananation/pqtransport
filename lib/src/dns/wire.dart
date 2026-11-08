@@ -17,6 +17,9 @@ Result<Uint8List, PqTransportError> encodeDnsMessage(DnsMessage msg) {
   writeUint16(b, msg.authority.length);
   writeUint16(b, msg.additional.length);
   for (final q in msg.questions) {
+    if (q.type == DnsType.opaque) {
+      return Result.failure(PqTransportError.unsupported('opaque qtype'));
+    }
     final n = _writeName(b, q.name);
     if (n.isFailure) return Result.failure(n.errorOrNull!);
     writeUint16(b, dnsTypeValue(q.type));
@@ -117,7 +120,7 @@ Result<void, PqTransportError> _writeName(BytesBuilder b, String name) {
 Result<void, PqTransportError> _writeRr(BytesBuilder b, DnsRecord rr) {
   final n = _writeName(b, rr.name);
   if (n.isFailure) return n;
-  writeUint16(b, dnsTypeValue(rr.type));
+  writeUint16(b, dnsRecordType(rr));
   if (rr is DnsOpt) {
     writeUint16(b, rr.udpPayload);
     b.addByte(rr.extendedRcode);
@@ -238,6 +241,57 @@ Result<void, PqTransportError> _writeRdata(BytesBuilder b, DnsRecord rr) {
       final signerName = _writeName(b, signer);
       if (signerName.isFailure) return signerName;
       b.add(signature);
+    case DnsSoa(
+      :final mname,
+      :final rname,
+      :final serial,
+      :final refresh,
+      :final retry,
+      :final expire,
+      :final minimum,
+    ):
+      final m = _writeName(b, mname);
+      if (m.isFailure) return m;
+      final r = _writeName(b, rname);
+      if (r.isFailure) return r;
+      writeUint32(b, serial);
+      writeUint32(b, refresh);
+      writeUint32(b, retry);
+      writeUint32(b, expire);
+      writeUint32(b, minimum);
+    case DnsNsec(:final next, :final types):
+      final n = _writeName(b, next);
+      if (n.isFailure) return n;
+      b.add(types);
+    case DnsNsec3(
+      :final hashAlgorithm,
+      :final flags,
+      :final iterations,
+      :final salt,
+      :final next,
+      :final types,
+    ):
+      b.addByte(hashAlgorithm);
+      b.addByte(flags);
+      writeUint16(b, iterations);
+      b.addByte(salt.length);
+      b.add(salt);
+      b.addByte(next.length);
+      b.add(next);
+      b.add(types);
+    case DnsNsec3param(
+      :final hashAlgorithm,
+      :final flags,
+      :final iterations,
+      :final salt,
+    ):
+      b.addByte(hashAlgorithm);
+      b.addByte(flags);
+      writeUint16(b, iterations);
+      b.addByte(salt.length);
+      b.add(salt);
+    case DnsOpaque(:final rdata):
+      b.add(rdata);
   }
   return const Result.success(null);
 }
@@ -373,9 +427,15 @@ final class _DnsReader {
     final rdataEnd = rdataStart + rdlen;
     final type = dnsTypeFromValue(typeV);
     if (type == null) {
-      failed = PqTransportError.decodeFailure('unknown rr type $typeV');
+      final body = Uint8List.fromList(wire.sublist(rdataStart, rdataEnd));
       offset = rdataEnd;
-      return null;
+      return DnsOpaque(
+        name: name,
+        typeCode: typeV,
+        rdata: body,
+        ttl: ttl,
+        klass: klass,
+      );
     }
     final rec = _parseRdata(name, type, klass, ttl, rdataStart, rdataEnd);
     offset = rdataEnd;
@@ -579,6 +639,69 @@ final class _DnsReader {
           signature: signature,
           ttl: ttl,
         );
+      case DnsType.soa:
+        final mname = readName(end: rdataEnd);
+        if (mname == null) return null;
+        final rname = readName(end: rdataEnd);
+        if (rname == null) return null;
+        if (!_rdataNeed(20, rdataEnd)) return null;
+        return DnsSoa(
+          name: name,
+          mname: mname,
+          rname: rname,
+          serial: u32(),
+          refresh: u32(),
+          retry: u32(),
+          expire: u32(),
+          minimum: u32(),
+          ttl: ttl,
+        );
+      case DnsType.nsec:
+        final next = readName(end: rdataEnd);
+        if (next == null) return null;
+        return DnsNsec(
+          name: name,
+          next: next,
+          types: take(rdataEnd - offset),
+          ttl: ttl,
+        );
+      case DnsType.nsec3:
+        if (!_rdataNeed(5, rdataEnd)) return null;
+        final hashAlgorithm = u8();
+        final nsecFlags = u8();
+        final iterations = u16();
+        final saltLen = u8();
+        if (!_rdataNeed(saltLen + 1, rdataEnd)) return null;
+        final salt = take(saltLen);
+        final hashLen = u8();
+        if (!_rdataNeed(hashLen, rdataEnd)) return null;
+        return DnsNsec3(
+          name: name,
+          hashAlgorithm: hashAlgorithm,
+          flags: nsecFlags,
+          iterations: iterations,
+          salt: salt,
+          next: take(hashLen),
+          types: take(rdataEnd - offset),
+          ttl: ttl,
+        );
+      case DnsType.nsec3param:
+        if (!_rdataNeed(5, rdataEnd)) return null;
+        final hashAlgorithm = u8();
+        final nsecFlags = u8();
+        final iterations = u16();
+        final saltLen = u8();
+        if (!_rdataNeed(saltLen, rdataEnd)) return null;
+        return DnsNsec3param(
+          name: name,
+          hashAlgorithm: hashAlgorithm,
+          flags: nsecFlags,
+          iterations: iterations,
+          salt: take(saltLen),
+          ttl: ttl,
+        );
+      case DnsType.opaque:
+        return null;
     }
   }
 }

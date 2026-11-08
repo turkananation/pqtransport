@@ -210,7 +210,7 @@ void main() {
           n++;
           return encodeDnsMessage(
             DnsMessage(
-              id: 1,
+              id: (q[0] << 8) | q[1],
               flags: 0x8180,
               answers: [
                 DnsA(
@@ -240,7 +240,7 @@ void main() {
         udpCalls++;
         return encodeDnsMessage(
           DnsMessage(
-            id: 1,
+            id: (q[0] << 8) | q[1],
             flags: 0x8180,
             answers: [
               DnsA(

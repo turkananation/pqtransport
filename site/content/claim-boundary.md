@@ -36,7 +36,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 - "Best-effort zeroization in Dart."
 - "Best-effort side-channel posture in Dart."
 - "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
-- "DNSSEC verifies ECDSAP256SHA256 (algorithm 13) only, via `PqEcdsaP256.verify`. The zone bit is required. The AD bit is not validation."
+- "DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge, from a caller-supplied trust anchor. NSEC proves denial. NSEC3 denial fails closed. The AD bit is not validation."
 - "ECH is one BoringSSL 0.20261020.0 flight (RFC 9849, pqforge 0.4.10 HPKE). Not OpenSSL. Not a browser."
 
 ## Forbidden → use instead

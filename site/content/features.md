@@ -44,7 +44,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Encrypted UDP session (X25519MLKEM768) | Done |
 | Encrypted UDP session (P-256 / P-384) | Done |
 | DNS RR round-trip including PTR/NS/DNSKEY/DS/RRSIG | Done |
-| DNSSEC ECDSAP256SHA256 | Done. Algorithm 13 only, via `PqEcdsaP256.verify`. Canonical RDATA order. Zone bit required. 32-bit serial validity. SHA-256 DS. AD is not consulted. Not NSEC/NSEC3 |
+| DNSSEC | Done. Algorithms 8, 13, 14, 15 via pqforge. Trust anchor to zone cut. NSEC denial. NSEC3 decodes and fails closed (no SHA-1 in pqforge). DO bit, matching id, TC over TCP, CNAME chase. AD is not consulted |
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |

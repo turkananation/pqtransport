@@ -22,6 +22,7 @@ void main() {
     );
     final ann = await server.announce(rr);
     expect(ann.isSuccess, isTrue, reason: '${ann.errorOrNull}');
+    expect(server.registry.get(dnsNameKey('FOO._pq._tcp.local.')!), isNotNull);
     final ev = await added.timeout(const Duration(seconds: 2));
     expect(ev.name, 'foo._pq._tcp.local.');
   });

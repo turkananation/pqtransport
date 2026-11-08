@@ -59,13 +59,13 @@ NS, DNSKEY, DS, and RRSIG. Compression pointer cycles are rejected. Rdata name p
 message (OPEN-08). TTL cache uses an injected
 clock. `CircuitBreaker` wraps exchange and opens after
 `failureThreshold`. Resolver failover is DoH, then DoT, then UDP.
-DNSSEC verifies ECDSAP256SHA256 (algorithm 13) on a caller-supplied
-DNSKEY. The signature check is `PqEcdsaP256.verify`. RRset order is
-canonical RDATA. The zone bit is required. Validity is 32-bit serial
-arithmetic; a span of 2^31 seconds or more fails closed. A SHA-256 DS
-(digest type 2) can match that key. The AD bit is not validation. Not
-RSASHA256. Not NSEC or NSEC3. Not a recursive resolver, and the parent
-DS is not fetched.
+DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge, from a
+caller-supplied trust anchor down the zone cuts. The stub sets the DO
+bit, requires a matching response id, retries a truncated UDP answer
+over TCP, and follows CNAME. SOA and unknown RRs decode. NSEC proves
+a missing name and a missing type. NSEC3 records decode. The RFC 5155
+hash is SHA-1, which pqforge does not provide, so that denial fails
+closed. The AD bit is not validation. Not a recursive resolver.
 
 ## mDNS
 
