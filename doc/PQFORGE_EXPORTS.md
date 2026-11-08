@@ -42,7 +42,8 @@ This file records what we consume and what is still not wired. IDs:
 | **AES-128-GCM + AES-ECB (OPEN-06)** | `aes128GcmEncrypt` / `Decrypt`, `aesEncryptBlock` (16- or 32-byte key) — QUIC Initial AEAD and header protection |
 | **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js-safe (Dart engine, 0.4.5). `supportsChaCha20Poly1305` is always `true`. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
 | **ChaCha20 keystream (OPEN-16)** | `chacha20` — RFC 8439 keystream, caller counter. QUIC header protection (RFC 9001 §5.4.4), pqforge 0.4.8. Not the Poly1305 AEAD. |
-| **RSA PKCS#1 verify (0.4.13)** | `PqRsa.verifyPkcs1` with `PqRsaHash.sha1`, `.sha256`, or `.sha512`. DNSSEC algorithms 5, 7, 8, and 10. Moduli 1024, 2048, 3072, 4096. Not PSS. Not ED448. |
+| **RSA PKCS#1 verify (0.4.13)** | `PqRsa.verifyPkcs1` with `PqRsaHash.sha1`, `.sha256`, or `.sha512`. DNSSEC algorithms 5, 7, 8, and 10. Moduli 1024, 2048, 3072, 4096. Not PSS. |
+| **Ed448 (0.4.13)** | `PqEd448.verify`. DNSSEC algorithm 16. Pure Ed448, empty context. 57-byte key, 114-byte signature. Not Ed448ph. Not X.509. |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |

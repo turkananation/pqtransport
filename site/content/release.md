@@ -30,9 +30,9 @@ offered. `requireGroup` refuses profile/group mismatch. Evidence:
 Main now also has opt-in X.509 (chain of 1 to 8), OpenSSL and BoringSSL
 on the named groups, one BoringSSL ECH flight, RFC 9002 loss recovery
 on the encrypted UDP path, and an iterative DNSSEC resolver for
-algorithms 5, 7, 8, 10, 13, 14, and 15, including NSEC and NSEC3.
-RSA moduli are 1024, 2048, 3072, and 4096 bits. ED448 is not
-implemented. The AD bit is not validation. QUIC 0-RTT is still not
+algorithms 5, 7, 8, 10, 13, 14, 15, and 16, including NSEC and NSEC3.
+RSA moduli are 1024, 2048, 3072, and 4096 bits. Ed448 verifies with
+an empty context. The AD bit is not validation. QUIC 0-RTT is still not
 implemented. An authoritative DNS server is not implemented.
 
 ## Tag

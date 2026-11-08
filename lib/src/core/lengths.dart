@@ -185,6 +185,9 @@ const int dnssecAlgorithmEcdsaP384Sha384 = 14;
 /// RFC 8080. Ed25519.
 const int dnssecAlgorithmEd25519 = 15;
 
+/// RFC 8080. Ed448. Pure Ed448, empty context. Not Ed448ph.
+const int dnssecAlgorithmEd448 = 16;
+
 /// RFC 6605. SHA-384 DS digest.
 const int dnssecDigestSha384 = 4;
 
@@ -197,6 +200,10 @@ const int dnssecEcdsaP384SignatureBytes = 96;
 /// RFC 8080. Ed25519 public key and signature.
 const int dnssecEd25519PublicKeyBytes = 32;
 const int dnssecEd25519SignatureBytes = 64;
+
+/// RFC 8080. Ed448 public key and signature.
+const int dnssecEd448PublicKeyBytes = 57;
+const int dnssecEd448SignatureBytes = 114;
 
 /// SHA-1 digest length. DS digest type 1 and NSEC3 hash algorithm 1.
 const int dnssecSha1DigestBytes = 20;

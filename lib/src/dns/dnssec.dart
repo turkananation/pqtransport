@@ -96,7 +96,7 @@ bool dnskeyMatchesDs(DnsDnskey key, DnsDs ds) {
   return PqBytes.constantTimeEquals(digest, ds.digest);
 }
 
-/// True for the algorithms pqforge verifies: 5, 7, 8, 10, 13, 14, and 15.
+/// True for the algorithms pqforge verifies: 5, 7, 8, 10, 13, 14, 15, and 16.
 bool dnssecAlgorithmSupported(int algorithm) => switch (algorithm) {
   dnssecAlgorithmRsaSha1 ||
   dnssecAlgorithmRsaSha1Nsec3Sha1 ||
@@ -104,7 +104,8 @@ bool dnssecAlgorithmSupported(int algorithm) => switch (algorithm) {
   dnssecAlgorithmRsaSha512 ||
   dnssecAlgorithmEcdsaP256Sha256 ||
   dnssecAlgorithmEcdsaP384Sha384 ||
-  dnssecAlgorithmEd25519 => true,
+  dnssecAlgorithmEd25519 ||
+  dnssecAlgorithmEd448 => true,
   _ => false,
 };
 
@@ -323,6 +324,16 @@ bool _verifySignature(DnsDnskey key, Uint8List message, Uint8List signature) {
         return false;
       }
       return PqEd25519.verify(
+        publicKey: key.publicKey,
+        message: message,
+        signature: signature,
+      );
+    case dnssecAlgorithmEd448:
+      if (key.publicKey.length != dnssecEd448PublicKeyBytes ||
+          signature.length != dnssecEd448SignatureBytes) {
+        return false;
+      }
+      return PqEd448.verify(
         publicKey: key.publicKey,
         message: message,
         signature: signature,

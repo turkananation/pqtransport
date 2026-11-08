@@ -27,8 +27,8 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   secp256r1, secp384r1, and MLKEM1024. Auth is raw public key by default,
   or an opt-in ML-DSA-65 X.509 chain of 1 to 8. ECH is one BoringSSL
   flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies algorithms
-  5, 7, 8, 10, 13, 14, and 15. RSA moduli are 1024, 2048, 3072, and
-  4096 bits. ED448 is not implemented. The iterative resolver returns
+  5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli are 1024, 2048, 3072, and
+  4096 bits. Ed448 verifies with an empty context. The iterative resolver returns
   secure, insecure, or bogus, with NSEC and NSEC3 denial. Not a browser. Not WebPKI. Not a FIPS 140 module.
 </Info>
 
@@ -67,7 +67,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 | pqforge | `^0.4.13` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
 | Live KEX | X25519, P-256, P-384, plus the four fallback groups |
-| DNSSEC | Iterative resolver. Algorithms 5, 7, 8, 10, 13, 14, 15. RSA 1024 through 4096. ED448 is not implemented. NSEC and NSEC3. AD is not consulted |
+| DNSSEC | Iterative resolver. Algorithms 5, 7, 8, 10, 13, 14, 15, 16. RSA 1024 through 4096. Ed448 verifies. NSEC and NSEC3. AD is not consulted |
 | FFI | none |
 | Platform TLS on PQ path | none |
 

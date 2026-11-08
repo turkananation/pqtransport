@@ -104,15 +104,15 @@ stays the default).
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
 | 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Done.** Opt-in chain of 1 to 8. OpenSSL 3.5.9 client and server flights. Default offer stays raw public key. [ADR-0014](adr/ADR-0014-x509-certificate.md). |
-| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** Iterative resolver from a root trust anchor. Algorithms 5, 7, 8, 10, 13, 14, and 15. RSA moduli 1024, 2048, 3072, and 4096. A DS set for the two root KSKs. NSEC and NSEC3 denial, DNAME, qname minimization. NSEC3 ceiling defaults to 0 and can be raised through 65535. Algorithm 16 (ED448) is not implemented. |
+| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** Iterative resolver from a root trust anchor. Algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli 1024, 2048, 3072, and 4096. A DS set for the two root KSKs. NSEC and NSEC3 denial, DNAME, qname minimization. NSEC3 ceiling defaults to 0 and can be raised through 65535. Ed448 is pure RFC 8032, empty context. |
 
 0.6.2 does not include AIA, OCSP, CT, the system trust store, or Merkle
 Tree Certificates. A chain longer than 8 is a failure, not a later
 fallback. 0-RTT stays LIM-05. The raw-pk OpenSSL flight is not edited
 to produce 0.6.2. Default client offer stays RawPublicKey. 0.6.3
-verifies algorithms 5, 7, 8, 10, 13, 14, and 15, and checks NSEC and
-NSEC3 denial from a caller-supplied trust anchor. ED448 is not in
-that set.
+verifies algorithms 5, 7, 8, 10, 13, 14, 15, and 16, and checks NSEC and
+NSEC3 denial from a caller-supplied trust anchor. Ed448 uses an empty
+context.
 
 ## Parallelism (safe vs forbidden)
 

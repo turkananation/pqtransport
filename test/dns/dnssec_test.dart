@@ -388,25 +388,58 @@ void main() {
     expect(checked.isFailure, isTrue);
   });
 
-  test('algorithm 16 is not implemented', () {
-    expect(dnssecAlgorithmSupported(16), isFalse);
-    final refused = dnssecSignedMaterial(
-      rrset: rrset,
-      rrsig: DnsRrsig(
+  test('Ed448 algorithm 16 verifies and a flipped signature fails', () {
+    final seed = Uint8List(dnssecEd448PublicKeyBytes)..[0] = 9;
+    final key = DnsDnskey(
+      name: 'example.com.',
+      flags: dnssecZoneKeyFlag,
+      protocol: dnssecProtocol,
+      algorithm: dnssecAlgorithmEd448,
+      publicKey: PqEd448.publicKeyFromSeed(seed),
+      ttl: 3600,
+    );
+    final records = [
+      DnsA(
         name: 'www.example.com.',
-        typeCovered: dnsTypeA,
-        algorithm: 16,
-        labels: 3,
-        originalTtl: 60,
-        expiration: expiration,
-        inception: inception,
-        keyTag: 1,
-        signer: 'example.com.',
-        signature: Uint8List(dnssecEd25519SignatureBytes),
+        address: Uint8List.fromList(const [192, 0, 2, 1]),
         ttl: 60,
       ),
+    ];
+    final unsigned = DnsRrsig(
+      name: 'www.example.com.',
+      typeCovered: dnsTypeA,
+      algorithm: dnssecAlgorithmEd448,
+      labels: 3,
+      originalTtl: 60,
+      expiration: expiration,
+      inception: inception,
+      keyTag: dnssecKeyTag(dnskeyWireRdata(key)),
+      signer: 'example.com.',
+      signature: Uint8List(dnssecEd448SignatureBytes),
+      ttl: 60,
     );
-    expect(refused.isFailure, isTrue);
+    final material = dnssecSignedMaterial(rrset: records, rrsig: unsigned);
+    expect(material.isSuccess, isTrue);
+    final signature = PqEd448.sign(
+      secretKey: seed,
+      message: material.valueOrNull!,
+    );
+    final checked = verifyDnssecRrset(
+      rrset: records,
+      rrsig: _withSignature(unsigned, signature),
+      dnskey: key,
+      now: now,
+    );
+    expect(checked.isSuccess, isTrue);
+    final flipped = Uint8List.fromList(signature)..[0] ^= 1;
+    final bad = verifyDnssecRrset(
+      rrset: records,
+      rrsig: _withSignature(unsigned, flipped),
+      dnskey: key,
+      now: now,
+    );
+    expect(bad.isFailure, isTrue);
+    expect(dnssecAlgorithmSupported(dnssecAlgorithmEd448), isTrue);
   });
 
   group('RSA DNSKEY', () {

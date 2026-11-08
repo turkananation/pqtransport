@@ -15,8 +15,8 @@ Canonical tracker:
 
 ## Open
 
-None. OPEN-19 (DNSSEC algorithms 5, 7, 8, 10, 13, 14, and 15) is fixed.
-ED448 is not implemented. OPEN-21 (optional
+None. OPEN-19 (DNSSEC algorithms 5, 7, 8, 10, 13, 14, 15, and 16) is fixed.
+Ed448 verifies. OPEN-21 (optional
 SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
 
 ## Blocked on pqforge
