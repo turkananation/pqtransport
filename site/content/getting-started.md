@@ -14,16 +14,19 @@ dependencies:
 
 ```bash
 dart pub get
-dart run example/pq_tls_client.dart
+dart run example/tls13.dart
+dart run example/http1.dart
+dart run example/http2.dart
+dart run example/http3.dart
+dart run example/doh.dart
+dart run example/dot.dart
+dart run example/dns_stub.dart
+dart run example/dns_validate.dart
 dart run example/encrypted_udp_peer.dart
 dart run example/mdns_discovery.dart
-dart run example/dns_validate.dart
 ```
 
-`example/dns_live.dart` is the network one. It asks 1.1.1.1 and then
-checks `yardenah.com` from the IANA root DS set. The in-memory zone
-is `dns_validate.dart`. HTTP, DoH, and the OpenSSL / BoringSSL /
-nghttp rows are in the [Cookbook](cookbook) and [Peers](peers).
+Each file is one protocol, in memory, and prints one line. `dns_stub.dart` does not check signatures. `dns_validate.dart` does. `example/dns_live.dart` is the network one: it asks 1.1.1.1 and then checks `yardenah.com` from the IANA root DS set. The comment at the top of each file says which call not to use.
 
 ## Import
 

@@ -112,6 +112,13 @@ jobs:
         run: |
           set -euo pipefail
           dart run example/pq_tls_client.dart
+          dart run example/tls13.dart
+          dart run example/http1.dart
+          dart run example/http2.dart
+          dart run example/http3.dart
+          dart run example/doh.dart
+          dart run example/dot.dart
+          dart run example/dns_stub.dart
           dart run example/encrypted_udp_peer.dart
           dart run example/mdns_discovery.dart
           dart run example/dns_validate.dart

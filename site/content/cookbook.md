@@ -57,18 +57,24 @@ this handshake.
 ## Programs in this repository
 
 ```bash
-dart run example/pq_tls_client.dart
-dart run example/encrypted_udp_peer.dart
-dart run example/mdns_discovery.dart
+dart run example/tls13.dart
+dart run example/http1.dart
+dart run example/http2.dart
+dart run example/http3.dart
+dart run example/doh.dart
+dart run example/dot.dart
+dart run example/dns_stub.dart
 dart run example/dns_validate.dart
 dart run example/dns_live.dart
+dart run example/encrypted_udp_peer.dart
+dart run example/mdns_discovery.dart
 ```
 
-`dns_live.dart` is the only one that uses the network. It asks
-1.1.1.1, then checks `yardenah.com` from the IANA root DS set. Pass
-another resolver address as the argument. `encrypted_udp_peer.dart`
-is the QUIC Initial session on `MemoryDatagramNetwork`.
-`mdns_discovery.dart` probes and announces on that same network.
+`dns_live.dart` is the only one that uses the network. The others are
+what CI runs. `dns_stub.dart` shows `lookup`, `resolve`, and the TCP
+retry. `dns_validate.dart` shows `authenticateDns`. `doh.dart` wires
+`DohClient.exchange` into `PqDnsResolver`. `http3.dart` builds the
+`PqQuicConn`.
 
 ## Length-filter a share
 
