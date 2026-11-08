@@ -442,11 +442,26 @@ void main() {
     expect(dnssecAlgorithmSupported(dnssecAlgorithmEd448), isTrue);
   });
 
+  test('algorithms outside the suite do not verify', () {
+    // RFC 8624: 1 RSAMD5, 3 DSA, 6 DSA-NSEC3-SHA1, and 12 ECC-GOST
+    // must not be implemented. 17 is SM2SM3. pqforge has no SM2.
+    for (final algorithm in const [1, 3, 6, 12, 17]) {
+      expect(
+        dnssecAlgorithmSupported(algorithm),
+        isFalse,
+        reason: '$algorithm',
+      );
+    }
+  });
+
   group('RSA DNSKEY', () {
     final keys = <int, _RsaKey>{};
+    const onVm = bool.fromEnvironment('dart.library.io');
+    final sizes = onVm ? const [1024, 2048, 3072, 4096] : const [1024];
 
     setUpAll(() {
       keys[1024] = _rsa1024();
+      if (!onVm) return;
       for (final bits in const [2048, 3072, 4096]) {
         final kp = PqRsa.generateKeyPair(modulusBits: bits);
         keys[bits] = (
@@ -457,7 +472,7 @@ void main() {
       }
     });
 
-    for (final bits in const [1024, 2048, 3072, 4096]) {
+    for (final bits in sizes) {
       for (final algorithm in const [
         dnssecAlgorithmRsaSha1,
         dnssecAlgorithmRsaSha1Nsec3Sha1,

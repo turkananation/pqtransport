@@ -27,7 +27,7 @@ fi
 
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
-curl -fsSL "$url" -o "$workdir/$tarball"
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" -o "$workdir/$tarball"
 tar -xzf "$workdir/$tarball" -C "$workdir"
 src="$workdir/openssl-${version}"
 cd "$src"

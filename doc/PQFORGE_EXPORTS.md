@@ -53,7 +53,7 @@ This file records what we consume and what is still not wired. IDs:
 
 ## Consumed in this tree
 
-1. Floor is pqforge 0.4.13, pinned by git commit `30a7279` until that version is on pub.dev. The pin is not publishable. `PqBytes.sha1` is NSEC3 and DS digest type 1. `PqRsaHash.sha1` is DNSSEC algorithms 5 and 7 only.
+1. Floor is hosted pqforge 0.4.13. `PqBytes.sha1` is NSEC3 and DS digest type 1. `PqRsaHash.sha1` is DNSSEC algorithms 5 and 7 only. `PqEd448` is algorithm 16, empty context. SHA-224 is a PKCS#1 hash in pqforge and not a DNSSEC algorithm.
 2. Call new helpers **only** from `PqTransportCrypto`.
 3. Live handshake tests for all three RFC 10024 groups.
 4. Local HMAC Expand loop deleted.
@@ -79,7 +79,7 @@ OPEN-02 and OPEN-13 are **Fixed**.
 
 ## Integration rule after an export lands
 
-1. Bump `pqforge` in `pubspec.yaml`. A git pin is only for the unpublished 0.4.13 commit, and it comes out before this package is published.
+1. Bump `pqforge` in `pubspec.yaml` to the hosted version. Do not leave a git pin in a commit that can be published.
 2. Call the new helper from `PqTransportCrypto` only.
 3. Delete the local adapter in the same PR.
 4. Add a live handshake test for any newly unlocked group.

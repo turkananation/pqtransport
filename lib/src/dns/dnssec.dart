@@ -231,7 +231,7 @@ Result<Uint8List, PqTransportError> dnssecSignedMaterial({
 
 /// Verifies [rrset] under [rrsig] and [dnskey].
 ///
-/// Algorithms 5, 7, 8, 10, 13, 14, and 15. The signature check is the matching
+/// Algorithms 5, 7, 8, 10, 13, 14, 15, and 16. The signature check is the matching
 /// pqforge verify. [now] is the caller's clock. Validity is 32-bit serial
 /// arithmetic on `[inception, expiration)`. The zone bit is required.
 /// A smaller label count is verified as a wildcard. The AD bit is not read.

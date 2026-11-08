@@ -9,8 +9,8 @@
   `DnsTrustAnchor.dsSet` holds more than one DS. The root publishes
   two KSKs, and a validator that pins only one of them treats the
   root as bogus. Ed448 is pure RFC 8032 with an empty context, which
-  is what RFC 8080 signs. RFC 8624 does not make it mandatory. Until 0.4.13 is
-  on pub.dev this package pins that commit. The pin is not publishable.
+  is what RFC 8080 signs. RFC 8624 does not make it mandatory.
+  pqforge 0.4.13 is the hosted dependency.
 - DNSSEC NSEC3 denial uses `PqBytes.sha1` (pqforge 0.4.11). Hash
   algorithm 1 only. The iteration field is the 16-bit range. The
   iterative resolver's ceiling defaults to 0. DS digest type 1 is the

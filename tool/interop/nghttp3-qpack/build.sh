@@ -28,7 +28,7 @@ need gcc
 mkdir -p "$dir/.build/src" "$dir/.build/bin"
 tarball="$dir/.build/src/nghttp3-${ver}.tar.xz"
 if [[ ! -f "$tarball" ]]; then
-  curl -fsSL -o "$tarball" -L "$url"
+  curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o "$tarball" -L "$url"
 fi
 rm -rf "$dir/.build/src/nghttp3-${ver}"
 # The release tarball may fail chown inside this sandbox. Files are

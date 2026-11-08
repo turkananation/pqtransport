@@ -19,5 +19,3 @@ analyzer:
     strict-raw-types: true
   errors:
     invalid_use_of_visible_for_testing_member: error
-    # The 0.4.13 git pin is unpublished. Remove this with the pin.
-    invalid_dependency: ignore
