@@ -85,7 +85,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 
 | Type | Role |
 |---|---|
-| `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, DO, CD, id match, TC retry, BADCOOKIE retry |
+| `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, RD, DO, CD, id match, TC retry, BADCOOKIE retry. `lookup` does not validate |
 | `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0 |
 | `authenticateDns` / `verifyDnssecRrset` | One signed name, or one RRset. Algorithms 5, 7, 8, 10, 13, 14, 15, and 16 via pqforge. Ed448 is the empty context |
 | `DohClient` | RFC 8484. `DohClient.h2` / `DohClient.h3`. Template `{?dns}` or a plain POST URI. GET is unpadded base64url. |
@@ -96,6 +96,17 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `DohExchange` / `DotExchange` | Byte hooks under the clients. Not the production API. |
 | `DnsMessage` + `DnsA` … `DnsNs` | Records |
 | `encodeDnsMessage` / `decodeDnsMessage` | Wire |
+
+`lookup` does not validate. `authenticateDns` does, from a
+`DnsTrustAnchor` (`dnskey`, one `ds`, or a `dsSet` for the two root
+KSKs). Pass `PqDnsClient.lookup`, not `resolve`. The in-memory program
+is `example/dns_validate.dart`. `example/dns_live.dart` asks 1.1.1.1
+for `yardenah.com` and validates from the IANA root DS set. The AD bit
+is not read. `DnsIterativeResolver` walks root hints and returns
+`secure`, `insecure`, or `bogus`.
+
+| Type | Role |
+|---|---|
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |

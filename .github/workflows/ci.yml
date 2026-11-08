@@ -114,6 +114,7 @@ jobs:
           dart run example/pq_tls_client.dart
           dart run example/encrypted_udp_peer.dart
           dart run example/mdns_discovery.dart
+          dart run example/dns_validate.dart
 
   web:
     name: Web-portable tests (Chrome)

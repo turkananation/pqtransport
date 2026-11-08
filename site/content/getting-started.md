@@ -14,6 +14,8 @@ dependencies:
 
 ```bash
 dart pub get
+dart run example/pq_tls_client.dart
+dart run example/dns_validate.dart
 ```
 
 ## Import

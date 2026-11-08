@@ -20,7 +20,8 @@
   returns secure, insecure, or bogus. Answers and NSEC or NSEC3 spans
   use the swissarmyknife cache. Queries set CD and DO and retry
   BADCOOKIE once. The AD bit is not validation. Not an authoritative
-  server.
+  server. `example/dns_validate.dart` is the in-memory signed zone.
+  `example/dns_live.dart` asks a recursive resolver. Stub queries set RD.
 - Encrypted UDP loss recovery is RFC 9002 (OPEN-20, option A). The
   handshake is a QUIC Initial long header. The client datagram is
   padded to 1200 bytes. Initial keys are RFC 9001 §5.2, from the

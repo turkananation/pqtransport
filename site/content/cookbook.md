@@ -28,14 +28,57 @@ final share = requireLength(raw, x25519MlKem768ClientShareBytes);
 final parsed = decodeClientShare(HybridGroup.x25519MlKem768, share);
 ```
 
-## DNS with breaker and cache
+## DNS stub, then DNSSEC
+
+`lookup` does not check signatures. The query sets RD, DO, and CD.
+`authenticateDns` does check them. Pass `lookup`, not `resolve`:
+CNAME hops are validated inside `authenticateDns`. The AD bit is not
+read. A full signed zone is `example/dns_validate.dart`. A query of
+`yardenah.com` through 1.1.1.1 is `example/dns_live.dart`.
 
 ```dart
-final client = PqDnsClient(
-  exchange: memoryExchange,
-  cache: Cache<String, DnsMessage>(ttl: const Duration(seconds: 30)),
+import 'package:pqtransport/pqtransport.dart';
+import 'package:swissarmyknife/swissarmyknife.dart';
+
+final dns = PqDnsClient(exchange: udp, tcp: tcp);
+final stub = await dns.lookup('example.com', DnsType.a);
+
+final auth = await authenticateDns(
+  name: 'www.example.com',
+  type: DnsType.a,
+  anchor: DnsTrustAnchor.dsSet(zone: '.', ds: rootDs),
+  lookup: dns.lookup,
+  now: DateTime.now().toUtc(),
 );
-final answer = await client.lookup('example.test', DnsType.a);
+switch (auth.valueOrNull) {
+  case DnsAuthData(:final records):
+    // Signed records. The chain reached [anchor].
+    break;
+  case DnsAuthDenial(:final nameError):
+    // Secure NXDOMAIN when nameError is set, otherwise secure NODATA.
+    break;
+  case null:
+    // auth.errorOrNull. Not secure, and not a proven insecure zone.
+    break;
+}
+```
+
+`DnsTrustAnchor.dnskey` pins one key. `DnsTrustAnchor.ds` pins one DS.
+`DnsTrustAnchor.dsSet` is the root, which publishes two KSKs. Pinning
+only one of them makes the other KSK look bogus.
+
+`DnsIterativeResolver` is the walker. Give it root hints and the same
+anchor. It returns `DnsSecurity.secure`, `insecure`, or `bogus`.
+Queries to authoritative servers do not set RD. The NSEC3 iteration
+ceiling defaults to 0.
+
+```dart
+final walker = DnsIterativeResolver(
+  hints: [DnsHint('a.root-servers.net.', [aRoot])],
+  anchor: DnsTrustAnchor.dsSet(zone: '.', ds: rootDs),
+  send: queryAuthoritative,
+);
+final walked = await walker.lookup('example.com', DnsType.a);
 ```
 
 ## Signed mDNS TXT
