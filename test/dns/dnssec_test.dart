@@ -644,7 +644,7 @@ void main() {
     });
 
     test('RSA DS digests SHA-1, SHA-256, and SHA-384 match the DNSKEY', () {
-      final kp = keys[2048]!;
+      final kp = keys[1024]!;
       final key = DnsDnskey(
         name: 'example.com.',
         flags: dnssecZoneKeyFlag,
