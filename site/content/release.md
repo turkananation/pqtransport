@@ -25,6 +25,14 @@ sketch. IANA `0x1302` (SHA-384 AES-GCM) default and `0x1303` (ChaCha)
 offered. `requireGroup` refuses profile/group mismatch. Evidence:
 [`doc/ACHIEVEMENTS.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md).
 
+## Since that slice
+
+Main now also has opt-in X.509 (chain of 1 to 8), OpenSSL and BoringSSL
+on the named groups, one BoringSSL ECH flight, RFC 9002 loss recovery
+on the encrypted UDP path, and DNSSEC RRSIG verification for
+ECDSAP256SHA256 only. The AD bit is not validation. QUIC 0-RTT is still
+not implemented.
+
 ## Tag
 
 ```bash

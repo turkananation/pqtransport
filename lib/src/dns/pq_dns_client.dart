@@ -27,6 +27,9 @@ final class DnsCacheKey {
 typedef DnsExchange = Future<Uint8List> Function(Uint8List query);
 
 /// Resolver with TTL cache and circuit breaker around every external hop.
+///
+/// The AD bit on a response is not validation. This client does not verify
+/// an RRSIG. `verifyDnssecRrset` takes a caller-supplied DNSKEY.
 final class PqDnsClient {
   PqDnsClient({
     required this.exchange,

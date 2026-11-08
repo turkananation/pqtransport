@@ -53,7 +53,7 @@ final r = PqTlsClient(
   crypto: crypto,
   group: HybridGroup.secP256r1MlKem768,
 ).startHandshake();
-// Live via pqforge 0.4.4. SecP384r1MLKEM1024 needs PqForgeProfile.maximum.
+// Live via pqforge. SecP384r1MLKEM1024 needs PqForgeProfile.maximum.
 ```
 
 ## Profile / group mismatch still fails closed

@@ -197,6 +197,47 @@ Result<void, PqTransportError> _writeRdata(BytesBuilder b, DnsRecord rr) {
         writeUint16(b, v.length);
         b.add(v);
       }
+    case DnsDnskey(
+      :final flags,
+      :final protocol,
+      :final algorithm,
+      :final publicKey,
+    ):
+      writeUint16(b, flags);
+      b.addByte(protocol);
+      b.addByte(algorithm);
+      b.add(publicKey);
+    case DnsDs(
+      :final keyTag,
+      :final algorithm,
+      :final digestType,
+      :final digest,
+    ):
+      writeUint16(b, keyTag);
+      b.addByte(algorithm);
+      b.addByte(digestType);
+      b.add(digest);
+    case DnsRrsig(
+      :final typeCovered,
+      :final algorithm,
+      :final labels,
+      :final originalTtl,
+      :final expiration,
+      :final inception,
+      :final keyTag,
+      :final signer,
+      :final signature,
+    ):
+      writeUint16(b, typeCovered);
+      b.addByte(algorithm);
+      b.addByte(labels);
+      writeUint32(b, originalTtl);
+      writeUint32(b, expiration);
+      writeUint32(b, inception);
+      writeUint16(b, keyTag);
+      final signerName = _writeName(b, signer);
+      if (signerName.isFailure) return signerName;
+      b.add(signature);
   }
   return const Result.success(null);
 }
@@ -484,6 +525,59 @@ final class _DnsReader {
           version: (ttl >> 16) & 0xff,
           flags: ttl & 0xffff,
           options: options,
+        );
+      case DnsType.dnskey:
+        if (!_rdataNeed(4, rdataEnd)) return null;
+        final flags = u16();
+        final protocol = u8();
+        final algorithm = u8();
+        final publicKey = take(rdataEnd - offset);
+        return DnsDnskey(
+          name: name,
+          flags: flags,
+          protocol: protocol,
+          algorithm: algorithm,
+          publicKey: publicKey,
+          ttl: ttl,
+        );
+      case DnsType.ds:
+        if (!_rdataNeed(4, rdataEnd)) return null;
+        final keyTag = u16();
+        final algorithm = u8();
+        final digestType = u8();
+        final digest = take(rdataEnd - offset);
+        return DnsDs(
+          name: name,
+          keyTag: keyTag,
+          algorithm: algorithm,
+          digestType: digestType,
+          digest: digest,
+          ttl: ttl,
+        );
+      case DnsType.rrsig:
+        if (!_rdataNeed(18, rdataEnd)) return null;
+        final covered = u16();
+        final algorithm = u8();
+        final labels = u8();
+        final originalTtl = u32();
+        final expiration = u32();
+        final inception = u32();
+        final keyTag = u16();
+        final signer = readName(end: rdataEnd);
+        if (signer == null) return null;
+        final signature = take(rdataEnd - offset);
+        return DnsRrsig(
+          name: name,
+          typeCovered: covered,
+          algorithm: algorithm,
+          labels: labels,
+          originalTtl: originalTtl,
+          expiration: expiration,
+          inception: inception,
+          keyTag: keyTag,
+          signer: signer,
+          signature: signature,
+          ttl: ttl,
         );
     }
   }

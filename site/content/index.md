@@ -20,12 +20,14 @@ Infrastructure is exclusively
 There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 
 <Info>
-  v0.1.0 is a self-interop vertical slice. 258 tests pass, 90.7% line coverage
-  of `lib/`, `dart analyze` clean. Live handshake is **all three RFC 10024
-  groups**. RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303`
-  ChaCha). Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-  SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode
-  raw-pk). Not a FIPS 140 module.
+  v0.1.0 is a self-interop vertical slice, plus the slices that have
+  landed on main since. Live handshake is **all three RFC 10024 groups**.
+  RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303` ChaCha).
+  OpenSSL 3.5.9 and BoringSSL 0.20261020.0: hybrid groups, plus X25519,
+  secp256r1, secp384r1, and MLKEM1024. Auth is raw public key by default,
+  or an opt-in ML-DSA-65 X.509 chain of 1 to 8. ECH is one BoringSSL
+  flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies
+  ECDSAP256SHA256 only. Not a browser. Not WebPKI. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -39,7 +41,7 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 [![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](features)
 [![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](hybrid)
 [![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](claim-boundary)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](claim-boundary)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-hybrid_%2B_X.509-2f855a?style=for-the-badge)](claim-boundary)
 [![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI-0175c2?style=for-the-badge&logo=dart&logoColor=white)](platform)
 
 ```dart
@@ -58,12 +60,12 @@ final key = client.exporter('app', Uint8List(0), 32);
 
 | Gate | Value |
 | --- | --- |
-| Version | 0.1.0 |
+| Version | 0.1.0 (tree; later slices are on main) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Tests | 258 passed |
-| Line coverage | 90.7% of `lib/` |
+| pqforge | `^0.4.10` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
-| Live KEX | X25519, P-256, P-384 |
+| Live KEX | X25519, P-256, P-384, plus the four fallback groups |
+| DNSSEC | ECDSAP256SHA256 only. AD is not consulted |
 | FFI | none |
 | Platform TLS on PQ path | none |
 
@@ -80,8 +82,10 @@ groups put ECDHE first. Concat uses `concatenateSharedSecrets`;
 | SecP256r1MLKEM768 | 0x11EB | 1249 | 1153 | 64 | ECDHE then ML-KEM | Yes (`balanced`) |
 | SecP384r1MLKEM1024 | 0x11ED | 1665 | 1665 | 80 | ECDHE then ML-KEM | Yes (`maximum`) |
 
-P-256 / P-384 ECDH is live via pqforge 0.4.4. Profile/group mismatches
+P-256 / P-384 ECDH is live via pqforge. Profile/group mismatches
 fail closed (`requireGroup`) rather than silently dropping to classical.
+A peer that offers only X25519, P-256, P-384, or MLKEM1024 is answered
+on that group. The default offer is still the hybrid share, then X25519.
 See [Hybrid Groups](hybrid) and [Claim Boundary](claim-boundary).
 
 ## The shape
@@ -90,8 +94,8 @@ See [Hybrid Groups](hybrid) and [Claim Boundary](claim-boundary).
 | --- | --- |
 | Core | `HybridGroup`, `requireLength`, `Transcript`, `PqTransportCrypto`, every protocol size in `lengths.dart` |
 | UDP | AES-256-GCM datagrams, replay **before** AEAD, Throttler, encrypted session (all three groups) |
-| TLS 1.3 | swissarmyknife `StateMachine`, RFC 8446 hellos, IANA `0x1302`/`0x1303`, ML-DSA-65 CertificateVerify, exporter |
-| DNS | A/AAAA/CNAME/MX/TXT/SRV/CAA/HTTPS/SVCB/OPT/PTR/NS, CircuitBreaker, TTL Cache |
+| TLS 1.3 | swissarmyknife `StateMachine`, RFC 8446 hellos, IANA `0x1302`/`0x1303`, ML-DSA-65 CertificateVerify, opt-in X.509, ECH, exporter |
+| DNS | A/AAAA/CNAME/MX/TXT/SRV/CAA/HTTPS/SVCB/OPT/PTR/NS/DNSKEY/DS/RRSIG, CircuitBreaker, TTL Cache. ECDSAP256SHA256 verify. AD is not trusted |
 | mDNS | Probe / announce / browse, optional ML-DSA-65 TXT |
 | QUIC / HTTP | 1-RTT packet protect, CRYPTO/STREAM, HTTP/1.1–2 over `PqTlsSocket`, HTTP/3 over `PqQuicConn` |
 
@@ -102,7 +106,7 @@ application  (HTTP, DNS, mDNS, QUIC frames)
      │
 pqtransport  — this package. Protocol. No primitives.
      │
-pqforge      — ML-KEM, ML-DSA, X25519, P-256/P-384 ECDH, AES-256-GCM, ChaCha, HKDF
+pqforge      — ML-KEM, ML-DSA, X25519, P-256/P-384 ECDH and ECDSA, AES-256-GCM, ChaCha, HKDF, HPKE
      │
 pqcrypto     — FIPS 203/204/205 primitives + KAT evidence
 ```

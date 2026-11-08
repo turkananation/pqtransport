@@ -27,29 +27,42 @@ again under a new packet number. Not ECN. Not `curl --http3`.
 Client and server `StateMachine`s from swissarmyknife. Illegal event →
 `failed` + `Result.failure`. RFC 8446-shaped ClientHello / ServerHello
 (OPEN-01). EncryptedExtensions + Certificate + CertificateVerify +
-Finished. RFC 7250 RawPublicKey is negotiated; certificate payload is
-still a raw ML-DSA-65 public key. AES-256-GCM (`0x1302`) or
-ChaCha20-Poly1305 (`0x1303`) records; handshake vs application epochs
-reset sequence. TLS exporter is deterministic on a fixture. Schedule
-follows the suite: HKDF-SHA-384 for IANA `0x1302` (default), HKDF-SHA-256
-for IANA `0x1303`. Private-use `0xFF00` is retired.
+Finished. RFC 7250 RawPublicKey is the default. Opt-in X.509 is a
+caller-supplied chain of 1 to 8, leaf first, checked by pqforge. Trust
+is caller anchors or one self-signed SPKI pin. No AIA, no system trust
+store, no browser. AES-256-GCM (`0x1302`) or ChaCha20-Poly1305
+(`0x1303`) records; handshake vs application epochs reset sequence.
+TLS exporter is deterministic on a fixture. Schedule follows the suite:
+HKDF-SHA-384 for IANA `0x1302` (default), HKDF-SHA-256 for IANA
+`0x1303`. Private-use `0xFF00` is retired.
 
 HelloRetryRequest is on the wire with cookie extension 44 and
 `selected_group` (OPEN-05). Once-only; a second HRR fails closed.
-X.509 chains are not parsed. Handshake interop with OpenSSL 3.5.9 on
-X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
-(2026-10-20, auth mode raw-pk) is the OpenSSL claim. ChaCha records are Done
-(`0x1303`) on VM, dart2wasm, and dart2js (pqforge 0.4.5 Dart engine).
+BoringSSL's HRR carries no cookie; that decodes. OpenSSL 3.5.9 completes
+the three RFC 10024 groups (raw-pk and X.509, both directions) and
+X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is
+a TLS peer on X25519MLKEM768 and those four fallback groups, not on
+SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl linked to this OpenSSL
+does two HTTP/1.1 GETs with `--cacert`. Not `curl --http3`.
+
+ECH (RFC 9849) is self-interop and one BoringSSL flight. The suite is
+DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
+(pqforge 0.4.10). Inner name `localhost`, public name `public.example`.
+A client with an `EchConfig` does not send a cleartext second hello.
+Not an OpenSSL flight. Not GREASE. Not DNS. Not a browser.
 
 ## DNS / DoH / DoT
 
 Wire codec for A, AAAA, CNAME, MX, TXT, SRV, CAA, HTTPS, SVCB, OPT, PTR,
-NS. Compression pointer cycles are rejected. Rdata name pointers
+NS, DNSKEY, DS, and RRSIG. Compression pointer cycles are rejected. Rdata name pointers
 (CNAME / NS / PTR / MX / SRV / HTTPS / SVCB) resolve against the outer
 message (OPEN-08). TTL cache uses an injected
 clock. `CircuitBreaker` wraps exchange and opens after
-`failureThreshold`. Resolver failover DoH → DoT → UDP is Partial
-(independent clients; skip-on-open). DNSSEC verify is not started.
+`failureThreshold`. Resolver failover is DoH, then DoT, then UDP.
+DNSSEC verifies ECDSAP256SHA256 (algorithm 13) on a caller-supplied
+DNSKEY. A SHA-256 DS (digest type 2) can match that key. The AD bit
+is not validation. Not RSASHA256. Not NSEC or NSEC3. Not a recursive
+resolver, and the parent DS is not fetched.
 
 ## mDNS
 

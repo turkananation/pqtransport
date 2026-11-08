@@ -1,12 +1,13 @@
 ---
 title: Roadmap
-description: 0.2 through 0.5 for pqtransport. Order is not optional.
+description: What has landed on pqtransport main, and what is next. Order is not optional.
 ---
 
-0.1.0 is the self-interop vertical slice **plus live NIST groups**
-(pqforge 0.4.4). Order after that is not optional: inverting a slice
-produces fake HTTP clients on unimplemented QUIC, DoT without TLS, or
-OpenSSL claims on a compact private encoding.
+0.1.0 is the self-interop vertical slice **plus live NIST groups**.
+Later slices on main are X.509, classical fallback groups, BoringSSL,
+ECH, UDP loss recovery, and DNSSEC. Order is not optional: inverting a
+slice produces fake HTTP clients on unimplemented QUIC, or a DNSSEC
+claim that is really the AD bit.
 
 Canonical:
 [`doc/ROADMAP.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ROADMAP.md).
@@ -14,39 +15,22 @@ Canonical:
 ## Non-goals that stay non-goals
 
 CMVP / FIPS 140. Hard constant-time / hard erasure. Browser raw UDP /
-mDNS / QUIC sockets. QUIC 0-RTT. Classical-only fallback after a PQ
-hello. Direct `pqcrypto` dependency. `dart:ffi` / `SecureSocket` on the
-PQ path.
+mDNS / QUIC sockets. QUIC 0-RTT (LIM-05). Classical-only fallback after
+a PQ hello. Direct `pqcrypto` dependency. `dart:ffi` / `SecureSocket`
+on the PQ path. NSEC / NSEC3. A parent DS fetch. ML-DSA DNSSEC.
 
-## 0.2 — RFC 8446-shaped wire
+## Landed
 
-ClientHello / ServerHello are RFC 8446-shaped (OPEN-01 **done**). Cipher
-on the wire is IANA `0x1302` / `0x1303`; private-use `0xFF00` is retired
-(OPEN-02 **done**). Raw-pk is negotiated (OPEN-04 **done**). Unused UDP
-`role` args are gone (OPEN-11 **done**). HelloRetryRequest is on the wire
-with cookie (OPEN-05 **done**). Leftover error-path coverage is done
-(OPEN-12 **done**). Slice 0.2 is complete.
+| Slice | What main does now |
+| --- | --- |
+| 0.2 | RFC 8446 hellos, raw public key, wire HRR, IANA `0x1302` / `0x1303` |
+| 0.3 | Live KEX on all three RFC 10024 groups. SHA-384 schedule for `0x1302` |
+| 0.4 | OpenSSL 3.5.9, raw-pk and X.509, both directions. BoringSSL 0.20261020.0 on X25519MLKEM768 and X25519, secp256r1, secp384r1, MLKEM1024. Not the two NIST hybrids on BoringSSL. curl is two HTTP/1.1 GETs |
+| 0.5 | DoH, DoT, HTTP/2, HTTP/3+QPACK, QUIC loss recovery |
+| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is ECDSAP256SHA256 only |
 
-OpenSSL parsing of hellos is done. Handshake interop with OpenSSL
-3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024
-(2026-10-20, auth mode raw-pk) is slice 0.4. X.509 paths and
-BoringSSL are not that fixture.
+## Next
 
-## 0.3 remaining — honest cipher suite
-
-Live NIST groups, HKDF-SHA-256 Expand, and `checkEncapsulationKey` are
-**done** (pqforge 0.4.4). SHA-384 schedule then IANA `0x1302` (OPEN-02)
-and sync ChaCha as `0x1303` (OPEN-13) are **done**. Do not put `0x1302`
-on a SHA-256 schedule.
-
-## 0.4 — OpenSSL 3.5.9 fixture
-
-Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
-SecP256r1MLKEM768, and SecP384r1MLKEM1024 in `tool/interop/openssl`
-(2026-10-20, auth mode raw-pk). BoringSSL and
-X.509 path validation are not this slice. Do not widen the sentence.
-
-## 0.5 — DNSSEC / LAN mDNS / QUIC mapping
-
-Only after the TLS wire is honest. HTTP/2 (0.5.3) and HTTP/3+QPACK on
-QUIC STREAM (0.5.4) are Done. Remaining 0.5 work is production DoH/DoT.
+OPEN-21: an optional SLH-DSA signature on mDNS TXT, one parameter set
+pqforge already exports. The default announce path stays ML-DSA-65.
+Do not start 0-RTT.

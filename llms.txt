@@ -7,13 +7,15 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - Wiki: https://github.com/turkananation/pqtransport/wiki
 - Docs: https://github.com/turkananation/pqtransport/blob/main/doc/INDEX.md
 - Claim boundary: https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md
-- Crypto: package:pqforge ^0.4.6 (ML-KEM, ML-DSA, AES-256-GCM, AES-128-GCM, AES-ECB, dart2js-safe ChaCha, X25519, P-256/P-384 ECDH, RFC 5869 HKDF)
+- Crypto: package:pqforge ^0.4.10 (ML-KEM, ML-DSA, AES-256-GCM, AES-128-GCM, dart2js-safe ChaCha, X25519, P-256/P-384 ECDH and ECDSA, HKDF, X.509, HPKE)
 - Infra: package:swissarmyknife (Result, StateMachine, CircuitBreaker, Cache)
 - No dart:ffi. No platform TLS on the PQ path.
-- Live handshake in 0.1.0: all three RFC 10024 groups (X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024). P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup).
-- TLS encoding is RFC 8446-shaped ClientHello/ServerHello (OPEN-01 done). Compact 0.1 body retired. Cipher IANA 0x1302 (SHA-384 AES-GCM, default) and 0x1303 (ChaCha). Certificate is still raw ML-DSA-65; raw-pk is negotiated (OPEN-04). HelloRetryRequest is on the wire with cookie (OPEN-05). EncryptedExtensions carries selected ALPN (RFC 7301). Default ALPN is http/1.1; h2 is selectable. Not OpenSSL-interop.
-- HTTP/2 is implemented on PqTlsSocket (RFC 9113 + RFC 7541 HPACK, ALPN h2). HTTP/3 is implemented on PqQuicConn (RFC 9114 + RFC 9204 QPACK, ALPN h3). Silent h2/h3→h1 downgrade is refused.
-- Record schedule follows the suite: HKDF-SHA-384 for 0x1302, HKDF-SHA-256 for 0x1303. OPEN-02 and OPEN-13 are Fixed. dart2js fail-closes 0x1303 (PointyCastle Poly1305 needs 64-bit integers); AES-GCM 0x1302 is the web suite.
+- Live handshake: all three RFC 10024 groups. P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup). Fallback groups, when the peer offers only those: X25519, secp256r1, secp384r1, MLKEM1024.
+- TLS encoding is RFC 8446-shaped. Cipher IANA 0x1302 (SHA-384 AES-GCM, default) and 0x1303 (ChaCha). Default certificate is RFC 7250 raw ML-DSA-65. Opt-in X.509 is a caller-supplied chain of 1 to 8. Not WebPKI. Not a browser.
+- OpenSSL 3.5.9: the three hybrid groups, raw-pk and X.509, both directions, plus the four fallback groups. BoringSSL 0.20261020.0 is a TLS peer on X25519MLKEM768 and the four fallback groups, not SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl is two HTTP/1.1 GETs. Not curl --http3.
+- ECH (RFC 9849) is self-interop and one BoringSSL flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via PqHpke. Not an OpenSSL flight. Not GREASE. Not DNS.
+- DNSSEC verifies ECDSAP256SHA256 (algorithm 13) only. SHA-256 DS matches a caller-supplied DNSKEY. The AD bit is not validation. Not RSASHA256. Not NSEC/NSEC3. Not a recursive resolver.
+- HTTP/2 is on PqTlsSocket (ALPN h2). HTTP/3 is on PqQuicConn (ALPN h3). Silent h2/h3 to h1 downgrade is refused. QUIC 0-RTT is not implemented (LIM-05).
 - Not a FIPS 140 module.
 
 Start at doc/INDEX.md. Do not invent FIPS/CMVP, constant-time, or erasure claims.

@@ -3,7 +3,23 @@ import 'dart:typed_data';
 
 import '../core/lengths.dart';
 
-enum DnsType { a, aaaa, cname, mx, txt, srv, caa, https, svcb, opt, ptr, ns }
+enum DnsType {
+  a,
+  aaaa,
+  cname,
+  mx,
+  txt,
+  srv,
+  caa,
+  https,
+  svcb,
+  opt,
+  ptr,
+  ns,
+  dnskey,
+  ds,
+  rrsig,
+}
 
 int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.a => dnsTypeA,
@@ -18,6 +34,9 @@ int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.opt => dnsTypeOpt,
   DnsType.ptr => dnsTypePtr,
   DnsType.ns => dnsTypeNs,
+  DnsType.dnskey => dnsTypeDnskey,
+  DnsType.ds => dnsTypeDs,
+  DnsType.rrsig => dnsTypeRrsig,
 };
 
 DnsType? dnsTypeFromValue(int v) => switch (v) {
@@ -33,6 +52,9 @@ DnsType? dnsTypeFromValue(int v) => switch (v) {
   dnsTypeOpt => DnsType.opt,
   dnsTypePtr => DnsType.ptr,
   dnsTypeNs => DnsType.ns,
+  dnsTypeDnskey => DnsType.dnskey,
+  dnsTypeDs => DnsType.ds,
+  dnsTypeRrsig => DnsType.rrsig,
   _ => null,
 };
 
@@ -174,6 +196,67 @@ final class DnsNs extends DnsRecord {
   DnsNs({required super.name, required this.nameserver, super.ttl = 300})
     : super(type: DnsType.ns);
   final String nameserver;
+}
+
+/// RFC 4034 DNSKEY. [publicKey] is the algorithm-specific key, not a SPKI.
+final class DnsDnskey extends DnsRecord {
+  DnsDnskey({
+    required super.name,
+    required this.flags,
+    required this.protocol,
+    required this.algorithm,
+    required this.publicKey,
+    super.ttl = 300,
+  }) : super(type: DnsType.dnskey);
+
+  final int flags;
+  final int protocol;
+  final int algorithm;
+  final Uint8List publicKey;
+}
+
+/// RFC 4034 DS. Digest bytes are not checked until [dnskeyMatchesDs].
+final class DnsDs extends DnsRecord {
+  DnsDs({
+    required super.name,
+    required this.keyTag,
+    required this.algorithm,
+    required this.digestType,
+    required this.digest,
+    super.ttl = 300,
+  }) : super(type: DnsType.ds);
+
+  final int keyTag;
+  final int algorithm;
+  final int digestType;
+  final Uint8List digest;
+}
+
+/// RFC 4034 RRSIG. [signature] is not verified by the codec.
+final class DnsRrsig extends DnsRecord {
+  DnsRrsig({
+    required super.name,
+    required this.typeCovered,
+    required this.algorithm,
+    required this.labels,
+    required this.originalTtl,
+    required this.expiration,
+    required this.inception,
+    required this.keyTag,
+    required this.signer,
+    required this.signature,
+    super.ttl = 300,
+  }) : super(type: DnsType.rrsig);
+
+  final int typeCovered;
+  final int algorithm;
+  final int labels;
+  final int originalTtl;
+  final int expiration;
+  final int inception;
+  final int keyTag;
+  final String signer;
+  final Uint8List signature;
 }
 
 final class DnsMessage {

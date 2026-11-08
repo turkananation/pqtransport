@@ -32,7 +32,7 @@ lib/
     socket/                 # PqTransportSocket, memory pair, IO UDP
     udp/                    # datagram AEAD, replay, encrypted session
     tls/                    # machines, records, handshake, client/server/socket, key schedule
-    dns/                    # records, wire, client, DoH/DoT helpers
+    dns/                    # records, wire, DoH/DoT, ECDSAP256SHA256 verify
     mdns/                   # probe/announce/browse, signed TXT
     quic/                   # packet protect, frames, flow control, machines
     http/                   # HTTP/1.1, HTTP/2 (HPACK + RFC 9113), HTTP/3 + QPACK, PqHttpClient

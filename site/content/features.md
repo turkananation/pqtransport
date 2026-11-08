@@ -31,9 +31,10 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | HKDF-SHA-256 schedule | Done (ChaCha `0x1303` and UDP) |
 | HelloRetryRequest on the wire | Done (cookie + selected_group, OPEN-05) |
 | SNI, ALPN, key_share extensions | Done |
-| X.509 / certificate chains | Not started (raw-pk negotiated, OPEN-04) |
+| X.509 / certificate chains | Done. Opt-in, chain of 1 to 8, caller anchors. Default offer stays raw public key. Not WebPKI. Not a browser |
 | ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js via pqforge 0.4.5) |
-| OpenSSL 3.5.9 RFC 10024 | Done. Three groups. raw-pk and X.509. BoringSSL 0.20261020.0 verifies that leaf, and handshakes X25519MLKEM768 plus X25519, secp256r1, secp384r1, and MLKEM1024. curl does two GETs. Not a browser. |
+| ECH (RFC 9849) | Done. One BoringSSL 0.20261020.0 flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via `PqHpke` (pqforge 0.4.10). Inner name `localhost`. Not OpenSSL. Not GREASE. Not DNS |
+| OpenSSL 3.5.9 RFC 10024 | Done. Three hybrid groups, raw-pk and X.509, both directions. Also X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is a TLS peer on those same groups except the two NIST hybrids. curl does two HTTP/1.1 GETs. Not a browser |
 
 ## UDP / DNS / mDNS / QUIC / HTTP
 
@@ -42,7 +43,8 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Datagram AEAD + replay-before-open | Done |
 | Encrypted UDP session (X25519MLKEM768) | Done |
 | Encrypted UDP session (P-256 / P-384) | Done |
-| DNS RR round-trip including PTR/NS | Done |
+| DNS RR round-trip including PTR/NS/DNSKEY/DS/RRSIG | Done |
+| DNSSEC ECDSAP256SHA256 | Done. Algorithm 13 only. SHA-256 DS. AD is not consulted. Not NSEC/NSEC3 |
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |

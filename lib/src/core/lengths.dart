@@ -137,9 +137,28 @@ const int dnsTypeSrv = 33;
 const int dnsTypeOpt = 41;
 const int dnsTypeDs = 43;
 const int dnsTypeRrsig = 46;
+const int dnsTypeDnskey = 48;
 const int dnsTypeCaa = 257;
 const int dnsTypeHttps = 65;
 const int dnsTypeSvcb = 64;
+
+/// RFC 4034. DNSSEC protocol byte inside a DNSKEY.
+const int dnssecProtocol = 3;
+
+/// RFC 6605. ECDSAP256SHA256. The only algorithm this package verifies.
+const int dnssecAlgorithmEcdsaP256Sha256 = 13;
+
+/// RFC 4509. SHA-256 DS digest. The only digest this package checks.
+const int dnssecDigestSha256 = 2;
+
+/// RFC 6605. P-256 public key is X || Y, 32 bytes each. No `0x04` prefix.
+const int dnssecEcdsaP256PublicKeyBytes = 64;
+
+/// RFC 6605. P-256 signature is raw r || s, 32 bytes each.
+const int dnssecEcdsaP256SignatureBytes = 64;
+
+/// SHA-256 digest length. DS digest type 2.
+const int dnssecSha256DigestBytes = 32;
 
 const int dnsClassIn = 1;
 const int dnsClassAny = 255;

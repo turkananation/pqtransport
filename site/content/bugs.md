@@ -15,22 +15,21 @@ Canonical tracker:
 
 ## Open
 
-None. OPEN-10 (production DoH/DoT) is fixed. The classical-peer
-handshake gap is LIM-01.
+None. OPEN-19 (DNSSEC, ECDSAP256SHA256) is fixed. OPEN-21 (optional
+SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
 
 ## Blocked on pqforge
 
-None. pqforge **0.4.4** shipped BLK-01 … BLK-05. OPEN-02 (SHA-384 schedule /
-`0x1302`) and OPEN-13 (ChaCha records / `0x1303`) are **Fixed** in this tree.
+None. pqforge **0.4.10** is the floor (HPKE, X.509, the earlier
+BLK-01 … BLK-05 exports). OPEN-02 and OPEN-13 are **Fixed** in this tree.
 
 ## Honest limits (won't fix in 0.1)
 
-LIM-01 OpenSSL 3.5.9 X25519MLKEM768 raw-pk handshake is the fixture in
-`tool/interop/openssl`. X.509 paths and BoringSSL are not that fixture.
-LIM-02 CMVP / FIPS
-140. LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
-mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not
-sent.
+LIM-01 is the raw-pk OpenSSL row in `tool/interop/openssl`. The X.509
+and BoringSSL flights do not replace that row. LIM-02 CMVP / FIPS 140.
+LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
+mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not sent.
+
 
 ## Fixed in 0.1.0
 

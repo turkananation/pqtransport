@@ -64,7 +64,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | DoH POST and GET `application/dns-message` | Done | RFC 8484. `DohClient.h2` / `DohClient.h3`. URI template `{?dns}`, unpadded base64url. Wrong media type fails closed. |
 | DoT length-prefix framing | Done | RFC 7858. `DotClient` requires ALPN `dot` and reassembles split TCP frames. A non-`dot` ALPN fails closed. |
 | nghttp2/curl and nghttp3 QPACK | Done | `tool/interop`. HTTP/2 prior-knowledge DoH via curl. QPACK both ways vs libnghttp3 1.11.0. Not live `curl --http3` (hybrid QUIC vs classical TLS). |
-| DNSSEC (RRSIG/DS verify) | Not started | Types reserved in `lengths.dart` only |
+| DNSSEC (RRSIG/DS verify) | Done | ECDSAP256SHA256 (algorithm 13) only, via pqforge P-256. SHA-256 DS (digest type 2) matches a caller-supplied DNSKEY. The AD bit is not consulted. Not RSASHA256. Not NSEC/NSEC3. Not a recursive resolver. `test/dns/dnssec_test.dart` |
 | Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 
 ## mDNS

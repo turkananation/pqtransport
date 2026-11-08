@@ -104,12 +104,13 @@ stays the default).
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
 | 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Done.** Opt-in chain of 1 to 8. OpenSSL 3.5.9 client and server flights. Default offer stays raw public key. [ADR-0014](adr/ADR-0014-x509-certificate.md). |
+| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** ECDSAP256SHA256 (13). SHA-256 DS. AD is not consulted. Not NSEC/NSEC3. |
 
-0.6.2 does not include AIA, OCSP, CT, the system trust store, Merkle
-Tree Certificates, ChaCha header protection, QUIC flow-control frames,
-or DNSSEC. A chain longer than 8 is a failure, not a later fallback.
-0-RTT stays LIM-05. The raw-pk OpenSSL flight is not edited to produce
-0.6.2. Default client offer stays RawPublicKey.
+0.6.2 does not include AIA, OCSP, CT, the system trust store, or Merkle
+Tree Certificates. A chain longer than 8 is a failure, not a later
+fallback. 0-RTT stays LIM-05. The raw-pk OpenSSL flight is not edited
+to produce 0.6.2. Default client offer stays RawPublicKey. 0.6.3 is
+one algorithm. It does not include NSEC, NSEC3, or a parent DS fetch.
 
 ## Parallelism (safe vs forbidden)
 
@@ -126,10 +127,11 @@ Never parallelize:
 
 ## Suggested next coding turn (when directed)
 
-1. OPEN-19 DNSSEC RRSIG (RFC 4034 / RFC 4035), one named algorithm.
-   The AD bit is not trusted.
-   [#48](https://github.com/turkananation/pqtransport/issues/48).
-   Do not start 0-RTT (LIM-05).
+1. OPEN-21 optional SLH-DSA archival signature for mDNS TXT, one
+   parameter set pqforge already exports. The default announce path
+   stays ML-DSA-65.
+   [#50](https://github.com/turkananation/pqtransport/issues/50).
+   Do not start 0-RTT (LIM-05). Do not start NSEC/NSEC3.
 
 Do not start HTTP/3 QPACK without a QUIC stream mapping. CRYPTO frames
 carry a real TLS handshake (OPEN-06). HTTP/2 on `PqTlsSocket` is Done.
