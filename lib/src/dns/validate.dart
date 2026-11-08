@@ -44,8 +44,9 @@ final class DnsAuthDenial extends DnsAuth {
 ///
 /// [lookup] is one query. Pass [PqDnsClient.lookup], not [PqDnsClient.resolve]:
 /// CNAME hops are validated here. The trust chain walks from [anchor] down to
-/// the signer. NSEC proves denial. NSEC3 is SHA-1 (RFC 5155); pqforge does not
-/// export SHA-1, so an NSEC3-only denial fails closed.
+/// the signer. NSEC and NSEC3 prove denial. NSEC3 is hash algorithm 1 only
+/// (SHA-1 from pqforge, RFC 5155). More than [dnsNsec3MaxIterations] extra
+/// rounds fails closed. The AD bit is not consulted.
 Future<Result<DnsAuth, PqTransportError>> authenticateDns({
   required String name,
   required DnsType type,
@@ -101,12 +102,20 @@ final class _Validator {
     final sig = await _verify(rrset, msg.answers);
     if (sig.isFailure) return Result.failure(sig.errorOrNull!);
     if (sig.valueOrNull!.labels < dnsLabelCount(name)) {
-      final nsecs = await _nsecs(msg, sig.valueOrNull!.signer);
-      if (nsecs.isFailure) return Result.failure(nsecs.errorOrNull!);
-      if (!nsecs.valueOrNull!.any((n) => dnsNsecCovers(n.name, n.next, name))) {
-        return Result.failure(
-          PqTransportError.unexpectedMessage('wildcard nsec'),
-        );
+      if (msg.authority.whereType<DnsNsec>().isEmpty &&
+          msg.authority.whereType<DnsNsec3>().isNotEmpty) {
+        final proof = await _nsec3Wildcard(msg, sig.valueOrNull!.signer, name);
+        if (proof.isFailure) return Result.failure(proof.errorOrNull!);
+      } else {
+        final nsecs = await _nsecs(msg, sig.valueOrNull!.signer);
+        if (nsecs.isFailure) return Result.failure(nsecs.errorOrNull!);
+        if (!nsecs.valueOrNull!.any(
+          (n) => dnsNsecCovers(n.name, n.next, name),
+        )) {
+          return Result.failure(
+            PqTransportError.unexpectedMessage('wildcard nsec'),
+          );
+        }
       }
     }
     return Result.success(DnsAuthData(rrset));
@@ -159,11 +168,7 @@ final class _Validator {
   }) async {
     if (msg.authority.whereType<DnsNsec>().isEmpty) {
       if (msg.authority.whereType<DnsNsec3>().isNotEmpty) {
-        return Result.failure(
-          PqTransportError.unsupported(
-            'nsec3 sha-1 is not provided by pqforge',
-          ),
-        );
+        return _nsec3Denial(msg, qname, qtype, nameError: nameError);
       }
       return Result.failure(PqTransportError.unexpectedMessage('nsec missing'));
     }
@@ -209,6 +214,72 @@ final class _Validator {
     }
     if (out.isEmpty) {
       return Result.failure(PqTransportError.unexpectedMessage('nsec missing'));
+    }
+    return Result.success(out);
+  }
+
+  Future<Result<DnsAuth, PqTransportError>> _nsec3Denial(
+    DnsMessage msg,
+    String qname,
+    int qtype, {
+    required bool nameError,
+  }) async {
+    final first = msg.authority.whereType<DnsNsec3>().first;
+    final sigs = _sigs(msg.authority, first.name, dnsTypeNsec3);
+    if (sigs.isEmpty) {
+      return Result.failure(PqTransportError.unexpectedMessage('nsec3 sig'));
+    }
+    final rows = await _nsec3s(msg, sigs.first.signer);
+    if (rows.isFailure) return Result.failure(rows.errorOrNull!);
+    final proof = nameError
+        ? dnsNsec3ProvesNameError(
+            qname: qname,
+            zone: sigs.first.signer,
+            nsecs: rows.valueOrNull!,
+          )
+        : dnsNsec3ProvesNoData(
+            qname: qname,
+            zone: sigs.first.signer,
+            qtype: qtype,
+            nsecs: rows.valueOrNull!,
+          );
+    if (proof.isFailure) return Result.failure(proof.errorOrNull!);
+    return Result.success(DnsAuthDenial(nameError: nameError));
+  }
+
+  Future<Result<void, PqTransportError>> _nsec3Wildcard(
+    DnsMessage msg,
+    String signer,
+    String qname,
+  ) async {
+    final rows = await _nsec3s(msg, signer);
+    if (rows.isFailure) return Result.failure(rows.errorOrNull!);
+    return dnsNsec3ProvesWildcard(
+      qname: qname,
+      zone: signer,
+      nsecs: rows.valueOrNull!,
+    );
+  }
+
+  Future<Result<List<DnsNsec3>, PqTransportError>> _nsec3s(
+    DnsMessage msg,
+    String signer,
+  ) async {
+    final keys = await _zoneKeys(signer);
+    if (keys.isFailure) return Result.failure(keys.errorOrNull!);
+    final out = <DnsNsec3>[];
+    for (final nsec in msg.authority.whereType<DnsNsec3>()) {
+      final sigs = _sigs(msg.authority, nsec.name, dnsTypeNsec3);
+      final ok = _matched([nsec], sigs, keys.valueOrNull!);
+      if (ok == null) {
+        return Result.failure(PqTransportError.unexpectedMessage('nsec3 sig'));
+      }
+      out.add(nsec);
+    }
+    if (out.isEmpty) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('nsec3 missing'),
+      );
     }
     return Result.success(out);
   }

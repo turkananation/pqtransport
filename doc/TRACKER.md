@@ -19,7 +19,7 @@ Status vocabulary matches [BUGS.md](BUGS.md): **Open**, **Blocked**,
 | --- | --- |
 | Package | `pqtransport 0.1.0` (published on pub.dev) |
 | SDK | `>=3.12.0 <4.0.0` |
-| Crypto | `pqforge ^0.4.10` |
+| Crypto | `pqforge ^0.4.11` |
 | Infra | `swissarmyknife ^0.1.0` |
 | Analyzer | clean |
 | Tests | 258 passed |
@@ -112,7 +112,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-16 | P2 | **Fixed** | RFC 9001 §5.4.4 ChaCha20 header protection. pqforge 0.4.8 |
 | OPEN-17 | P2 | **Fixed** | RFC 9000 §4 flow control. `test/quic/lifecycle_test.dart` |
 | OPEN-18 | P2 | **Fixed** | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM |
-| OPEN-19 | P2 | **Fixed** | Validating stub. Algorithms 8, 13, 14, 15. Trust anchor, NSEC, DO bit, TC-over-TCP, CNAME. NSEC3 denial fails closed (no SHA-1 in pqforge). `test/dns/stub_test.dart` |
+| OPEN-19 | P2 | **Fixed** | Validating stub. Algorithms 8, 13, 14, 15. Trust anchor, NSEC, NSEC3, DO bit, TC-over-TCP, CNAME. NSEC3 is SHA-1 from pqforge 0.4.11, algorithm 1, at most 150 extra iterations. `test/dns/stub_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 

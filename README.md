@@ -91,7 +91,7 @@ Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Not a browser. Not WebPKI.
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.10
+  pqforge: ^0.4.11
   swissarmyknife: ^0.1.0
 ```
 
@@ -162,7 +162,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 | [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
 | [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
 | [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.10 APIs |
+| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.11 APIs |
 | [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages

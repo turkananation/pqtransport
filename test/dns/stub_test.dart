@@ -405,6 +405,215 @@ void main() {
       isTrue,
     );
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('NSEC3 hash is the RFC 5155 appendix vector', () {
+    final hash = dnsNsec3Hash(
+      name: 'example.',
+      algorithm: dnssecNsec3HashSha1,
+      iterations: 12,
+      salt: Uint8List.fromList(const [0xaa, 0xbb, 0xcc, 0xdd]),
+    );
+    expect(hash.isSuccess, isTrue, reason: '${hash.errorOrNull}');
+    expect(
+      dnsNsec3Base32Hex(hash.valueOrNull!),
+      '0p9mhaveqvm6t7vbl5lop2u3t2rp3tom',
+    );
+    final owner = dnsNsec3OwnerName(hash.valueOrNull!, 'example.');
+    expect(owner, '0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example.');
+    expect(dnsNsec3OwnerHash(owner!, 'example.'), hash.valueOrNull);
+    expect(
+      dnsNsec3Hash(
+        name: 'example.',
+        algorithm: 2,
+        iterations: 0,
+        salt: Uint8List(0),
+      ).isFailure,
+      isTrue,
+    );
+    expect(
+      dnsNsec3Hash(
+        name: 'example.',
+        algorithm: dnssecNsec3HashSha1,
+        iterations: dnsNsec3MaxIterations + 1,
+        salt: Uint8List(0),
+      ).isFailure,
+      isTrue,
+    );
+  });
+
+  test('SHA-1 DS digest matches a DNSKEY', () {
+    final zone = _zoneKey('example.com.', 7);
+    final rdata = dnskeyWireRdata(zone.key);
+    final owner = dnsCanonicalName(zone.key.name).valueOrNull!;
+    final ds = DnsDs(
+      name: zone.key.name,
+      keyTag: dnssecKeyTag(rdata),
+      algorithm: zone.key.algorithm,
+      digestType: dnssecDigestSha1,
+      digest: PqBytes.sha1(concatBytes([owner, rdata])),
+    );
+    expect(dnskeyMatchesDs(zone.key, ds), isTrue);
+    ds.digest[0] ^= 0x01;
+    expect(dnskeyMatchesDs(zone.key, ds), isFalse);
+  });
+
+  test('NSEC3 proves name error, NODATA, opt-out DS, and a wildcard', () async {
+    final zone = _zoneKey('example.com.', 4);
+    final zoneSig = _sign([zone.key], zone.key, zone.secret);
+    final apex = dnsNsec3Hash(
+      name: 'example.com.',
+      algorithm: dnssecNsec3HashSha1,
+      iterations: 0,
+      salt: Uint8List(0),
+    ).valueOrNull!;
+    final only = DnsNsec3(
+      name: dnsNsec3OwnerName(apex, 'example.com.')!,
+      hashAlgorithm: dnssecNsec3HashSha1,
+      flags: 0,
+      iterations: 0,
+      salt: Uint8List(0),
+      next: apex,
+      types: dnsTypeBitmap(const [dnsTypeA, dnsTypeNs, dnsTypeSoa]),
+    );
+    final opted = DnsNsec3(
+      name: only.name,
+      hashAlgorithm: dnssecNsec3HashSha1,
+      flags: dnsNsec3OptOutFlag,
+      iterations: 0,
+      salt: Uint8List(0),
+      next: apex,
+      types: dnsTypeBitmap(const [dnsTypeNs, dnsTypeSoa]),
+    );
+    final expanded = DnsA(
+      name: 'www.example.com.',
+      address: Uint8List.fromList(const [192, 0, 2, 9]),
+    );
+    final expandedSig = _sign([expanded], zone.key, zone.secret, labels: 2);
+
+    Future<Result<DnsMessage, PqTransportError>> lookup(
+      String name,
+      DnsType type,
+    ) async {
+      if (dnsNamesEqual(name, 'example.com.') && type == DnsType.dnskey) {
+        return Result.success(_msg([zone.key, zoneSig]));
+      }
+      if (dnsNamesEqual(name, 'b.example.com.')) {
+        return Result.success(
+          DnsMessage(
+            id: 1,
+            flags: 0x8403,
+            authority: [
+              only,
+              _sign([only], zone.key, zone.secret),
+            ],
+          ),
+        );
+      }
+      if (dnsNamesEqual(name, 'example.com.') && type == DnsType.aaaa) {
+        return Result.success(
+          DnsMessage(
+            id: 1,
+            flags: 0x8400,
+            authority: [
+              only,
+              _sign([only], zone.key, zone.secret),
+            ],
+          ),
+        );
+      }
+      if (dnsNamesEqual(name, 'child.example.com.') && type == DnsType.ds) {
+        return Result.success(
+          DnsMessage(
+            id: 1,
+            flags: 0x8400,
+            authority: [
+              opted,
+              _sign([opted], zone.key, zone.secret),
+            ],
+          ),
+        );
+      }
+      if (dnsNamesEqual(name, 'child.example.com.') && type == DnsType.a) {
+        return Result.success(
+          DnsMessage(
+            id: 1,
+            flags: 0x8400,
+            authority: [
+              opted,
+              _sign([opted], zone.key, zone.secret),
+            ],
+          ),
+        );
+      }
+      if (dnsNamesEqual(name, 'www.example.com.') && type == DnsType.a) {
+        return Result.success(
+          DnsMessage(
+            id: 1,
+            flags: 0x8400,
+            answers: [expanded, expandedSig],
+            authority: [
+              only,
+              _sign([only], zone.key, zone.secret),
+            ],
+          ),
+        );
+      }
+      return Result.failure(PqTransportError.unsupported('fixture'));
+    }
+
+    final anchor = DnsTrustAnchor.dnskey(
+      zone: 'example.com.',
+      dnskey: zone.key,
+    );
+    final missing = await authenticateDns(
+      name: 'b.example.com.',
+      type: DnsType.a,
+      anchor: anchor,
+      lookup: lookup,
+      now: now,
+    );
+    expect(missing.isSuccess, isTrue, reason: '${missing.errorOrNull}');
+    expect((missing.valueOrNull! as DnsAuthDenial).nameError, isTrue);
+
+    final nodata = await authenticateDns(
+      name: 'example.com.',
+      type: DnsType.aaaa,
+      anchor: anchor,
+      lookup: lookup,
+      now: now,
+    );
+    expect(nodata.isSuccess, isTrue, reason: '${nodata.errorOrNull}');
+    expect((nodata.valueOrNull! as DnsAuthDenial).nameError, isFalse);
+
+    final delegation = await authenticateDns(
+      name: 'child.example.com.',
+      type: DnsType.ds,
+      anchor: anchor,
+      lookup: lookup,
+      now: now,
+    );
+    expect(delegation.isSuccess, isTrue, reason: '${delegation.errorOrNull}');
+    expect((delegation.valueOrNull! as DnsAuthDenial).nameError, isFalse);
+
+    final notOptOut = await authenticateDns(
+      name: 'child.example.com.',
+      type: DnsType.a,
+      anchor: anchor,
+      lookup: lookup,
+      now: now,
+    );
+    expect(notOptOut.isFailure, isTrue);
+
+    final wild = await authenticateDns(
+      name: 'www.example.com.',
+      type: DnsType.a,
+      anchor: anchor,
+      lookup: lookup,
+      now: now,
+    );
+    expect(wild.isSuccess, isTrue, reason: '${wild.errorOrNull}');
+    expect((wild.valueOrNull! as DnsAuthData).records.single, isA<DnsA>());
+  });
 }
 
 DnsMessage _msg(List<DnsRecord> answers) =>

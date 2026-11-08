@@ -44,7 +44,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Encrypted UDP session (X25519MLKEM768) | Done |
 | Encrypted UDP session (P-256 / P-384) | Done |
 | DNS RR round-trip including PTR/NS/DNSKEY/DS/RRSIG | Done |
-| DNSSEC | Done. Algorithms 8, 13, 14, 15 via pqforge. Trust anchor to zone cut. NSEC denial. NSEC3 decodes and fails closed (no SHA-1 in pqforge). DO bit, matching id, TC over TCP, CNAME chase. AD is not consulted |
+| DNSSEC | Done. Algorithms 8, 13, 14, 15 via pqforge. Trust anchor to zone cut. NSEC and NSEC3 denial. NSEC3 is SHA-1 from pqforge, algorithm 1, at most 150 extra iterations. DO bit, matching id, TC over TCP, CNAME chase. AD is not consulted |
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |

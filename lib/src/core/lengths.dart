@@ -151,6 +151,9 @@ const int dnssecProtocol = 3;
 /// RFC 6605. ECDSAP256SHA256.
 const int dnssecAlgorithmEcdsaP256Sha256 = 13;
 
+/// RFC 4034. SHA-1 DS digest. Collision resistance is broken.
+const int dnssecDigestSha1 = 1;
+
 /// RFC 4509. SHA-256 DS digest.
 const int dnssecDigestSha256 = 2;
 
@@ -185,8 +188,23 @@ const int dnssecEcdsaP384SignatureBytes = 96;
 const int dnssecEd25519PublicKeyBytes = 32;
 const int dnssecEd25519SignatureBytes = 64;
 
+/// SHA-1 digest length. DS digest type 1 and NSEC3 hash algorithm 1.
+const int dnssecSha1DigestBytes = 20;
+
 /// SHA-384 digest length. DS digest type 4.
 const int dnssecSha384DigestBytes = 48;
+
+/// RFC 5155. The only NSEC3 hash algorithm. SHA-1, from pqforge.
+const int dnssecNsec3HashSha1 = 1;
+
+/// RFC 5155. Opt-Out. A covering NSEC3 may hide an insecure delegation.
+const int dnsNsec3OptOutFlag = 0x01;
+
+/// Most extra SHA-1 rounds this validator will run for one name.
+///
+/// RFC 9276 lets a validator reject a higher count. 150 covers the
+/// RFC 5155 worked example and stops a 65535-iteration record.
+const int dnsNsec3MaxIterations = 150;
 
 /// RFC 1035. Truncation. The stub retries the same query over TCP.
 const int dnsFlagTc = 0x0200;

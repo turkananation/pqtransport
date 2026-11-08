@@ -6,9 +6,11 @@ pqtransport must not vendor a second Kyber, a second X25519, or a second
 AES-GCM. When a primitive is missing, the correct move is a pqforge
 export, then a thin call here.
 
-Floor today: **pqforge 0.4.10**. The 0.4.6 notes below stay as history.
+Floor today: **pqforge 0.4.11**. The 0.4.6 notes below stay as history.
 **0.4.9** is the X.509 parser this package calls. **0.4.10** exports
 `PqHpke`. ECH calls that type. It does not keep a second HPKE.
+**0.4.11** exports `PqBytes.sha1`. NSEC3 and DS digest type 1 call it.
+Nothing else here signs with SHA-1.
 
 BLK-01 … BLK-05 landed in 0.4.4. **0.4.5** makes the sync ChaCha helper
 dart2js-safe. **0.4.6** exports AES-ECB (`aesEncryptBlock`) and
@@ -45,7 +47,7 @@ This file records what we consume and what is still not wired. IDs:
 
 ## Consumed in this tree
 
-1. Floor is `pqforge ^0.4.10`. The 0.4.6 bump is history.
+1. Floor is `pqforge ^0.4.11`. The 0.4.6 bump is history. `PqBytes.sha1` is NSEC3 and DS digest type 1 only.
 2. Call new helpers **only** from `PqTransportCrypto`.
 3. Live handshake tests for all three RFC 10024 groups.
 4. Local HMAC Expand loop deleted.

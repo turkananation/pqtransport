@@ -133,7 +133,7 @@ a PKI must wait for OPEN-04 or supply their own verify hook later.
 | DNS cache poisoning from compressed rdata names | Mitigated (OPEN-08): rdata pointers resolve against the outer message; RDLENGTH bounds the record |
 | mDNS spoofing on a real LAN | Mitigated in part (OPEN-09): `joinMulticast` required to receive; signed TXT (`pqsig=`) when used. Spoofed LAN peers remain a threat. |
 | QUIC injection via unprotected headers | Mitigated (OPEN-06, OPEN-16): AES-ECB HP on Initial and AES 1-RTT. ChaCha20 HP uses the pqforge 0.4.8 keystream. |
-| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.10` / transitive pqcrypto |
+| Supply-chain of pqforge / pqcrypto | Inherited; pin `^0.4.11` / transitive pqcrypto |
 
 ## Audit extras that are **not** claimed
 

@@ -62,10 +62,11 @@ clock. `CircuitBreaker` wraps exchange and opens after
 DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge, from a
 caller-supplied trust anchor down the zone cuts. The stub sets the DO
 bit, requires a matching response id, retries a truncated UDP answer
-over TCP, and follows CNAME. SOA and unknown RRs decode. NSEC proves
-a missing name and a missing type. NSEC3 records decode. The RFC 5155
-hash is SHA-1, which pqforge does not provide, so that denial fails
-closed. The AD bit is not validation. Not a recursive resolver.
+over TCP, and follows CNAME. SOA and unknown RRs decode. NSEC and
+NSEC3 prove a missing name and a missing type. NSEC3 is hash algorithm
+1, SHA-1 from pqforge 0.4.11. More than 150 extra iterations fails
+closed. DS digest type 1 is that same SHA-1. The AD bit is not
+validation. Not a recursive resolver.
 
 ## mDNS
 

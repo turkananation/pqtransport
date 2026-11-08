@@ -2,6 +2,12 @@
 
 ### Added
 
+- DNSSEC NSEC3 denial uses `PqBytes.sha1` (pqforge 0.4.11). Hash
+  algorithm 1 only. A name error needs the closest encloser, a cover of
+  the next closer, and a cover of the wildcard. NODATA is an exact
+  match, a wildcard match, or an opt-out cover of a DS query. More than
+  150 extra iterations fails closed. DS digest type 1 is the same SHA-1.
+  It is not a signature. The `.pqf` format is not involved.
 - Encrypted UDP loss recovery is RFC 9002 (OPEN-20, option A). The
   handshake is a QUIC Initial long header. The client datagram is
   padded to 1200 bytes. Initial keys are RFC 9001 §5.2, from the

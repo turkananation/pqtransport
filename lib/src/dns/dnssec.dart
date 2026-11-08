@@ -77,9 +77,9 @@ int dnssecKeyTag(Uint8List rdata) {
   return ac & 0xffff;
 }
 
-/// SHA-256 (type 2) or SHA-384 (type 4) over the canonical owner and DNSKEY
-/// RDATA. Other digests and other algorithms return false. This does not
-/// fetch the parent.
+/// SHA-1 (type 1), SHA-256 (type 2), or SHA-384 (type 4) over the canonical
+/// owner and DNSKEY RDATA. Other digests and other algorithms return false.
+/// This does not fetch the parent. SHA-1 collision resistance is broken.
 bool dnskeyMatchesDs(DnsDnskey key, DnsDs ds) {
   if (!dnssecAlgorithmSupported(key.algorithm)) return false;
   if (ds.algorithm != key.algorithm) return false;
@@ -276,6 +276,7 @@ Result<void, PqTransportError> verifyDnssecRrset({
 bool _sameName(String a, String b) => dnsNamesEqual(a, b);
 
 Uint8List? _dsDigest(int digestType, Uint8List data) => switch (digestType) {
+  dnssecDigestSha1 => PqBytes.sha1(data),
   dnssecDigestSha256 => PqBytes.sha256(data),
   dnssecDigestSha384 => PqBytes.sha384(data),
   _ => null,
@@ -460,6 +461,325 @@ Result<void, PqTransportError> dnsNsecProvesNameError({
     return Result.failure(PqTransportError.unexpectedMessage('nsec wildcard'));
   }
   return const Result.success(null);
+}
+
+/// RFC 5155 §5. [iterations] extra rounds after the first `SHA-1(name || salt)`.
+///
+/// Only hash algorithm 1. The digest comes from [PqBytes.sha1]. A count above
+/// [dnsNsec3MaxIterations] fails closed.
+Result<Uint8List, PqTransportError> dnsNsec3Hash({
+  required String name,
+  required int algorithm,
+  required int iterations,
+  required Uint8List salt,
+}) {
+  if (algorithm != dnssecNsec3HashSha1) {
+    return Result.failure(PqTransportError.unsupported('nsec3 hash'));
+  }
+  if (iterations < 0 || iterations > dnsNsec3MaxIterations) {
+    return Result.failure(PqTransportError.unsupported('nsec3 iterations'));
+  }
+  if (salt.length > 255) {
+    return Result.failure(PqTransportError.unsupported('nsec3 salt'));
+  }
+  final owner = dnsCanonicalName(name);
+  if (owner.isFailure) return Result.failure(owner.errorOrNull!);
+  var hash = PqBytes.sha1(concatBytes([owner.valueOrNull!, salt]));
+  for (var i = 0; i < iterations; i++) {
+    hash = PqBytes.sha1(concatBytes([hash, salt]));
+  }
+  return Result.success(hash);
+}
+
+/// Lowercase base32hex, no padding. RFC 4648 §7, as RFC 5155 uses it.
+String dnsNsec3Base32Hex(Uint8List hash) {
+  const alphabet = '0123456789abcdefghijklmnopqrstuv';
+  final out = StringBuffer();
+  var buffer = 0;
+  var bits = 0;
+  for (final byte in hash) {
+    buffer = (buffer << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out.write(alphabet[(buffer >> bits) & 31]);
+    }
+  }
+  if (bits != 0) {
+    out.write(alphabet[(buffer << (5 - bits)) & 31]);
+  }
+  return out.toString();
+}
+
+/// Hashed owner, `base32hex(hash).zone`. Null when [hash] is not SHA-1.
+String? dnsNsec3OwnerName(Uint8List hash, String zone) {
+  if (hash.length != dnssecSha1DigestBytes || dnsNameKey(zone) == null) {
+    return null;
+  }
+  final label = dnsNsec3Base32Hex(hash);
+  if (dnsNamesEqual(zone, '.')) return '$label.';
+  final apex = zone.endsWith('.') ? zone : '$zone.';
+  return '$label.$apex';
+}
+
+/// Binary hash from the leftmost label of an NSEC3 owner in [zone].
+Uint8List? dnsNsec3OwnerHash(String name, String zone) {
+  final parent = dnsParent(name);
+  if (parent == null || !dnsNamesEqual(parent, zone)) return null;
+  final trimmed = name.endsWith('.')
+      ? name.substring(0, name.length - 1)
+      : name;
+  final dot = trimmed.indexOf('.');
+  final label = dot < 0 ? trimmed : trimmed.substring(0, dot);
+  return _base32hexDecode(label);
+}
+
+/// [hash] is strictly between [owner] and [next]. A [next] that sorts at or
+/// before [owner] wraps. Comparison is unsigned octet order.
+bool dnsNsec3Covers(Uint8List owner, Uint8List next, Uint8List hash) {
+  if (owner.length != hash.length || next.length != hash.length) return false;
+  if (_compareBytes(owner, hash) == 0 || _compareBytes(next, hash) == 0) {
+    return false;
+  }
+  final ownerNext = _compareBytes(owner, next);
+  final ownerHash = _compareBytes(owner, hash);
+  final hashNext = _compareBytes(hash, next);
+  if (ownerNext < 0) return ownerHash < 0 && hashNext < 0;
+  return ownerHash < 0 || hashNext < 0;
+}
+
+/// RFC 5155 §8.4. Closest encloser, next closer, and the wildcard are required.
+Result<void, PqTransportError> dnsNsec3ProvesNameError({
+  required String qname,
+  required String zone,
+  required List<DnsNsec3> nsecs,
+}) {
+  final span = _Nsec3Span.parse(zone, nsecs);
+  if (span.isFailure) return Result.failure(span.errorOrNull!);
+  final proof = span.valueOrNull!;
+  if (dnsNamesEqual(qname, zone) || !_under(qname, zone)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 zone'));
+  }
+  if (proof.matches(qname)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 exists'));
+  }
+  final found = proof.encloser(qname);
+  if (found == null || !proof.covers(found.nextCloser)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 cover'));
+  }
+  final wildcard = _wildcardAt(found.encloser);
+  if (!proof.covers(wildcard)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 wildcard'));
+  }
+  return const Result.success(null);
+}
+
+/// RFC 5155 §8.5 and §8.6. Exact match, wildcard NODATA, or an opt-out DS.
+Result<void, PqTransportError> dnsNsec3ProvesNoData({
+  required String qname,
+  required String zone,
+  required int qtype,
+  required List<DnsNsec3> nsecs,
+}) {
+  final span = _Nsec3Span.parse(zone, nsecs);
+  if (span.isFailure) return Result.failure(span.errorOrNull!);
+  final proof = span.valueOrNull!;
+  final matched = proof.match(qname);
+  if (matched != null) {
+    if (!_nsec3BitmapDenies(matched.rr, qtype)) {
+      return Result.failure(PqTransportError.unexpectedMessage('nsec3 nodata'));
+    }
+    return const Result.success(null);
+  }
+  if (qtype == dnsTypeDs && proof.optOutCovers(qname)) {
+    return const Result.success(null);
+  }
+  final found = proof.encloser(qname);
+  if (found == null || !proof.covers(found.nextCloser)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 nodata'));
+  }
+  final wild = proof.match(_wildcardAt(found.encloser));
+  if (wild == null || !_nsec3BitmapDenies(wild.rr, qtype)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 nodata'));
+  }
+  return const Result.success(null);
+}
+
+/// RFC 5155 §8.8. A wildcard answer still needs the closest encloser and a
+/// cover of the next closer name.
+Result<void, PqTransportError> dnsNsec3ProvesWildcard({
+  required String qname,
+  required String zone,
+  required List<DnsNsec3> nsecs,
+}) {
+  final span = _Nsec3Span.parse(zone, nsecs);
+  if (span.isFailure) return Result.failure(span.errorOrNull!);
+  final proof = span.valueOrNull!;
+  if (proof.matches(qname)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 exists'));
+  }
+  final found = proof.encloser(qname);
+  if (found == null || !proof.covers(found.nextCloser)) {
+    return Result.failure(PqTransportError.unexpectedMessage('nsec3 wildcard'));
+  }
+  return const Result.success(null);
+}
+
+String _wildcardAt(String encloser) =>
+    dnsNamesEqual(encloser, '.') ? '*.' : '*.$encloser';
+
+bool _nsec3BitmapDenies(DnsNsec3 rr, int qtype) {
+  if (dnsBitmapContains(rr.types, qtype)) return false;
+  if (qtype != dnsTypeDs && dnsBitmapContains(rr.types, dnsTypeCname)) {
+    return false;
+  }
+  if (qtype != dnsTypeDs &&
+      dnsBitmapContains(rr.types, dnsTypeNs) &&
+      !dnsBitmapContains(rr.types, dnsTypeSoa)) {
+    return false;
+  }
+  return true;
+}
+
+Uint8List? _base32hexDecode(String label) {
+  const alphabet = '0123456789abcdefghijklmnopqrstuv';
+  final text = label.toLowerCase();
+  if (text.length != 32) return null;
+  final out = Uint8List(dnssecSha1DigestBytes);
+  var buffer = 0;
+  var bits = 0;
+  var n = 0;
+  for (final unit in text.codeUnits) {
+    final value = alphabet.indexOf(String.fromCharCode(unit));
+    if (value < 0) return null;
+    buffer = (buffer << 5) | value;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      if (n >= out.length) return null;
+      out[n++] = (buffer >> bits) & 0xff;
+    }
+  }
+  if (n != out.length || bits != 0) return null;
+  return out;
+}
+
+final class _Nsec3Hit {
+  const _Nsec3Hit(this.rr, this.owner);
+  final DnsNsec3 rr;
+  final Uint8List owner;
+}
+
+final class _Nsec3Encloser {
+  const _Nsec3Encloser(this.encloser, this.nextCloser);
+  final String encloser;
+  final String nextCloser;
+}
+
+final class _Nsec3Span {
+  _Nsec3Span(
+    this._zone,
+    this._algorithm,
+    this._iterations,
+    this._salt,
+    this._rows,
+  );
+
+  final String _zone;
+  final int _algorithm;
+  final int _iterations;
+  final Uint8List _salt;
+  final List<_Nsec3Hit> _rows;
+
+  static Result<_Nsec3Span, PqTransportError> parse(
+    String zone,
+    List<DnsNsec3> nsecs,
+  ) {
+    if (nsecs.isEmpty || dnsNameKey(zone) == null) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('nsec3 missing'),
+      );
+    }
+    final first = nsecs.first;
+    if (first.hashAlgorithm != dnssecNsec3HashSha1) {
+      return Result.failure(PqTransportError.unsupported('nsec3 hash'));
+    }
+    if (first.iterations > dnsNsec3MaxIterations) {
+      return Result.failure(PqTransportError.unsupported('nsec3 iterations'));
+    }
+    final rows = <_Nsec3Hit>[];
+    for (final rr in nsecs) {
+      if (rr.hashAlgorithm != first.hashAlgorithm ||
+          rr.iterations != first.iterations ||
+          rr.salt.length != first.salt.length ||
+          !PqBytes.constantTimeEquals(rr.salt, first.salt)) {
+        return Result.failure(
+          PqTransportError.unexpectedMessage('nsec3 params'),
+        );
+      }
+      final owner = dnsNsec3OwnerHash(rr.name, zone);
+      if (owner == null || owner.length != rr.next.length) {
+        return Result.failure(
+          PqTransportError.unexpectedMessage('nsec3 owner'),
+        );
+      }
+      rows.add(_Nsec3Hit(rr, owner));
+    }
+    return Result.success(
+      _Nsec3Span(zone, first.hashAlgorithm, first.iterations, first.salt, rows),
+    );
+  }
+
+  Uint8List? _hash(String name) {
+    final hashed = dnsNsec3Hash(
+      name: name,
+      algorithm: _algorithm,
+      iterations: _iterations,
+      salt: _salt,
+    );
+    return hashed.valueOrNull;
+  }
+
+  bool matches(String name) => match(name) != null;
+
+  _Nsec3Hit? match(String name) {
+    final hashed = _hash(name);
+    if (hashed == null) return null;
+    for (final row in _rows) {
+      if (PqBytes.constantTimeEquals(row.owner, hashed)) return row;
+    }
+    return null;
+  }
+
+  bool covers(String name) {
+    final hashed = _hash(name);
+    if (hashed == null) return false;
+    return _rows.any((row) => dnsNsec3Covers(row.owner, row.rr.next, hashed));
+  }
+
+  _Nsec3Encloser? encloser(String qname) {
+    var nextCloser = qname;
+    var name = dnsParent(qname);
+    while (name != null) {
+      if (matches(name)) return _Nsec3Encloser(name, nextCloser);
+      if (dnsNamesEqual(name, _zone)) return null;
+      nextCloser = name;
+      name = dnsParent(name);
+    }
+    return null;
+  }
+
+  bool optOutCovers(String qname) {
+    final found = encloser(qname);
+    if (found == null) return false;
+    final hashed = _hash(found.nextCloser);
+    if (hashed == null) return false;
+    return _rows.any(
+      (row) =>
+          (row.rr.flags & dnsNsec3OptOutFlag) != 0 &&
+          dnsNsec3Covers(row.owner, row.rr.next, hashed),
+    );
+  }
 }
 
 bool _under(String name, String zone) {

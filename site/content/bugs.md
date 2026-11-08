@@ -20,7 +20,7 @@ SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
 
 ## Blocked on pqforge
 
-None. pqforge **0.4.10** is the floor (HPKE, X.509, the earlier
+None. pqforge **0.4.11** is the floor (SHA-1 for NSEC3, HPKE, X.509, the earlier
 BLK-01 … BLK-05 exports). OPEN-02 and OPEN-13 are **Fixed** in this tree.
 
 ## Honest limits (won't fix in 0.1)

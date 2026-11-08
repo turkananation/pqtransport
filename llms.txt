@@ -7,14 +7,14 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - Wiki: https://github.com/turkananation/pqtransport/wiki
 - Docs: https://github.com/turkananation/pqtransport/blob/main/doc/INDEX.md
 - Claim boundary: https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md
-- Crypto: package:pqforge ^0.4.10 (ML-KEM, ML-DSA, AES-256-GCM, AES-128-GCM, dart2js-safe ChaCha, X25519, P-256/P-384 ECDH and ECDSA, HKDF, X.509, HPKE)
+- Crypto: package:pqforge ^0.4.11 (ML-KEM, ML-DSA, AES-256-GCM, AES-128-GCM, dart2js-safe ChaCha, X25519, P-256/P-384 ECDH and ECDSA, HKDF, X.509, HPKE, SHA-1 for NSEC3 and DS digest type 1)
 - Infra: package:swissarmyknife (Result, StateMachine, CircuitBreaker, Cache)
 - No dart:ffi. No platform TLS on the PQ path.
 - Live handshake: all three RFC 10024 groups. P-384 requires PqForgeProfile.maximum. Profile/group mismatches fail closed (requireGroup). Fallback groups, when the peer offers only those: X25519, secp256r1, secp384r1, MLKEM1024.
 - TLS encoding is RFC 8446-shaped. Cipher IANA 0x1302 (SHA-384 AES-GCM, default) and 0x1303 (ChaCha). Default certificate is RFC 7250 raw ML-DSA-65. Opt-in X.509 is a caller-supplied chain of 1 to 8. Not WebPKI. Not a browser.
 - OpenSSL 3.5.9: the three hybrid groups, raw-pk and X.509, both directions, plus the four fallback groups. BoringSSL 0.20261020.0 is a TLS peer on X25519MLKEM768 and the four fallback groups, not SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl is two HTTP/1.1 GETs. Not curl --http3.
 - ECH (RFC 9849) is self-interop and one BoringSSL flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via PqHpke. Not an OpenSSL flight. Not GREASE. Not DNS.
-- DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge. DS digests are SHA-256 and SHA-384. RRset order is canonical RDATA. The zone bit is required. Validity is 32-bit serial arithmetic. A caller-supplied trust anchor authenticates zone cuts. NSEC proves name error and NODATA. NSEC3 records decode; denial fails closed because RFC 5155 SHA-1 is not in pqforge. The stub sets the DO bit, checks the response id, retries truncation over TCP, and follows CNAME. The AD bit is not validation. Not a recursive resolver.
+- DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge. DS digests are SHA-1, SHA-256, and SHA-384. RRset order is canonical RDATA. The zone bit is required. Validity is 32-bit serial arithmetic. A caller-supplied trust anchor authenticates zone cuts. NSEC and NSEC3 prove name error and NODATA. NSEC3 is hash algorithm 1 only, SHA-1 from pqforge, with at most 150 extra iterations. The stub sets the DO bit, checks the response id, retries truncation over TCP, and follows CNAME. The AD bit is not validation. Not a recursive resolver.
 - HTTP/2 is on PqTlsSocket (ALPN h2). HTTP/3 is on PqQuicConn (ALPN h3). Silent h2/h3 to h1 downgrade is refused. QUIC 0-RTT is not implemented (LIM-05).
 - Not a FIPS 140 module.
 

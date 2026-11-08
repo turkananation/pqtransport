@@ -26,8 +26,8 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   OpenSSL 3.5.9 and BoringSSL 0.20261020.0: hybrid groups, plus X25519,
   secp256r1, secp384r1, and MLKEM1024. Auth is raw public key by default,
   or an opt-in ML-DSA-65 X.509 chain of 1 to 8. ECH is one BoringSSL
-  flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies
-  ECDSAP256SHA256 only. Not a browser. Not WebPKI. Not a FIPS 140 module.
+  flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies algorithms
+  8, 13, 14, and 15, including NSEC and NSEC3 denial. Not a browser. Not WebPKI. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -62,7 +62,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 | --- | --- |
 | Version | 0.1.0 (tree; later slices are on main) |
 | SDK | `>=3.12.0 <4.0.0` |
-| pqforge | `^0.4.10` |
+| pqforge | `^0.4.11` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
 | Live KEX | X25519, P-256, P-384, plus the four fallback groups |
 | DNSSEC | Algorithms 8, 13, 14, 15 from a trust anchor. NSEC. AD is not consulted |
@@ -136,7 +136,7 @@ Full wording: [Claim Boundary](claim-boundary).
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.10
+  pqforge: ^0.4.11
   swissarmyknife: ^0.1.0
 ```
 
