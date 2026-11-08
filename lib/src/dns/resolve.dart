@@ -274,10 +274,8 @@ final class DnsIterativeResolver {
     DnsMessage referral,
   ) async {
     final servers = <_Server>[];
-    final nsRecords = <DnsRecord>[];
     for (final rr in referral.authority) {
       if (rr is! DnsNs || !dnsNamesEqual(rr.name, child)) continue;
-      nsRecords.add(rr);
       servers.add(_Server(rr.nameserver, _glue(referral, rr.nameserver)));
     }
     if (servers.isEmpty) {
@@ -302,15 +300,7 @@ final class DnsIterativeResolver {
       if (addresses.isEmpty) continue;
       servers[i] = _Server(servers[i].name, addresses);
     }
-    if (parent.security == DnsSecurity.secure &&
-        !_verified(
-          nsRecords,
-          referral.authority,
-          parent.keys ?? const [],
-          _clock(),
-        )) {
-      return const Result.success(_Step.done(_bogus));
-    }
+    // A referral's NS set is a hint. The signed DS at the parent proves the cut.
     if (parent.security == DnsSecurity.insecure) {
       return Result.success(
         _Step.zone(_Zone(child, servers, DnsSecurity.insecure, null)),
@@ -350,8 +340,12 @@ final class DnsIterativeResolver {
           !_verified(keyRecords, keyMsg.valueOrNull!.answers, trusted, now)) {
         return const Result.success(_Step.done(_bogus));
       }
+      final zoneKeys = [
+        for (final rr in keyRecords)
+          if (rr is DnsDnskey && _usable(rr)) rr,
+      ];
       return Result.success(
-        _Step.zone(_Zone(child, servers, DnsSecurity.secure, trusted)),
+        _Step.zone(_Zone(child, servers, DnsSecurity.secure, zoneKeys)),
       );
     }
     final nsecs = _signedRecords<DnsNsec>(
@@ -401,7 +395,11 @@ final class DnsIterativeResolver {
         !_verified(records, msg.valueOrNull!.answers, trusted, _clock())) {
       return const Result.success(_Zone('.', [], DnsSecurity.bogus, null));
     }
-    final zone = _Zone('.', servers, DnsSecurity.secure, trusted);
+    final zoneKeys = [
+      for (final rr in records)
+        if (rr is DnsDnskey && _usable(rr)) rr,
+    ];
+    final zone = _Zone('.', servers, DnsSecurity.secure, zoneKeys);
     _root = zone;
     return Result.success(zone);
   }
