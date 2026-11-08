@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// In-memory DNS stub. No sockets.
 ///

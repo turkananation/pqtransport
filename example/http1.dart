@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// HTTP/1.1 GET on a finished `PqTlsSocket`. ALPN is `http/1.1`.
 ///

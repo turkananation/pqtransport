@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// HTTP/2 GET on ALPN `h2`. The server is `PqHttp2Session.server`.
 ///

@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// TLS 1.3 over an in-memory socket. No `SecureSocket`.
 ///

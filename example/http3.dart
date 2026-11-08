@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqtransport/pqtransport.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// HTTP/3 GET on a QUIC connection whose ALPN is `h3`.
 ///
