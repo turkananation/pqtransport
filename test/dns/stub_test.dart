@@ -74,6 +74,8 @@ void main() {
       expect(got.isSuccess, isTrue, reason: '${got.errorOrNull}');
       final query = decodeDnsMessage(seen!).valueOrNull!;
       final opt = query.additional.whereType<DnsOpt>().single;
+      expect(query.flags & dnsFlagRd, dnsFlagRd);
+      expect(query.flags & dnsFlagCd, dnsFlagCd);
       expect(opt.flags & ednsFlagDo, ednsFlagDo);
       expect(got.valueOrNull!.answers.whereType<DnsA>().single.address, [
         1,

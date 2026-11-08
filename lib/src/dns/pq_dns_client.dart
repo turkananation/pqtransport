@@ -29,8 +29,8 @@ typedef DnsExchange = Future<Uint8List> Function(Uint8List query);
 
 /// Resolver with TTL cache and circuit breaker around every external hop.
 ///
-/// The query sets the DO bit (RFC 3225) and the CD bit (RFC 4035) so a
-/// validator still receives RRSIGs. The response id must match. A truncated
+/// The query sets RD (RFC 1035), the DO bit (RFC 3225), and the CD bit
+/// (RFC 4035) so a resolver recurses and still returns RRSIGs. The response id must match. A truncated
 /// response is retried on [tcp] when that exchange is set. BADCOOKIE is
 /// retried once with the server cookie (RFC 7873). The AD bit is not
 /// validation. [lookup] does not verify an RRSIG and does not follow CNAME.
@@ -103,7 +103,7 @@ final class PqDnsClient {
     final id = _rand.nextInt(0x10000);
     final q = DnsMessage(
       id: id,
-      flags: dnsFlagCd,
+      flags: dnsFlagRd | dnsFlagCd,
       questions: [DnsQuestion(name: name, type: type)],
       additional: [
         DnsOpt(flags: ednsFlagDo, options: {ednsOptionCookie: cookie}),

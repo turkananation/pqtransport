@@ -229,6 +229,10 @@ const int dnsNsec3MaxIterations = 65535;
 /// RFC 1035. Authoritative answer.
 const int dnsFlagAa = 0x0400;
 
+/// RFC 1035. Recursion desired. A stub sets this when it asks a resolver
+/// to chase the name. An iterative query to an authoritative server does not.
+const int dnsFlagRd = 0x0100;
+
 /// RFC 1035. Checking disabled. A validator sets this so RRSIGs are kept.
 const int dnsFlagCd = 0x0010;
 

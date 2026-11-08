@@ -7,10 +7,7 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 ver="1.11.0"
 prefix="$dir/.build/nghttp3"
 bin="$dir/.build/bin/qpack_iov"
-# The release asset lives on release-assets.githubusercontent.com.
-# GitHub Actions gets HTTP 504 from that host. The tag archive is the
-# same commit, and codeload.github.com answers it.
-url="https://codeload.github.com/ngtcp2/nghttp3/tar.gz/refs/tags/v${ver}"
+src="$dir/.build/src/nghttp3-${ver}"
 
 if [[ -x "$bin" && -f "$prefix/lib/libnghttp3.so" ]]; then
   echo "$bin"
@@ -23,28 +20,24 @@ need() {
     exit 1
   fi
 }
-need curl
-need tar
+need git
+need cmake
 need make
 need gcc
-need cmake
 
-mkdir -p "$dir/.build/src" "$dir/.build/bin"
-tarball="$dir/.build/src/nghttp3-${ver}.tar.gz"
-if [[ ! -f "$tarball" ]]; then
-  curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o "$tarball" -L "$url"
+# The release asset is release-assets.githubusercontent.com, which
+# Actions answers with HTTP 504. The tag archive on codeload omits the
+# sfparse submodule, so CMake then has no sfparse.c. Clone the tag.
+if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
+  rm -rf "$src"
+  git clone --depth 1 --branch "v${ver}" --recurse-submodules \
+    https://github.com/ngtcp2/nghttp3.git "$src"
 fi
-rm -rf "$dir/.build/src/nghttp3-${ver}"
-# The archive may fail chown inside this sandbox. Files are still on
-# disk; require CMakeLists.txt rather than tar's status.
-set +e
-tar --no-same-owner -xzf "$tarball" -C "$dir/.build/src"
-set -e
-src="$dir/.build/src/nghttp3-${ver}"
-if [[ ! -f "$src/CMakeLists.txt" ]]; then
-  echo "nghttp3 ${ver} did not extract" >&2
+if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
+  echo "nghttp3 ${ver} is missing lib/sfparse" >&2
   exit 1
 fi
+
 cmake -S "$src" -B "$src/build" \
   -DENABLE_LIB_ONLY=ON \
   -DENABLE_STATIC_LIB=OFF \
@@ -54,6 +47,7 @@ cmake -S "$src" -B "$src/build" \
 cmake --build "$src/build" -j"$(nproc)"
 cmake --install "$src/build"
 
+mkdir -p "$dir/.build/bin"
 gcc -O2 -Wall -Wextra -o "$bin" "$dir/qpack_iov.c" \
   -I"$prefix/include" \
   -L"$prefix/lib" -lnghttp3 \
