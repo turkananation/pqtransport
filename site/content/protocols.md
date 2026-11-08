@@ -22,6 +22,10 @@ initial keys, both from the client's destination connection ID.
 Application data is a QUIC short header. A dropped frame is sent
 again under a new packet number. Not ECN. Not `curl --http3`.
 
+The call is `PqEncryptedUdpSocket.initiate`, then `accept`, then
+`completeInitiate`, then `send`. Both endpoints and the KEM key are
+in the [Cookbook](cookbook#encrypted-udp).
+
 ## TLS 1.3
 
 Client and server `StateMachine`s from swissarmyknife. Illegal event →
@@ -51,6 +55,11 @@ DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
 A client with an `EchConfig` does not send a cleartext second hello.
 Not an OpenSSL flight. Not GREASE. Not DNS. Not a browser.
 
+The call is `PqTlsSocket.client` and `PqTlsSocket.server`, then
+`handshake`, `send`, and `exporter`. SNI, ALPN, and
+`peerAuthenticated` are in the [Cookbook](cookbook#tls-13). The
+program is `example/tls13.dart`.
+
 ## DNS / DoH / DoT
 
 Wire codec for A, AAAA, CNAME, MX, TXT, SRV, CAA, HTTPS, SVCB, OPT, PTR,
@@ -74,6 +83,15 @@ The iterative resolver's ceiling defaults to 0. That resolver follows
 referrals from root hints and returns secure, insecure, or bogus.
 The AD bit is not validation. Not an authoritative server.
 
+`PqDnsClient.lookup` is one query. `resolve` follows CNAME.
+`authenticateDns` takes `lookup`, not `resolve`. DoH is
+`DohClient.h2` or `DohClient.h3`, then `PqDnsResolver(doh: exchange)`.
+DoT is `DotClient` after ALPN `dot`, with `encodeDnsTcp`. The
+iterative walker is `DnsIterativeResolver`. Each of those calls is
+in the [Cookbook](cookbook#dns-stub). The programs are
+`example/dns_stub.dart`, `example/dns_validate.dart`,
+`example/dns_live.dart`, `example/doh.dart`, and `example/dot.dart`.
+
 ## mDNS
 
 Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
@@ -81,6 +99,11 @@ Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
 EventBus announcements per client. Real LAN mDNS uses
 `IoDatagramChannel.joinMulticast`. Browsers have no raw UDP (LIM-04).
 SLH-DSA signed records are not the interactive default.
+
+The call is `beginProbe`, two `completeProbe`s, then `announce`.
+`signTxt` takes `crypto`, `secretKey`, `name`, and `body`. Both are
+in the [Cookbook](cookbook#mdns). The program is
+`example/mdns_discovery.dart`.
 
 ## QUIC / HTTP
 
@@ -94,3 +117,9 @@ HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
 is Done on ALPN `h3` (RFC 9114 + RFC 9204 QPACK on QUIC STREAM). Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
+
+HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
+`applicationData`. HTTP/2 is `PqHttp2Session.server` plus
+`roundTripH2`. HTTP/3 is `PqQuicConn.pair` plus `roundTripH3`. The
+three calls are in the [Cookbook](cookbook#http11). The programs are
+`example/http1.dart`, `example/http2.dart`, and `example/http3.dart`.
