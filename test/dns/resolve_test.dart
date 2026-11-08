@@ -396,6 +396,65 @@ void main() {
     expect(open.valueOrNull!.security, DnsSecurity.insecure);
     expect((open.valueOrNull!.records.single as DnsA).address[3], 11);
   });
+
+  test('a root DS set trusts the KSK that matches any record', () async {
+    final root = _zone('.', 9);
+    final real = _ds(root.key);
+    final decoy = DnsDs(
+      name: '.',
+      keyTag: 1,
+      algorithm: dnssecAlgorithmEd25519,
+      digestType: dnssecDigestSha256,
+      digest: Uint8List(dnssecSha256DigestBytes),
+    );
+    final address = DnsA(
+      name: 'example.',
+      address: Uint8List.fromList(const [192, 0, 2, 9]),
+    );
+
+    Future<Result<DnsMessage, PqTransportError>> send(
+      DnsMessage query,
+      String nameserver,
+      List<Uint8List> addresses,
+    ) async {
+      final qtype = query.questions.single.type;
+      if (qtype == DnsType.dnskey) {
+        return Result.success(
+          _aa(query, [
+            root.key,
+            _sign([root.key], root.key, root.secret),
+          ]),
+        );
+      }
+      return Result.success(
+        _aa(query, [
+          address,
+          _sign([address], root.key, root.secret),
+        ]),
+      );
+    }
+
+    DnsIterativeResolver resolver(List<DnsDs> ds) => DnsIterativeResolver(
+      hints: [
+        DnsHint('a.root-servers.net.', [
+          Uint8List.fromList(const [198, 41, 0, 4]),
+        ]),
+      ],
+      anchor: DnsTrustAnchor.dsSet(zone: '.', ds: ds),
+      send: send,
+      clock: () => now,
+      random: Random(1),
+    );
+
+    final onlyDecoy = await resolver([decoy]).lookup('example.', DnsType.a);
+    expect(onlyDecoy.isSuccess, isTrue, reason: '${onlyDecoy.errorOrNull}');
+    expect(onlyDecoy.valueOrNull!.security, DnsSecurity.bogus);
+
+    final either = await resolver([decoy, real]).lookup('example.', DnsType.a);
+    expect(either.isSuccess, isTrue, reason: '${either.errorOrNull}');
+    expect(either.valueOrNull!.security, DnsSecurity.secure);
+    expect((either.valueOrNull!.records.single as DnsA).address[3], 9);
+  });
 }
 
 DnsMessage _aa(DnsMessage query, List<DnsRecord> answers) => DnsMessage(

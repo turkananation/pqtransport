@@ -96,9 +96,12 @@ bool dnskeyMatchesDs(DnsDnskey key, DnsDs ds) {
   return PqBytes.constantTimeEquals(digest, ds.digest);
 }
 
-/// True for the algorithms pqforge verifies: 8, 13, 14, and 15.
+/// True for the algorithms pqforge verifies: 5, 7, 8, 10, 13, 14, and 15.
 bool dnssecAlgorithmSupported(int algorithm) => switch (algorithm) {
+  dnssecAlgorithmRsaSha1 ||
+  dnssecAlgorithmRsaSha1Nsec3Sha1 ||
   dnssecAlgorithmRsaSha256 ||
+  dnssecAlgorithmRsaSha512 ||
   dnssecAlgorithmEcdsaP256Sha256 ||
   dnssecAlgorithmEcdsaP384Sha384 ||
   dnssecAlgorithmEd25519 => true,
@@ -227,7 +230,7 @@ Result<Uint8List, PqTransportError> dnssecSignedMaterial({
 
 /// Verifies [rrset] under [rrsig] and [dnskey].
 ///
-/// Algorithms 8, 13, 14, and 15. The signature check is the matching
+/// Algorithms 5, 7, 8, 10, 13, 14, and 15. The signature check is the matching
 /// pqforge verify. [now] is the caller's clock. Validity is 32-bit serial
 /// arithmetic on `[inception, expiration)`. The zone bit is required.
 /// A smaller label count is verified as a wildcard. The AD bit is not read.
@@ -324,19 +327,33 @@ bool _verifySignature(DnsDnskey key, Uint8List message, Uint8List signature) {
         message: message,
         signature: signature,
       );
+    case dnssecAlgorithmRsaSha1:
+    case dnssecAlgorithmRsaSha1Nsec3Sha1:
+      return _verifyRsa(key, message, signature, PqRsaHash.sha1);
     case dnssecAlgorithmRsaSha256:
-      final rsa = _rsaPublic(key.publicKey);
-      if (rsa == null) return false;
-      return PqRsa.verifyPkcs1(
-        modulus: rsa.$1,
-        exponent: rsa.$2,
-        message: message,
-        signature: signature,
-        hash: PqRsaHash.sha256,
-      );
+      return _verifyRsa(key, message, signature, PqRsaHash.sha256);
+    case dnssecAlgorithmRsaSha512:
+      return _verifyRsa(key, message, signature, PqRsaHash.sha512);
     default:
       return false;
   }
+}
+
+bool _verifyRsa(
+  DnsDnskey key,
+  Uint8List message,
+  Uint8List signature,
+  PqRsaHash hash,
+) {
+  final rsa = _rsaPublic(key.publicKey);
+  if (rsa == null) return false;
+  return PqRsa.verifyPkcs1(
+    modulus: rsa.$1,
+    exponent: rsa.$2,
+    message: message,
+    signature: signature,
+    hash: hash,
+  );
 }
 
 /// RFC 3110. Returns modulus, exponent.

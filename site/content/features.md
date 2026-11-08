@@ -44,7 +44,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | Encrypted UDP session (X25519MLKEM768) | Done |
 | Encrypted UDP session (P-256 / P-384) | Done |
 | DNS RR round-trip including PTR/NS/DNSKEY/DS/RRSIG | Done |
-| DNSSEC | Done. Algorithms 8, 13, 14, 15 via pqforge. Iterative resolver from a root anchor: referrals, qname minimization, DNAME, secure / insecure / bogus. NSEC and NSEC3 denial, span cache. NSEC3 ceiling defaults to 0, maximum 65535. DO, CD, matching id, TC over TCP, BADCOOKIE. AD is not consulted |
+| DNSSEC | Done. Algorithms 5, 7, 8, 10, 13, 14, 15 via pqforge. RSA moduli 1024, 2048, 3072, 4096. A DS set covers both root KSKs. ED448 is not implemented. Iterative resolver from a root anchor: referrals, qname minimization, DNAME, secure / insecure / bogus. NSEC and NSEC3 denial, span cache. NSEC3 ceiling defaults to 0, maximum 65535. DO, CD, matching id, TC over TCP, BADCOOKIE. AD is not consulted |
 | CircuitBreaker + TTL cache | Done |
 | mDNS probe/announce/browse + signed TXT | Done |
 | HTTP/1.1 GET over `PqTlsSocket` | Done |

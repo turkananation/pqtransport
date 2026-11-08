@@ -2,6 +2,15 @@
 
 ### Added
 
+- DNSSEC validates algorithms 5 (RSASHA1), 7 (RSASHA1-NSEC3-SHA1),
+  8 (RSASHA256), 10 (RSASHA512), 13 (ECDSAP256SHA256),
+  14 (ECDSAP384SHA384), and 15 (Ed25519). RSA is PKCS#1 v1.5 through
+  pqforge 0.4.13. Moduli are 1024, 2048, 3072, and 4096 bits.
+  `DnsTrustAnchor.dsSet` holds more than one DS. The root publishes
+  two KSKs, and a validator that pins only one of them treats the
+  root as bogus. Algorithm 16 (ED448) is not implemented. pqforge has
+  no Ed448, and RFC 8624 does not make it mandatory. Until 0.4.13 is
+  on pub.dev this package pins that commit. The pin is not publishable.
 - DNSSEC NSEC3 denial uses `PqBytes.sha1` (pqforge 0.4.11). Hash
   algorithm 1 only. The iteration field is the 16-bit range. The
   iterative resolver's ceiling defaults to 0. DS digest type 1 is the

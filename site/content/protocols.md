@@ -59,8 +59,10 @@ NS, DNSKEY, DS, and RRSIG. Compression pointer cycles are rejected. Rdata name p
 message (OPEN-08). TTL cache uses an injected
 clock. `CircuitBreaker` wraps exchange and opens after
 `failureThreshold`. Resolver failover is DoH, then DoT, then UDP.
-DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge, from a
-caller-supplied trust anchor down the zone cuts. The stub sets the DO
+DNSSEC verifies algorithms 5, 7, 8, 10, 13, 14, and 15 via pqforge, from a
+caller-supplied trust anchor down the zone cuts. RSA is PKCS#1 with
+moduli of 1024, 2048, 3072, and 4096 bits. A trust anchor may be a DS
+set. Algorithm 16 (ED448) is not implemented. The stub sets the DO
 bit, requires a matching response id, retries a truncated UDP answer
 over TCP, and retries BADCOOKIE once. SOA and unknown RRs decode.
 NSEC and NSEC3 prove a missing name and a missing type, and a cached

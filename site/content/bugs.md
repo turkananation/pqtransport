@@ -15,13 +15,16 @@ Canonical tracker:
 
 ## Open
 
-None. OPEN-19 (DNSSEC, ECDSAP256SHA256) is fixed. OPEN-21 (optional
+None. OPEN-19 (DNSSEC algorithms 5, 7, 8, 10, 13, 14, and 15) is fixed.
+ED448 is not implemented. OPEN-21 (optional
 SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
 
 ## Blocked on pqforge
 
-None. pqforge **0.4.11** is the floor (SHA-1 for NSEC3, HPKE, X.509, the earlier
-BLK-01 … BLK-05 exports). OPEN-02 and OPEN-13 are **Fixed** in this tree.
+None. pqforge **0.4.13** is the floor (1024-bit RSA verify and SHA-1
+PKCS#1 for DNSSEC algorithms 5 and 7, plus the 0.4.11 SHA-1 digest,
+HPKE, X.509, and the earlier BLK-01 … BLK-05 exports). OPEN-02 and
+OPEN-13 are **Fixed** in this tree.
 
 ## Honest limits (won't fix in 0.1)
 

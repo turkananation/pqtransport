@@ -11,17 +11,30 @@ typedef DnsLookup =
       DnsType type,
     );
 
-/// A DS or a DNSKEY the caller already trusts. This is not fetched.
+/// A DS set or a DNSKEY the caller already trusts. This is not fetched.
 final class DnsTrustAnchor {
-  const DnsTrustAnchor.ds({required this.zone, required this.ds})
-    : dnskey = null;
+  DnsTrustAnchor.ds({required String zone, required DnsDs ds})
+    : this._(zone: zone, dsRecords: [ds], dnskey: null);
 
-  const DnsTrustAnchor.dnskey({required this.zone, required this.dnskey})
-    : ds = null;
+  /// More than one DS. The root publishes two KSKs.
+  DnsTrustAnchor.dsSet({required String zone, required List<DnsDs> ds})
+    : this._(zone: zone, dsRecords: ds, dnskey: null);
+
+  DnsTrustAnchor.dnskey({required String zone, required DnsDnskey dnskey})
+    : this._(zone: zone, dsRecords: const [], dnskey: dnskey);
+
+  DnsTrustAnchor._({
+    required this.zone,
+    required this.dsRecords,
+    required this.dnskey,
+  });
 
   final String zone;
-  final DnsDs? ds;
+  final List<DnsDs> dsRecords;
   final DnsDnskey? dnskey;
+
+  /// The only DS, or null when the anchor is a key or a set.
+  DnsDs? get ds => dsRecords.length == 1 ? dsRecords.single : null;
 }
 
 sealed class DnsAuth {
@@ -325,8 +338,8 @@ final class _Validator {
       final anchors = dsSet.whereType<DnsDs>().toList();
       return _selfSigned(zone, anchors, null);
     }
-    if (anchor.ds != null) {
-      return _selfSigned(zone, [anchor.ds!], null);
+    if (anchor.dsRecords.isNotEmpty) {
+      return _selfSigned(zone, anchor.dsRecords, null);
     }
     return _selfSigned(zone, const [], anchor.dnskey);
   }

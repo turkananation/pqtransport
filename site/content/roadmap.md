@@ -27,7 +27,7 @@ on the PQ path. ML-DSA DNSSEC. An authoritative DNS server.
 | 0.3 | Live KEX on all three RFC 10024 groups. SHA-384 schedule for `0x1302` |
 | 0.4 | OpenSSL 3.5.9, raw-pk and X.509, both directions. BoringSSL 0.20261020.0 on X25519MLKEM768 and X25519, secp256r1, secp384r1, MLKEM1024. Not the two NIST hybrids on BoringSSL. curl is two HTTP/1.1 GETs |
 | 0.5 | DoH, DoT, HTTP/2, HTTP/3+QPACK, QUIC loss recovery |
-| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is algorithms 8, 13, 14, and 15. Iterative resolver, NSEC and NSEC3 |
+| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is algorithms 5, 7, 8, 10, 13, 14, and 15. RSA moduli 1024 through 4096. ED448 is not implemented. Iterative resolver, NSEC and NSEC3 |
 
 ## Next
 

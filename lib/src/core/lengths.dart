@@ -167,8 +167,17 @@ const int dnssecEcdsaP256SignatureBytes = 64;
 /// RFC 4034 §2.1.1. Bit 7. A DNSKEY without this bit must not verify an RRSIG.
 const int dnssecZoneKeyFlag = 0x0100;
 
+/// RFC 4034. RSASHA1. PKCS#1 v1.5, SHA-1, via pqforge. Validation only.
+const int dnssecAlgorithmRsaSha1 = 5;
+
+/// RFC 5155. Same signature as RSASHA1. NSEC3 uses this number.
+const int dnssecAlgorithmRsaSha1Nsec3Sha1 = 7;
+
 /// RFC 5702. RSASHA256. PKCS#1 v1.5, SHA-256, via pqforge.
 const int dnssecAlgorithmRsaSha256 = 8;
+
+/// RFC 5702. RSASHA512. PKCS#1 v1.5, SHA-512, via pqforge.
+const int dnssecAlgorithmRsaSha512 = 10;
 
 /// RFC 6605. ECDSAP384SHA384.
 const int dnssecAlgorithmEcdsaP384Sha384 = 14;

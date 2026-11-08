@@ -8,7 +8,7 @@ description: Add pqtransport to a Dart or Flutter project and run the in-memory 
 ```yaml
 dependencies:
   pqtransport: ^0.1.0
-  pqforge: ^0.4.11
+  pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```
 

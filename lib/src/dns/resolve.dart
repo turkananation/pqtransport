@@ -600,9 +600,7 @@ final class DnsIterativeResolver {
           key.publicKey.length == pinned.publicKey.length &&
           _same(key.publicKey, pinned.publicKey);
     }
-    final ds = anchor.ds;
-    if (ds == null) return false;
-    return dnskeyMatchesDs(key, ds);
+    return anchor.dsRecords.any((ds) => dnskeyMatchesDs(key, ds));
   }
 }
 

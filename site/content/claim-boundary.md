@@ -18,7 +18,7 @@ later role (Client Integration) may not upgrade a claim made here.
 | Package | Floor | Role |
 | --- | --- | --- |
 | pqcrypto | 0.4.1 (via pqforge) | FIPS 203/204/205 primitives, KATs |
-| pqforge | **0.4.11** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures, X.509, `PqHpke`, `PqBytes.sha1` for NSEC3 and DS type 1 |
+| pqforge | **0.4.13** | Hybrid KEX, AEAD (incl. dart2js ChaCha), HKDF, signatures, X.509, `PqHpke`, `PqBytes.sha1` for NSEC3 and DS type 1, `PqRsa.verifyPkcs1` for DNSSEC algorithms 5, 7, 8, and 10 including a 1024-bit modulus |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
 | pqtransport | 0.1.0 in this tree | Protocol layer |
 
@@ -36,7 +36,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 - "Best-effort zeroization in Dart."
 - "Best-effort side-channel posture in Dart."
 - "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
-- "DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge. The iterative resolver returns secure, insecure, or bogus from a caller-supplied root anchor. NSEC and NSEC3 prove denial. SHA-1 is the NSEC3 hash and DS digest type 1, not a signature. The AD bit is not validation."
+- "DNSSEC verifies algorithms 5, 7, 8, 10, 13, 14, and 15 via pqforge. RSA moduli are 1024, 2048, 3072, and 4096 bits. ED448 is not implemented. The iterative resolver returns secure, insecure, or bogus from a caller-supplied root anchor. NSEC and NSEC3 prove denial. SHA-1 is the NSEC3 hash, DS digest type 1, and the hash inside algorithms 5 and 7. The AD bit is not validation."
 - "ECH is one BoringSSL 0.20261020.0 flight (RFC 9849, pqforge 0.4.10 HPKE). Not OpenSSL. Not a browser."
 
 ## Forbidden → use instead

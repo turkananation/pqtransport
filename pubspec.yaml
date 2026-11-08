@@ -22,7 +22,12 @@ workspace:
   - site
 
 dependencies:
-  pqforge: ^0.4.11
+  # Git pin of 0.4.13 (30a7279) until that version is on pub.dev.
+  # Replace with pqforge: ^0.4.13 before publishing this package.
+  pqforge:
+    git:
+      url: https://github.com/turkananation/pqforge.git
+      ref: 30a7279ff65abbb069bdedd88e49b0e76e1cde90
   zeroize: ^0.2.0
   swissarmyknife: ^0.1.0
 
