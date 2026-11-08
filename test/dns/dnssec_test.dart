@@ -456,12 +456,9 @@ void main() {
 
   group('RSA DNSKEY', () {
     final keys = <int, _RsaKey>{};
-    const onVm = bool.fromEnvironment('dart.library.io');
-    final sizes = onVm ? const [1024, 2048, 3072, 4096] : const [1024];
 
     setUpAll(() {
       keys[1024] = _rsa1024();
-      if (!onVm) return;
       for (final bits in const [2048, 3072, 4096]) {
         final kp = PqRsa.generateKeyPair(modulusBits: bits);
         keys[bits] = (
@@ -472,7 +469,7 @@ void main() {
       }
     });
 
-    for (final bits in sizes) {
+    for (final bits in const [1024, 2048, 3072, 4096]) {
       for (final algorithm in const [
         dnssecAlgorithmRsaSha1,
         dnssecAlgorithmRsaSha1Nsec3Sha1,
@@ -644,7 +641,7 @@ void main() {
     });
 
     test('RSA DS digests SHA-1, SHA-256, and SHA-384 match the DNSKEY', () {
-      final kp = keys[1024]!;
+      final kp = keys[2048]!;
       final key = DnsDnskey(
         name: 'example.com.',
         flags: dnssecZoneKeyFlag,

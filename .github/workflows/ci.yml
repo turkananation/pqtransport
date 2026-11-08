@@ -118,7 +118,7 @@ jobs:
   web:
     name: Web-portable tests (Chrome)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -135,7 +135,9 @@ jobs:
         run: dart pub get
 
       - name: Run portable tests under dart2js
-        run: dart test -p chrome
+        # One Chrome process. RSA key generation is a synchronous BigInt
+        # loop, so a second suite's load times out while it runs.
+        run: dart test -p chrome --concurrency=1
 
   interop:
     name: nghttp2, nghttp3, and OpenSSL 3.5
