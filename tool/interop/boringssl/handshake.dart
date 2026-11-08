@@ -156,8 +156,7 @@ Future<void> _asClient(
         );
       }
     } finally {
-      await records.close();
-      await socket.close();
+      socket.destroy();
     }
     final deadline = DateTime.now().add(const Duration(seconds: 5));
     while (!err.toString().contains('role=server mode=$mode') &&
@@ -386,11 +385,7 @@ Future<Socket> _connect(int port) async {
   Object? last;
   for (var i = 0; i < 50; i++) {
     try {
-      return await Socket.connect(
-        InternetAddress.loopbackIPv4,
-        port,
-        timeout: const Duration(milliseconds: 200),
-      );
+      return await Socket.connect(InternetAddress.loopbackIPv4, port);
     } on SocketException catch (e) {
       last = e;
       await Future<void>.delayed(const Duration(milliseconds: 50));

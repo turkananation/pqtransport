@@ -285,7 +285,7 @@ Future<String> _withServer(
     try {
       await body(socket);
     } finally {
-      await socket.close();
+      socket.destroy();
     }
     await server.exitCode.timeout(const Duration(seconds: 5));
     await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -345,11 +345,7 @@ Future<Socket> _connect(int port, [String Function()? detail]) async {
   Object? last;
   for (var i = 0; i < 50; i++) {
     try {
-      return await Socket.connect(
-        InternetAddress.loopbackIPv4,
-        port,
-        timeout: const Duration(milliseconds: 200),
-      );
+      return await Socket.connect(InternetAddress.loopbackIPv4, port);
     } on SocketException catch (e) {
       last = e;
       await Future<void>.delayed(const Duration(milliseconds: 50));
