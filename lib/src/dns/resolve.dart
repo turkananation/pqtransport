@@ -285,6 +285,23 @@ final class DnsIterativeResolver {
         PqTransportError.unexpectedMessage('lame referral'),
       );
     }
+    for (var i = 0; i < servers.length; i++) {
+      if (servers[i].addresses.isNotEmpty) continue;
+      if (_below(servers[i].name, child) ||
+          dnsNamesEqual(servers[i].name, child)) {
+        continue;
+      }
+      final resolved = await _resolve(servers[i].name, DnsType.a, <String>{});
+      if (resolved.isFailure) continue;
+      final got = resolved.valueOrNull!;
+      if (got.security == DnsSecurity.bogus) continue;
+      final addresses = [
+        for (final rr in got.records)
+          if (rr is DnsA) rr.address else if (rr is DnsAaaa) rr.address,
+      ];
+      if (addresses.isEmpty) continue;
+      servers[i] = _Server(servers[i].name, addresses);
+    }
     if (parent.security == DnsSecurity.secure &&
         !_verified(
           nsRecords,
