@@ -157,6 +157,9 @@ const int dnssecEcdsaP256PublicKeyBytes = 64;
 /// RFC 6605. P-256 signature is raw r || s, 32 bytes each.
 const int dnssecEcdsaP256SignatureBytes = 64;
 
+/// RFC 4034 §2.1.1. Bit 7. A DNSKEY without this bit must not verify an RRSIG.
+const int dnssecZoneKeyFlag = 0x0100;
+
 /// SHA-256 digest length. DS digest type 2.
 const int dnssecSha256DigestBytes = 32;
 

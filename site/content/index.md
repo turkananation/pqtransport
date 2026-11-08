@@ -65,7 +65,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 | pqforge | `^0.4.10` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
 | Live KEX | X25519, P-256, P-384, plus the four fallback groups |
-| DNSSEC | ECDSAP256SHA256 only. AD is not consulted |
+| DNSSEC | ECDSAP256SHA256 only. Zone bit required. AD is not consulted |
 | FFI | none |
 | Platform TLS on PQ path | none |
 

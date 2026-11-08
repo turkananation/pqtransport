@@ -60,9 +60,12 @@ message (OPEN-08). TTL cache uses an injected
 clock. `CircuitBreaker` wraps exchange and opens after
 `failureThreshold`. Resolver failover is DoH, then DoT, then UDP.
 DNSSEC verifies ECDSAP256SHA256 (algorithm 13) on a caller-supplied
-DNSKEY. A SHA-256 DS (digest type 2) can match that key. The AD bit
-is not validation. Not RSASHA256. Not NSEC or NSEC3. Not a recursive
-resolver, and the parent DS is not fetched.
+DNSKEY. The signature check is `PqEcdsaP256.verify`. RRset order is
+canonical RDATA. The zone bit is required. Validity is 32-bit serial
+arithmetic; a span of 2^31 seconds or more fails closed. A SHA-256 DS
+(digest type 2) can match that key. The AD bit is not validation. Not
+RSASHA256. Not NSEC or NSEC3. Not a recursive resolver, and the parent
+DS is not fetched.
 
 ## mDNS
 

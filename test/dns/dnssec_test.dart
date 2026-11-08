@@ -232,6 +232,157 @@ void main() {
     );
     expect(forged.isFailure, isTrue);
   });
+
+  test('canonical order is RDATA, not RDLENGTH', () {
+    final rrset = [
+      DnsTxt(name: 'example.com.', strings: ['\x7f']),
+      DnsTxt(name: 'example.com.', strings: ['', 'A']),
+    ];
+    final unsigned = DnsRrsig(
+      name: 'example.com.',
+      typeCovered: dnsTypeTxt,
+      algorithm: dnssecAlgorithmEcdsaP256Sha256,
+      labels: 2,
+      originalTtl: 3600,
+      expiration: expiration,
+      inception: inception,
+      keyTag: 1,
+      signer: 'example.com.',
+      signature: Uint8List(dnssecEcdsaP256SignatureBytes),
+    );
+    final material = dnssecSignedMaterial(rrset: rrset, rrsig: unsigned);
+    expect(material.isSuccess, isTrue, reason: '${material.errorOrNull}');
+    final bytes = material.valueOrNull!;
+    // rdlen 3, rdata 00 01 41 sorts before rdlen 2, rdata 01 7f.
+    final longer = _indexOf(bytes, const [0x00, 0x03, 0x00, 0x01, 0x41]);
+    final shorter = _indexOf(bytes, const [0x00, 0x02, 0x01, 0x7f]);
+    expect(longer, greaterThanOrEqualTo(0));
+    expect(shorter, greaterThan(longer));
+  });
+
+  test('signed material matches the RFC 4034 layout byte for byte', () {
+    final material = dnssecSignedMaterial(
+      rrset: [
+        DnsA(
+          name: 'A.Example.',
+          address: Uint8List.fromList(const [192, 0, 2, 1]),
+          ttl: 30,
+        ),
+      ],
+      rrsig: DnsRrsig(
+        name: 'A.Example.',
+        typeCovered: dnsTypeA,
+        algorithm: dnssecAlgorithmEcdsaP256Sha256,
+        labels: 2,
+        originalTtl: 3600,
+        expiration: 100,
+        inception: 10,
+        keyTag: 42,
+        signer: 'Example.',
+        signature: Uint8List(dnssecEcdsaP256SignatureBytes),
+        ttl: 60,
+      ),
+    );
+    expect(material.isSuccess, isTrue, reason: '${material.errorOrNull}');
+    expect(material.valueOrNull, <int>[
+      0x00, 0x01, // type covered: A
+      0x0d, // ECDSAP256SHA256
+      0x02, // labels
+      0x00, 0x00, 0x0e, 0x10, // original TTL 3600, not the RR TTL
+      0x00, 0x00, 0x00, 0x64, // expiration
+      0x00, 0x00, 0x00, 0x0a, // inception
+      0x00, 0x2a, // key tag
+      0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x00, // example.
+      0x01, 0x61, 0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x00,
+      0x00, 0x01, // type
+      0x00, 0x01, // class IN
+      0x00, 0x00, 0x0e, 0x10,
+      0x00, 0x04,
+      0xc0, 0x00, 0x02, 0x01,
+    ]);
+  });
+
+  test('a DNSKEY without the zone bit fails closed', () {
+    final key = DnsDnskey(
+      name: dnskey.name,
+      flags: 0,
+      protocol: dnskey.protocol,
+      algorithm: dnskey.algorithm,
+      publicKey: dnskey.publicKey,
+    );
+    final signed = _sign(rrsig, key, rrset, secret);
+    final checked = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: signed,
+      dnskey: key,
+      now: now,
+    );
+    expect(checked.isFailure, isTrue);
+  });
+
+  test('the SEP bit does not block a zone key', () {
+    final key = DnsDnskey(
+      name: dnskey.name,
+      flags: dnssecZoneKeyFlag | 0x0001,
+      protocol: dnskey.protocol,
+      algorithm: dnskey.algorithm,
+      publicKey: dnskey.publicKey,
+    );
+    final signed = _sign(rrsig, key, rrset, secret);
+    final checked = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: signed,
+      dnskey: key,
+      now: now,
+    );
+    expect(checked.isSuccess, isTrue, reason: '${checked.errorOrNull}');
+  });
+
+  test('validity uses 32-bit serial arithmetic', () {
+    const start = 0xFFFFFFF0;
+    const end = 0x00000020;
+    final unsigned = _withTimes(rrsig, inception: start, expiration: end);
+    final material = dnssecSignedMaterial(rrset: rrset, rrsig: unsigned);
+    expect(material.isSuccess, isTrue, reason: '${material.errorOrNull}');
+    final signed = _withSignature(
+      unsigned,
+      PqEcdsaP256.sign(privateKey: secret, message: material.valueOrNull!),
+    );
+    DateTime at(int seconds) =>
+        DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+    final beforeWrap = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: signed,
+      dnskey: dnskey,
+      now: at(0xFFFFFFF8),
+    );
+    final afterWrap = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: signed,
+      dnskey: dnskey,
+      now: at(0x10),
+    );
+    final pastEnd = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: signed,
+      dnskey: dnskey,
+      now: at(0x40),
+    );
+    expect(beforeWrap.isSuccess, isTrue, reason: '${beforeWrap.errorOrNull}');
+    expect(afterWrap.isSuccess, isTrue, reason: '${afterWrap.errorOrNull}');
+    expect(pastEnd.isFailure, isTrue);
+  });
+
+  test('a validity window of 2^31 seconds fails closed', () {
+    final huge = _withTimes(rrsig, inception: 0, expiration: 0x80000000);
+    final checked = verifyDnssecRrset(
+      rrset: rrset,
+      rrsig: huge,
+      dnskey: dnskey,
+      now: now,
+    );
+    expect(checked.isFailure, isTrue);
+  });
 }
 
 int _indexOf(Uint8List haystack, List<int> needle) {
@@ -247,3 +398,66 @@ int _indexOf(Uint8List haystack, List<int> needle) {
   }
   return -1;
 }
+
+DnsRrsig _sign(
+  DnsRrsig from,
+  DnsDnskey key,
+  List<DnsRecord> rrset,
+  Uint8List secret,
+) {
+  final unsigned = _withKeyTag(from, dnssecKeyTag(dnskeyWireRdata(key)));
+  final material = dnssecSignedMaterial(rrset: rrset, rrsig: unsigned);
+  if (material.isFailure) {
+    throw StateError('${material.errorOrNull}');
+  }
+  return _withSignature(
+    unsigned,
+    PqEcdsaP256.sign(privateKey: secret, message: material.valueOrNull!),
+  );
+}
+
+DnsRrsig _withKeyTag(DnsRrsig from, int keyTag) => DnsRrsig(
+  name: from.name,
+  typeCovered: from.typeCovered,
+  algorithm: from.algorithm,
+  labels: from.labels,
+  originalTtl: from.originalTtl,
+  expiration: from.expiration,
+  inception: from.inception,
+  keyTag: keyTag,
+  signer: from.signer,
+  signature: from.signature,
+  ttl: from.ttl,
+);
+
+DnsRrsig _withTimes(
+  DnsRrsig from, {
+  required int inception,
+  required int expiration,
+}) => DnsRrsig(
+  name: from.name,
+  typeCovered: from.typeCovered,
+  algorithm: from.algorithm,
+  labels: from.labels,
+  originalTtl: from.originalTtl,
+  expiration: expiration,
+  inception: inception,
+  keyTag: from.keyTag,
+  signer: from.signer,
+  signature: from.signature,
+  ttl: from.ttl,
+);
+
+DnsRrsig _withSignature(DnsRrsig from, Uint8List signature) => DnsRrsig(
+  name: from.name,
+  typeCovered: from.typeCovered,
+  algorithm: from.algorithm,
+  labels: from.labels,
+  originalTtl: from.originalTtl,
+  expiration: from.expiration,
+  inception: from.inception,
+  keyTag: from.keyTag,
+  signer: from.signer,
+  signature: signature,
+  ttl: from.ttl,
+);

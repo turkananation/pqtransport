@@ -104,7 +104,7 @@ stays the default).
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
 | 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Done.** Opt-in chain of 1 to 8. OpenSSL 3.5.9 client and server flights. Default offer stays raw public key. [ADR-0014](adr/ADR-0014-x509-certificate.md). |
-| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** ECDSAP256SHA256 (13). SHA-256 DS. AD is not consulted. Not NSEC/NSEC3. |
+| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** ECDSAP256SHA256 (13) via `PqEcdsaP256.verify`. Canonical RDATA order. Zone bit required. 32-bit serial validity. SHA-256 DS. AD is not consulted. Not NSEC/NSEC3. |
 
 0.6.2 does not include AIA, OCSP, CT, the system trust store, or Merkle
 Tree Certificates. A chain longer than 8 is a failure, not a later

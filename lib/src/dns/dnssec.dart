@@ -98,7 +98,8 @@ bool dnskeyMatchesDs(DnsDnskey key, DnsDs ds) {
 /// RFC 4034 §3.1.8.1 and §6. The signature field is not included.
 ///
 /// Wildcards are not this slice: [DnsRrsig.labels] must equal the owner
-/// label count. Two RRs are ordered by canonical RDATA, not presentation.
+/// label count. Two RRs are ordered by canonical RDATA (RFC 4034 §6.3),
+/// not by RDLENGTH and not by presentation order.
 Result<Uint8List, PqTransportError> dnssecSignedMaterial({
   required List<DnsRecord> rrset,
   required DnsRrsig rrsig,
@@ -123,7 +124,7 @@ Result<Uint8List, PqTransportError> dnssecSignedMaterial({
   if (owner.isFailure) return Result.failure(owner.errorOrNull!);
   final signer = dnsCanonicalName(rrsig.signer);
   if (signer.isFailure) return Result.failure(signer.errorOrNull!);
-  final covered = <Uint8List>[];
+  final covered = <({Uint8List rdata, Uint8List wire})>[];
   for (final rr in rrset) {
     if (rr is DnsRrsig || rr is DnsOpt) {
       return Result.failure(
@@ -153,9 +154,9 @@ Result<Uint8List, PqTransportError> dnssecSignedMaterial({
     writeUint32(rrWire, rrsig.originalTtl);
     writeUint16(rrWire, body.length);
     rrWire.add(body);
-    covered.add(rrWire.takeBytes());
+    covered.add((rdata: body, wire: rrWire.takeBytes()));
   }
-  covered.sort(_compareBytes);
+  covered.sort((a, b) => _compareBytes(a.rdata, b.rdata));
   final prefix = BytesBuilder(copy: false);
   writeUint16(prefix, rrsig.typeCovered);
   prefix.addByte(rrsig.algorithm);
@@ -166,16 +167,17 @@ Result<Uint8List, PqTransportError> dnssecSignedMaterial({
   writeUint16(prefix, rrsig.keyTag);
   prefix.add(signer.valueOrNull!);
   for (final rr in covered) {
-    prefix.add(rr);
+    prefix.add(rr.wire);
   }
   return Result.success(prefix.takeBytes());
 }
 
 /// Verifies [rrset] under [rrsig] and [dnskey].
 ///
-/// ECDSAP256SHA256 (algorithm 13) only, via pqforge P-256. [now] is the
-/// caller's clock. Valid when `inception <= now < expiration`. The DNS
-/// header AD bit is not read.
+/// ECDSAP256SHA256 (algorithm 13) only. The signature check is
+/// [PqEcdsaP256.verify]. [now] is the caller's clock. Validity is 32-bit
+/// serial arithmetic on `[inception, expiration)`. The zone bit is required.
+/// The DNS header AD bit is not read.
 Result<void, PqTransportError> verifyDnssecRrset({
   required List<DnsRecord> rrset,
   required DnsRrsig rrsig,
@@ -186,6 +188,11 @@ Result<void, PqTransportError> verifyDnssecRrset({
       dnskey.protocol != dnssecProtocol) {
     return Result.failure(
       PqTransportError.unsupported('dnskey is not ECDSAP256SHA256'),
+    );
+  }
+  if ((dnskey.flags & dnssecZoneKeyFlag) == 0) {
+    return Result.failure(
+      PqTransportError.unsupported('dnskey zone bit is clear'),
     );
   }
   if (dnskey.publicKey.length != dnssecEcdsaP256PublicKeyBytes) {
@@ -203,13 +210,8 @@ Result<void, PqTransportError> verifyDnssecRrset({
   if (dnssecKeyTag(rdata) != rrsig.keyTag) {
     return Result.failure(PqTransportError.unsupported('dnskey tag'));
   }
-  if (rrsig.expiration < rrsig.inception) {
-    return Result.failure(
-      PqTransportError.unsupported('rrsig validity wrapped'),
-    );
-  }
   final seconds = now.toUtc().millisecondsSinceEpoch ~/ 1000;
-  if (seconds < rrsig.inception || seconds >= rrsig.expiration) {
+  if (!_rrsigInWindow(seconds, rrsig.inception, rrsig.expiration)) {
     return Result.failure(
       PqTransportError.unsupported('rrsig outside validity'),
     );
@@ -235,6 +237,20 @@ bool _sameName(String a, String b) {
   final right = dnsCanonicalName(b);
   if (left.isFailure || right.isFailure) return false;
   return PqBytes.constantTimeEquals(left.valueOrNull!, right.valueOrNull!);
+}
+
+/// RFC 4034 §3.1.5 and RFC 1982. Half-open `[inception, expiration)`.
+///
+/// A span of 0, or of 2^31 seconds or more, is not a defined signature
+/// lifetime and fails closed.
+bool _rrsigInWindow(int now, int inception, int expiration) {
+  final n = now & 0xffffffff;
+  final i = inception & 0xffffffff;
+  final e = expiration & 0xffffffff;
+  final span = (e - i) & 0xffffffff;
+  if (span == 0 || span >= 0x80000000) return false;
+  final fromStart = (n - i) & 0xffffffff;
+  return fromStart < span;
 }
 
 int _compareBytes(Uint8List a, Uint8List b) {
