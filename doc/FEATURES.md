@@ -94,12 +94,12 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Header protection | Done | AES-ECB for Initial and AES 1-RTT. ChaCha20 mask (RFC 9001 §5.4.4) via pqforge 0.4.8 `chacha20`. |
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
-| `PqQuicConn` 1-RTT STREAM | Done | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Handshake keys are not minted. |
-| 0-RTT | Done | Self-interop. Long header in the Application Data space, shared with 1-RTT (RFC 9000 §12.3). Not a fourth space. Replayable. Single-use ticket. PTO stays off until the handshake is confirmed (RFC 9002 §6.2.1). `test/quic/early_data_test.dart` |
-| HTTP/1.1 request/response | Done | |
-| HTTP/1.1 GET over `PqTlsSocket` | Done | |
-| HTTP/2 | Done | RFC 9113 + RFC 7541 on `PqTlsSocket` (ALPN `h2`). Preface, SETTINGS, HEADERS/DATA, HPACK static+dynamic+Huffman. Slice 0.5.3. |
-| HTTP/3 + QPACK | Done | RFC 9114 + RFC 9204 on `PqQuicConn` (ALPN `h3`). Control SETTINGS, bidi HEADERS/DATA, QPACK static+dynamic (B.1–B.5). Slice 0.5.4. Not nghttp3. |
+| `PqQuicConn` 1-RTT STREAM | Slice | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Not a complete RFC 9000 connection. |
+| 0-RTT | Slice | Self-interop only. Long header in the Application Data space (RFC 9000 §12.3). Replayable. Single-use ticket. Not a complete 0-RTT deployment: transport parameters are not remembered until section 1 of TODO.md lands. |
+| HTTP/1.1 request/response | Slice | One request and one response. Not chunked. Not a complete RFC 9112 recipient. |
+| HTTP/1.1 GET over `PqTlsSocket` | Slice | One application-data event. |
+| HTTP/2 | Slice | Self-interop preface, SETTINGS, HEADERS, DATA, HPACK. Flow control is not enforced. Not a complete RFC 9113 stack. |
+| HTTP/3 + QPACK | Slice | Self-interop on `PqQuicConn`. Not a complete RFC 9114 stack. Not nghttp3. |
 | Silent h2/h3→h1 downgrade | Refused | `allowDowngrade: false` default |
 
 ## Platform

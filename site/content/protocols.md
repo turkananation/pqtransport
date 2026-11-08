@@ -113,11 +113,9 @@ in the [Cookbook](cookbook#mdns). The program is
 1-RTT short-header HP and Initial long-header HP. AES for Initial and
 for an AES 1-RTT suite. ChaCha20 header protection (RFC 9001 §5.4.4)
 uses the pqforge keystream. CRYPTO frames carry a live TLS handshake
-(RFC 9001, no TLS records). ACK processor is present. QUIC 0-RTT is
-self-interop. It is a long header in the Application Data packet
-number space, shared with 1-RTT, not a fourth space. Early data is
-replayable. A replayed ticket completes and accepts none. The
-Application Data PTO stays off until the handshake is confirmed.
+(RFC 9001, no TLS records). ACK processor is present. QUIC, HTTP/2,
+and HTTP/3 in this tree are self-interop slices. They are not complete
+RFC 9000, 9113, or 9114 stacks. The gap list is `TODO.md`.
 
 HTTP/1.1 request/response is Done, including GET over a completed
 `PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
