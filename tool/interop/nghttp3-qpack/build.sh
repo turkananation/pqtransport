@@ -30,8 +30,10 @@ need gcc
 # sfparse submodule, so CMake then has no sfparse.c. Clone the tag.
 if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
   rm -rf "$src"
-  git clone --depth 1 --branch "v${ver}" --recurse-submodules \
-    https://github.com/ngtcp2/nghttp3.git "$src"
+  # stdout is only the qpack_iov path. run.sh executes that line.
+  git -c advice.detachedHead=false clone --quiet --depth 1 \
+    --branch "v${ver}" --recurse-submodules \
+    https://github.com/ngtcp2/nghttp3.git "$src" >&2
 fi
 if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
   echo "nghttp3 ${ver} is missing lib/sfparse" >&2
@@ -43,9 +45,9 @@ cmake -S "$src" -B "$src/build" \
   -DENABLE_STATIC_LIB=OFF \
   -DENABLE_SHARED_LIB=ON \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX="$prefix"
-cmake --build "$src/build" -j"$(nproc)"
-cmake --install "$src/build"
+  -DCMAKE_INSTALL_PREFIX="$prefix" >&2
+cmake --build "$src/build" -j"$(nproc)" >&2
+cmake --install "$src/build" >&2
 
 mkdir -p "$dir/.build/bin"
 gcc -O2 -Wall -Wextra -o "$bin" "$dir/qpack_iov.c" \
