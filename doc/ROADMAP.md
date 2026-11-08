@@ -104,7 +104,7 @@ stays the default).
 | --- | --- | --- |
 | 0.6.1 | RFC 9002 loss detection, PTO, and NewReno | OPEN-15 **Done** |
 | 0.6.2 | X.509 when RawPublicKey was not negotiated | OPEN-14 **Done.** Opt-in chain of 1 to 8. OpenSSL 3.5.9 client and server flights. Default offer stays raw public key. [ADR-0014](adr/ADR-0014-x509-certificate.md). |
-| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** Algorithms 8, 13, 14, and 15, a caller-supplied trust anchor, NSEC and NSEC3 denial, DO bit, TC-over-TCP, and CNAME chase. NSEC3 is SHA-1 from pqforge, algorithm 1, at most 150 extra iterations. |
+| 0.6.3 | DNSSEC RRSIG for one algorithm | OPEN-19 **Done.** Iterative resolver from a root trust anchor. Algorithms 8, 13, 14, and 15. NSEC and NSEC3 denial, DNAME, qname minimization. NSEC3 ceiling defaults to 0 and can be raised through 65535. |
 
 0.6.2 does not include AIA, OCSP, CT, the system trust store, or Merkle
 Tree Certificates. A chain longer than 8 is a failure, not a later

@@ -7,6 +7,7 @@ enum DnsType {
   a,
   aaaa,
   cname,
+  dname,
   mx,
   txt,
   srv,
@@ -30,6 +31,7 @@ int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.a => dnsTypeA,
   DnsType.aaaa => dnsTypeAaaa,
   DnsType.cname => dnsTypeCname,
+  DnsType.dname => dnsTypeDname,
   DnsType.mx => dnsTypeMx,
   DnsType.txt => dnsTypeTxt,
   DnsType.srv => dnsTypeSrv,
@@ -53,6 +55,7 @@ DnsType? dnsTypeFromValue(int v) => switch (v) {
   dnsTypeA => DnsType.a,
   dnsTypeAaaa => DnsType.aaaa,
   dnsTypeCname => DnsType.cname,
+  dnsTypeDname => DnsType.dname,
   dnsTypeMx => DnsType.mx,
   dnsTypeTxt => DnsType.txt,
   dnsTypeSrv => DnsType.srv,
@@ -114,6 +117,12 @@ final class DnsCname extends DnsRecord {
   DnsCname({required super.name, required this.canonical, super.ttl = 300})
     : super(type: DnsType.cname);
   final String canonical;
+}
+
+final class DnsDname extends DnsRecord {
+  DnsDname({required super.name, required this.target, super.ttl = 300})
+    : super(type: DnsType.dname);
+  final String target;
 }
 
 final class DnsMx extends DnsRecord {
@@ -384,6 +393,15 @@ final class DnsMessage {
 
   bool get isQuery => (flags & 0x8000) == 0;
   bool get isResponse => !isQuery;
+
+  /// Low 12 bits. RFC 6891 folds the OPT extended rcode above the header rcode.
+  int get rcode {
+    final base = flags & dnsRcodeMask;
+    for (final rr in additional) {
+      if (rr is DnsOpt) return (rr.extendedRcode << 4) | base;
+    }
+    return base;
+  }
 
   Duration minTtl() {
     final ttls = [

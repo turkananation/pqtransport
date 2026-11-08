@@ -129,6 +129,7 @@ const int dnsTypeA = 1;
 const int dnsTypeNs = 2;
 const int dnsTypeCname = 5;
 const int dnsTypeSoa = 6;
+const int dnsTypeDname = 39;
 const int dnsTypePtr = 12;
 const int dnsTypeMx = 15;
 const int dnsTypeTxt = 16;
@@ -200,14 +201,31 @@ const int dnssecNsec3HashSha1 = 1;
 /// RFC 5155. Opt-Out. A covering NSEC3 may hide an insecure delegation.
 const int dnsNsec3OptOutFlag = 0x01;
 
-/// Most extra SHA-1 rounds this validator will run for one name.
+/// RFC 5011. A revoked DNSKEY must not verify an RRSIG.
+const int dnssecRevokedKeyFlag = 0x0080;
+
+/// Protocol maximum of the NSEC3 iterations field. The field is 16 bits.
 ///
-/// RFC 9276 lets a validator reject a higher count. 150 covers the
-/// RFC 5155 worked example and stops a 65535-iteration record.
-const int dnsNsec3MaxIterations = 150;
+/// The iterative resolver's default ceiling is 0 (RFC 9276). Raise
+/// [DnsIterativeResolver.maxNsec3Iterations] for a zone that still uses more.
+const int dnsNsec3MaxIterations = 65535;
+
+/// RFC 1035. Authoritative answer.
+const int dnsFlagAa = 0x0400;
+
+/// RFC 1035. Checking disabled. A validator sets this so RRSIGs are kept.
+const int dnsFlagCd = 0x0010;
 
 /// RFC 1035. Truncation. The stub retries the same query over TCP.
 const int dnsFlagTc = 0x0200;
+
+/// RFC 6891. SERVFAIL and REFUSED. The resolver tries the next server.
+const int dnsRcodeServFail = 2;
+const int dnsRcodeRefused = 5;
+
+/// RFC 7873. BADCOOKIE is extended rcode 23. EDNS option code 10.
+const int dnsRcodeBadCookie = 23;
+const int ednsOptionCookie = 10;
 
 /// RFC 1035. Response code is the low four bits.
 const int dnsRcodeMask = 0x000f;

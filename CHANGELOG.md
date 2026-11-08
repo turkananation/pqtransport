@@ -3,11 +3,15 @@
 ### Added
 
 - DNSSEC NSEC3 denial uses `PqBytes.sha1` (pqforge 0.4.11). Hash
-  algorithm 1 only. A name error needs the closest encloser, a cover of
-  the next closer, and a cover of the wildcard. NODATA is an exact
-  match, a wildcard match, or an opt-out cover of a DS query. More than
-  150 extra iterations fails closed. DS digest type 1 is the same SHA-1.
-  It is not a signature. The `.pqf` format is not involved.
+  algorithm 1 only. The iteration field is the 16-bit range. The
+  iterative resolver's ceiling defaults to 0. DS digest type 1 is the
+  same SHA-1. It is not a signature.
+- `DnsIterativeResolver` walks from caller-supplied root hints. It
+  follows referrals and glue, minimizes qnames, synthesizes DNAME, and
+  returns secure, insecure, or bogus. Answers and NSEC or NSEC3 spans
+  use the swissarmyknife cache. Queries set CD and DO and retry
+  BADCOOKIE once. The AD bit is not validation. Not an authoritative
+  server.
 - Encrypted UDP loss recovery is RFC 9002 (OPEN-20, option A). The
   handshake is a QUIC Initial long header. The client datagram is
   padded to 1200 bytes. Initial keys are RFC 9001 §5.2, from the

@@ -29,10 +29,13 @@ typedef DnsExchange = Future<Uint8List> Function(Uint8List query);
 
 /// Resolver with TTL cache and circuit breaker around every external hop.
 ///
-/// The query sets the DO bit (RFC 3225). The response id must match. A
-/// truncated response is retried on [tcp] when that exchange is set. The AD
-/// bit is not validation. [lookup] does not verify an RRSIG and does not
-/// follow CNAME. [resolve] follows CNAME. [authenticateDns] is the validator.
+/// The query sets the DO bit (RFC 3225) and the CD bit (RFC 4035) so a
+/// validator still receives RRSIGs. The response id must match. A truncated
+/// response is retried on [tcp] when that exchange is set. BADCOOKIE is
+/// retried once with the server cookie (RFC 7873). The AD bit is not
+/// validation. [lookup] does not verify an RRSIG and does not follow CNAME.
+/// [resolve] follows CNAME. [authenticateDns] checks signatures.
+/// The iterative walker is [DnsIterativeResolver] in `resolve.dart`.
 final class PqDnsClient {
   PqDnsClient({
     required this.exchange,
@@ -48,6 +51,11 @@ final class PqDnsClient {
   final CircuitBreaker breaker;
   final int failureThreshold;
   final _rand = Random();
+  Uint8List? _clientCookie;
+
+  Uint8List get clientCookie => _clientCookie ??= Uint8List.fromList(
+    List<int>.generate(8, (_) => _rand.nextInt(256)),
+  );
 
   Future<Result<DnsMessage, PqTransportError>> lookup(
     String name,
@@ -60,11 +68,46 @@ final class PqDnsClient {
     final key = DnsCacheKey(canonical, type);
     final hit = cache.get(key);
     if (hit != null) return Result.success(hit);
+    final first = await _query(name, type, clientCookie);
+    if (first.isFailure) return Result.failure(first.errorOrNull!);
+    final msg = first.valueOrNull!;
+    if (msg.rcode != dnsRcodeBadCookie) {
+      cache.put(key, msg, ttl: msg.minTtl());
+      return Result.success(msg);
+    }
+    final server = dnsServerCookie(msg, clientCookie);
+    if (server == null) {
+      return Result.failure(PqTransportError.unexpectedMessage('dns cookie'));
+    }
+    final cookie = Uint8List(clientCookie.length + server.length)
+      ..setRange(0, clientCookie.length, clientCookie)
+      ..setRange(
+        clientCookie.length,
+        clientCookie.length + server.length,
+        server,
+      );
+    final again = await _query(name, type, cookie);
+    if (again.isFailure) return Result.failure(again.errorOrNull!);
+    if (again.valueOrNull!.rcode == dnsRcodeBadCookie) {
+      return Result.failure(PqTransportError.unexpectedMessage('dns cookie'));
+    }
+    cache.put(key, again.valueOrNull!, ttl: again.valueOrNull!.minTtl());
+    return again;
+  }
+
+  Future<Result<DnsMessage, PqTransportError>> _query(
+    String name,
+    DnsType type,
+    Uint8List cookie,
+  ) async {
     final id = _rand.nextInt(0x10000);
     final q = DnsMessage(
       id: id,
+      flags: dnsFlagCd,
       questions: [DnsQuestion(name: name, type: type)],
-      additional: [DnsOpt(flags: ednsFlagDo)],
+      additional: [
+        DnsOpt(flags: ednsFlagDo, options: {ednsOptionCookie: cookie}),
+      ],
     );
     final encoded = encodeDnsMessage(q);
     if (encoded.isFailure) return Result.failure(encoded.errorOrNull!);
@@ -72,10 +115,7 @@ final class PqDnsClient {
     final first = await _once(exchange, query, id, name, type);
     if (first.isFailure) return Result.failure(first.errorOrNull!);
     final msg = first.valueOrNull!;
-    if ((msg.flags & dnsFlagTc) == 0) {
-      cache.put(key, msg, ttl: msg.minTtl());
-      return Result.success(msg);
-    }
+    if ((msg.flags & dnsFlagTc) == 0) return Result.success(msg);
     if (tcp == null) {
       return Result.failure(PqTransportError.unsupported('truncated dns'));
     }
@@ -84,7 +124,6 @@ final class PqDnsClient {
     if ((again.valueOrNull!.flags & dnsFlagTc) != 0) {
       return Result.failure(PqTransportError.unsupported('truncated dns'));
     }
-    cache.put(key, again.valueOrNull!, ttl: again.valueOrNull!.minTtl());
     return again;
   }
 
@@ -123,6 +162,21 @@ final class PqDnsClient {
     }
     return Result.success(msg);
   }
+}
+
+/// RFC 7873. Bytes after the echoed 8-byte client cookie, or null.
+Uint8List? dnsServerCookie(DnsMessage msg, Uint8List client) {
+  if (client.length != 8) return null;
+  for (final rr in msg.additional) {
+    if (rr is! DnsOpt) continue;
+    final raw = rr.options[ednsOptionCookie];
+    if (raw == null || raw.length < 16 || raw.length > 40) return null;
+    for (var i = 0; i < 8; i++) {
+      if (raw[i] != client[i]) return null;
+    }
+    return Uint8List.sublistView(raw, 8);
+  }
+  return null;
 }
 
 /// Facade that tries DoH → DoT → UDP with independent breakers.

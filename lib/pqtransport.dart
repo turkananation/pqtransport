@@ -18,6 +18,7 @@ export 'src/dns/records.dart';
 export 'src/dns/wire.dart';
 export 'src/dns/dnssec.dart';
 export 'src/dns/validate.dart';
+export 'src/dns/resolve.dart';
 export 'src/http/pq_http_client.dart';
 export 'src/http/hpack.dart';
 export 'src/http/http2.dart';

@@ -45,8 +45,8 @@ final class DnsAuthDenial extends DnsAuth {
 /// [lookup] is one query. Pass [PqDnsClient.lookup], not [PqDnsClient.resolve]:
 /// CNAME hops are validated here. The trust chain walks from [anchor] down to
 /// the signer. NSEC and NSEC3 prove denial. NSEC3 is hash algorithm 1 only
-/// (SHA-1 from pqforge, RFC 5155). More than [dnsNsec3MaxIterations] extra
-/// rounds fails closed. The AD bit is not consulted.
+/// (SHA-1 from pqforge, RFC 5155). The iteration field allows 0 through
+/// 65535. The AD bit is not consulted.
 Future<Result<DnsAuth, PqTransportError>> authenticateDns({
   required String name,
   required DnsType type,

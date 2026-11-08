@@ -112,7 +112,7 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-16 | P2 | **Fixed** | RFC 9001 §5.4.4 ChaCha20 header protection. pqforge 0.4.8 |
 | OPEN-17 | P2 | **Fixed** | RFC 9000 §4 flow control. `test/quic/lifecycle_test.dart` |
 | OPEN-18 | P2 | **Fixed** | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM |
-| OPEN-19 | P2 | **Fixed** | Validating stub. Algorithms 8, 13, 14, 15. Trust anchor, NSEC, NSEC3, DO bit, TC-over-TCP, CNAME. NSEC3 is SHA-1 from pqforge 0.4.11, algorithm 1, at most 150 extra iterations. `test/dns/stub_test.dart` |
+| OPEN-19 | P2 | **Fixed** | Iterative validating resolver. Algorithms 8, 13, 14, 15. Root anchor, referrals, NSEC, NSEC3, DNAME, DO, CD, BADCOOKIE, TC-over-TCP, CNAME. NSEC3 ceiling defaults to 0, field maximum 65535. `test/dns/resolve_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 

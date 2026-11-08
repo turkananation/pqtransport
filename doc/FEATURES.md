@@ -65,7 +65,8 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | DoT length-prefix framing | Done | RFC 7858. `DotClient` requires ALPN `dot` and reassembles split TCP frames. A non-`dot` ALPN fails closed. |
 | nghttp2/curl and nghttp3 QPACK | Done | `tool/interop`. HTTP/2 prior-knowledge DoH via curl. QPACK both ways vs libnghttp3 1.11.0. Not live `curl --http3` (hybrid QUIC vs classical TLS). |
 | DNSSEC (RRSIG/DS verify) | Done | Algorithms 8 (RSASHA256), 13 (ECDSAP256SHA256), 14 (ECDSAP384SHA384), and 15 (Ed25519), each via pqforge. Canonical RDATA order. Zone bit required. 32-bit serial validity. Wildcard owner when `labels` is smaller. DS digests SHA-256 and SHA-384. `test/dns/dnssec_test.dart`, `test/dns/stub_test.dart` |
-| Validating stub | Done | DO bit, matching id, TC retry over TCP, CNAME chase. Trust starts at a caller-supplied DS or DNSKEY and walks zone cuts. NSEC and NSEC3 name error and NODATA. NSEC3 is SHA-1 from pqforge, algorithm 1, at most 150 extra iterations. Not a recursive resolver. The AD bit is not validation. |
+| Validating stub | Done | DO bit, CD bit, matching id, TC retry over TCP, BADCOOKIE retry, CNAME chase. |
+| Iterative resolver | Done | Root hints, referrals, glue, qname minimization, DNAME, secure / insecure / bogus. NSEC and NSEC3 spans are cached. NSEC3 ceiling defaults to 0 and can be raised up to 65535. The AD bit is not validation. Not an authoritative server. |
 | SOA and unknown RR | Done | RFC 1035 SOA. RFC 3597 opaque type and rdata. |
 | Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 

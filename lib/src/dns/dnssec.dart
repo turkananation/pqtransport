@@ -249,6 +249,9 @@ Result<void, PqTransportError> verifyDnssecRrset({
       PqTransportError.unsupported('dnskey zone bit is clear'),
     );
   }
+  if ((dnskey.flags & dnssecRevokedKeyFlag) != 0) {
+    return Result.failure(PqTransportError.unsupported('dnskey revoked'));
+  }
   if (!_sameName(dnskey.name, rrsig.signer)) {
     return Result.failure(
       PqTransportError.unsupported('dnskey owner is not the signer'),
@@ -553,8 +556,9 @@ Result<void, PqTransportError> dnsNsec3ProvesNameError({
   required String qname,
   required String zone,
   required List<DnsNsec3> nsecs,
+  int maxIterations = dnsNsec3MaxIterations,
 }) {
-  final span = _Nsec3Span.parse(zone, nsecs);
+  final span = _Nsec3Span.parse(zone, nsecs, maxIterations: maxIterations);
   if (span.isFailure) return Result.failure(span.errorOrNull!);
   final proof = span.valueOrNull!;
   if (dnsNamesEqual(qname, zone) || !_under(qname, zone)) {
@@ -580,8 +584,9 @@ Result<void, PqTransportError> dnsNsec3ProvesNoData({
   required String zone,
   required int qtype,
   required List<DnsNsec3> nsecs,
+  int maxIterations = dnsNsec3MaxIterations,
 }) {
-  final span = _Nsec3Span.parse(zone, nsecs);
+  final span = _Nsec3Span.parse(zone, nsecs, maxIterations: maxIterations);
   if (span.isFailure) return Result.failure(span.errorOrNull!);
   final proof = span.valueOrNull!;
   final matched = proof.match(qname);
@@ -611,8 +616,9 @@ Result<void, PqTransportError> dnsNsec3ProvesWildcard({
   required String qname,
   required String zone,
   required List<DnsNsec3> nsecs,
+  int maxIterations = dnsNsec3MaxIterations,
 }) {
-  final span = _Nsec3Span.parse(zone, nsecs);
+  final span = _Nsec3Span.parse(zone, nsecs, maxIterations: maxIterations);
   if (span.isFailure) return Result.failure(span.errorOrNull!);
   final proof = span.valueOrNull!;
   if (proof.matches(qname)) {
@@ -627,6 +633,26 @@ Result<void, PqTransportError> dnsNsec3ProvesWildcard({
 
 String _wildcardAt(String encloser) =>
     dnsNamesEqual(encloser, '.') ? '*.' : '*.$encloser';
+
+/// RFC 6672. Replaces the [owner] suffix of [qname] with [target].
+String? dnsDnameSubstitute(String qname, String owner, String target) {
+  if (dnsNamesEqual(qname, owner)) return null;
+  var name = qname;
+  final prefix = <String>[];
+  while (!dnsNamesEqual(name, owner)) {
+    final parent = dnsParent(name);
+    if (parent == null) return null;
+    final trimmed = name.endsWith('.')
+        ? name.substring(0, name.length - 1)
+        : name;
+    final dot = trimmed.indexOf('.');
+    prefix.add(dot < 0 ? trimmed : trimmed.substring(0, dot));
+    name = parent;
+  }
+  final apex = target.endsWith('.') ? target : '$target.';
+  if (prefix.isEmpty) return apex;
+  return '${prefix.join('.')}.$apex';
+}
 
 bool _nsec3BitmapDenies(DnsNsec3 rr, int qtype) {
   if (dnsBitmapContains(rr.types, qtype)) return false;
@@ -690,11 +716,13 @@ final class _Nsec3Span {
   final int _iterations;
   final Uint8List _salt;
   final List<_Nsec3Hit> _rows;
+  final Cache<String, Uint8List> _hashed = Cache(maxSize: 64);
 
   static Result<_Nsec3Span, PqTransportError> parse(
     String zone,
-    List<DnsNsec3> nsecs,
-  ) {
+    List<DnsNsec3> nsecs, {
+    int maxIterations = dnsNsec3MaxIterations,
+  }) {
     if (nsecs.isEmpty || dnsNameKey(zone) == null) {
       return Result.failure(
         PqTransportError.unexpectedMessage('nsec3 missing'),
@@ -704,7 +732,8 @@ final class _Nsec3Span {
     if (first.hashAlgorithm != dnssecNsec3HashSha1) {
       return Result.failure(PqTransportError.unsupported('nsec3 hash'));
     }
-    if (first.iterations > dnsNsec3MaxIterations) {
+    if (first.iterations > maxIterations ||
+        first.iterations > dnsNsec3MaxIterations) {
       return Result.failure(PqTransportError.unsupported('nsec3 iterations'));
     }
     final rows = <_Nsec3Hit>[];
@@ -731,13 +760,20 @@ final class _Nsec3Span {
   }
 
   Uint8List? _hash(String name) {
+    final key = dnsNameKey(name);
+    if (key == null) return null;
+    final hit = _hashed.get(key);
+    if (hit != null) return hit;
     final hashed = dnsNsec3Hash(
       name: name,
       algorithm: _algorithm,
       iterations: _iterations,
       salt: _salt,
     );
-    return hashed.valueOrNull;
+    if (hashed.isFailure) return null;
+    final digest = hashed.valueOrNull!;
+    _hashed.put(key, digest);
+    return digest;
   }
 
   bool matches(String name) => match(name) != null;
@@ -844,6 +880,9 @@ Result<Uint8List, PqTransportError> _canonicalRdata(DnsRecord rr) {
       b.add(address);
     case DnsCname(:final canonical):
       final named = _addName(b, canonical);
+      if (named.isFailure) return Result.failure(named.errorOrNull!);
+    case DnsDname(:final target):
+      final named = _addName(b, target);
       if (named.isFailure) return Result.failure(named.errorOrNull!);
     case DnsPtr(:final pointer):
       final named = _addName(b, pointer);

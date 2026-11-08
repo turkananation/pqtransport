@@ -153,6 +153,8 @@ Result<void, PqTransportError> _writeRdata(BytesBuilder b, DnsRecord rr) {
       b.add(address);
     case DnsCname(:final canonical):
       return _writeName(b, canonical);
+    case DnsDname(:final target):
+      return _writeName(b, target);
     case DnsPtr(:final pointer):
       return _writeName(b, pointer);
     case DnsNs(:final nameserver):
@@ -477,6 +479,10 @@ final class _DnsReader {
         final n = readName(end: rdataEnd);
         if (n == null) return null;
         return DnsCname(name: name, canonical: n, ttl: ttl);
+      case DnsType.dname:
+        final dname = readName(end: rdataEnd);
+        if (dname == null) return null;
+        return DnsDname(name: name, target: dname, ttl: ttl);
       case DnsType.ptr:
         final n = readName(end: rdataEnd);
         if (n == null) return null;
