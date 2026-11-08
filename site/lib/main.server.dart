@@ -38,6 +38,7 @@ void main() {
                   SidebarLink(text: 'Hybrid Groups', href: 'hybrid'),
                   SidebarLink(text: 'Protocols', href: 'protocols'),
                   SidebarLink(text: 'API Guide', href: 'api'),
+                  SidebarLink(text: 'Reference', href: 'reference'),
                   SidebarLink(text: 'Cookbook', href: 'cookbook'),
                   SidebarLink(text: 'Peers', href: 'peers'),
                   SidebarLink(text: 'Platform Support', href: 'platform'),

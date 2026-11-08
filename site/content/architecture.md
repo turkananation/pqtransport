@@ -73,7 +73,7 @@ SecP384r1MLKEM1024
 
 Implemented in `lib/src/core/hybrid.dart`. See [Hybrid Groups](hybrid).
 
-## TLS 1.3 (0.1.0 shape)
+## TLS 1.3
 
 RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
 `supported_versions`, `key_share`, SNI, ALPN). Cipher suite is IANA

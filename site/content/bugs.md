@@ -1,6 +1,6 @@
 ---
 title: Bugs
-description: Open, blocked, limited, and fixed defects in pqtransport 0.1.0.
+description: Open, blocked, limited, and fixed defects in pqtransport 0.2.0.
 ---
 
 Canonical tracker:
@@ -28,8 +28,8 @@ OPEN-13 are **Fixed** in this tree.
 
 ## Honest limits (won't fix in 0.1)
 
-LIM-01 is the raw-pk OpenSSL row in `tool/interop/openssl`. The X.509
-and BoringSSL flights do not replace that row. LIM-02 CMVP / FIPS 140.
+LIM-01 was the raw-public-key OpenSSL row. OpenSSL 3.5.9 now completes
+that row, and the X.509 row, in both directions. LIM-02 is CMVP / FIPS 140.
 LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
 mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not sent.
 

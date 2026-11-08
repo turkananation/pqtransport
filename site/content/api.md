@@ -6,6 +6,8 @@ description: Public types in pqtransport 0.2.0. Web barrel and IO barrel.
 Adding a symbol to the web barrel requires a test that imports only
 `package:pqtransport/pqtransport.dart`.
 
+The field-by-field constructors are the [Reference](reference).
+
 ## Install
 
 ```yaml
