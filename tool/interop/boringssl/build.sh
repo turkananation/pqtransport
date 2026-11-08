@@ -42,8 +42,8 @@ src="$prefix/src"
 mkdir -p "$src"
 cd "$src"
 if [ ! -d boringssl/.git ]; then
-  git clone --depth 1 --branch "$BORINGSSL_TAG" \
-    https://github.com/google/boringssl boringssl
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$BORINGSSL_TAG" \
+    https://github.com/google/boringssl boringssl >&2
 fi
 cd boringssl
 got=$(git rev-parse HEAD)
@@ -53,9 +53,9 @@ if [ "$got" != "$BORINGSSL_COMMIT" ]; then
 fi
 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$prefix" \
-  -DBUILD_TESTING=OFF
-ninja -C build bssl
-cmake --install build
+  -DBUILD_TESTING=OFF >&2
+ninja -C build bssl >&2
+cmake --install build >&2
 mkdir -p "$prefix/bin"
 c++ -O2 -o "$verify" \
   "$root/boringssl_verify.c" \
