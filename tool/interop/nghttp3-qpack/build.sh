@@ -7,7 +7,7 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 ver="1.11.0"
 prefix="$dir/.build/nghttp3"
 bin="$dir/.build/bin/qpack_iov"
-url="https://github.com/ngtcp2/nghttp3/releases/download/v${ver}/nghttp3-${ver}.tar.xz"
+src="$dir/.build/src/nghttp3-${ver}"
 
 if [[ -x "$bin" && -f "$prefix/lib/libnghttp3.so" ]]; then
   echo "$bin"
@@ -20,31 +20,36 @@ need() {
     exit 1
   fi
 }
-need curl
-need tar
+need git
+need cmake
 need make
 need gcc
 
-mkdir -p "$dir/.build/src" "$dir/.build/bin"
-tarball="$dir/.build/src/nghttp3-${ver}.tar.xz"
-if [[ ! -f "$tarball" ]]; then
-  curl -fsSL -o "$tarball" -L "$url"
+# The release asset is release-assets.githubusercontent.com, which
+# Actions answers with HTTP 504. The tag archive on codeload omits the
+# sfparse submodule, so CMake then has no sfparse.c. Clone the tag.
+if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
+  rm -rf "$src"
+  # stdout is only the qpack_iov path. run.sh executes that line.
+  git -c advice.detachedHead=false clone --quiet --depth 1 \
+    --branch "v${ver}" --recurse-submodules \
+    https://github.com/ngtcp2/nghttp3.git "$src" >&2
 fi
-rm -rf "$dir/.build/src/nghttp3-${ver}"
-# The release tarball may fail chown inside this sandbox. Files are
-# still on disk; require configure to exist rather than tar's status.
-set +e
-tar --no-same-owner -xf "$tarball" -C "$dir/.build/src"
-set -e
-if [[ ! -f "$dir/.build/src/nghttp3-${ver}/configure" ]]; then
-  echo "nghttp3 ${ver} did not extract" >&2
+if [[ ! -f "$src/lib/sfparse/sfparse.c" ]]; then
+  echo "nghttp3 ${ver} is missing lib/sfparse" >&2
   exit 1
 fi
-cd "$dir/.build/src/nghttp3-${ver}"
-./configure --prefix="$prefix" --disable-static >/dev/null
-make -j"$(nproc)" >/dev/null
-make install >/dev/null
 
+cmake -S "$src" -B "$src/build" \
+  -DENABLE_LIB_ONLY=ON \
+  -DENABLE_STATIC_LIB=OFF \
+  -DENABLE_SHARED_LIB=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$prefix" >&2
+cmake --build "$src/build" -j"$(nproc)" >&2
+cmake --install "$src/build" >&2
+
+mkdir -p "$dir/.build/bin"
 gcc -O2 -Wall -Wextra -o "$bin" "$dir/qpack_iov.c" \
   -I"$prefix/include" \
   -L"$prefix/lib" -lnghttp3 \

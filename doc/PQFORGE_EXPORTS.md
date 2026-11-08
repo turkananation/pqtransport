@@ -1,14 +1,21 @@
 # pqforge exports pqtransport needs
 
-Last updated: 2026-11-02
+Last updated: 2026-11-08
 
 pqtransport must not vendor a second Kyber, a second X25519, or a second
 AES-GCM. When a primitive is missing, the correct move is a pqforge
 export, then a thin call here.
 
-Floor today: **pqforge 0.4.10**. The 0.4.6 notes below stay as history.
+Floor today: **pqforge 0.4.13**. The 0.4.6 and 0.4.11 notes below stay
+as history.
 **0.4.9** is the X.509 parser this package calls. **0.4.10** exports
 `PqHpke`. ECH calls that type. It does not keep a second HPKE.
+**0.4.11** exports `PqBytes.sha1`. NSEC3 and DS digest type 1 call it.
+**0.4.13** makes `PqRsa.verifyPkcs1` accept a 1024, 2048, 3072, or
+4096 bit modulus, and adds `PqRsaHash.sha1`. DNSSEC algorithms 5 and 7
+call that hash. Algorithms 8 and 10 call SHA-256 and SHA-512.
+`generateKeyPair` still refuses 1024. SHA-1 is not used for new
+signatures outside those two DNSSEC algorithm numbers.
 
 BLK-01 … BLK-05 landed in 0.4.4. **0.4.5** makes the sync ChaCha helper
 dart2js-safe. **0.4.6** exports AES-ECB (`aesEncryptBlock`) and
@@ -35,7 +42,8 @@ This file records what we consume and what is still not wired. IDs:
 | **AES-128-GCM + AES-ECB (OPEN-06)** | `aes128GcmEncrypt` / `Decrypt`, `aesEncryptBlock` (16- or 32-byte key) — QUIC Initial AEAD and header protection |
 | **Sync ChaCha (BLK-03 → OPEN-13)** | `chacha20Poly1305Encrypt` / `Decrypt` — **wired** into `aeadSeal`. dart2js-safe (Dart engine, 0.4.5). `supportsChaCha20Poly1305` is always `true`. Report: [CHACHA_DART2JS.md](CHACHA_DART2JS.md). |
 | **ChaCha20 keystream (OPEN-16)** | `chacha20` — RFC 8439 keystream, caller counter. QUIC header protection (RFC 9001 §5.4.4), pqforge 0.4.8. Not the Poly1305 AEAD. |
-| **RFC 9180 HPKE (0.4.10)** | `PqHpke.setupSender` / `setupRecipient`, `HpkeSuite.x25519Aes128Gcm`, base mode, from `PqTransportCrypto`. ECH only. Not X448. Not P-256, P-384, or P-521 HPKE. Not PSK or auth. |
+| **RSA PKCS#1 verify (0.4.13)** | `PqRsa.verifyPkcs1` with `PqRsaHash.sha1`, `.sha256`, or `.sha512`. DNSSEC algorithms 5, 7, 8, and 10. Moduli 1024, 2048, 3072, 4096. Not PSS. |
+| **Ed448 (0.4.13)** | `PqEd448.verify`. DNSSEC algorithm 16. Pure Ed448, empty context. 57-byte key, 114-byte signature. Not Ed448ph. Not X.509. |
 | ChaCha session object | `PqForgeSecureSession` — still not a TLS record primitive |
 | Combiner HKDF | `PqForgeCombiner.combine()` — **always** `classical \|\| PQ`, then HKDF. Must **not** be the TLS combiner |
 | **Concat-only join (BLK-04)** | `concatenateSharedSecrets` + `PqHybridConcatOrder` |
@@ -45,7 +53,7 @@ This file records what we consume and what is still not wired. IDs:
 
 ## Consumed in this tree
 
-1. Floor is `pqforge ^0.4.10`. The 0.4.6 bump is history.
+1. Floor is hosted pqforge 0.4.13. `PqBytes.sha1` is NSEC3 and DS digest type 1. `PqRsaHash.sha1` is DNSSEC algorithms 5 and 7 only. `PqEd448` is algorithm 16, empty context. SHA-224 is a PKCS#1 hash in pqforge and not a DNSSEC algorithm.
 2. Call new helpers **only** from `PqTransportCrypto`.
 3. Live handshake tests for all three RFC 10024 groups.
 4. Local HMAC Expand loop deleted.
@@ -71,7 +79,7 @@ OPEN-02 and OPEN-13 are **Fixed**.
 
 ## Integration rule after an export lands
 
-1. Bump `pqforge` in `pubspec.yaml` (do not pin a git path).
+1. Bump `pqforge` in `pubspec.yaml` to the hosted version. Do not leave a git pin in a commit that can be published.
 2. Call the new helper from `PqTransportCrypto` only.
 3. Delete the local adapter in the same PR.
 4. Add a live handshake test for any newly unlocked group.

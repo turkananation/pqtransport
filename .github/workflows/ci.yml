@@ -112,13 +112,21 @@ jobs:
         run: |
           set -euo pipefail
           dart run example/pq_tls_client.dart
+          dart run example/tls13.dart
+          dart run example/http1.dart
+          dart run example/http2.dart
+          dart run example/http3.dart
+          dart run example/doh.dart
+          dart run example/dot.dart
+          dart run example/dns_stub.dart
           dart run example/encrypted_udp_peer.dart
           dart run example/mdns_discovery.dart
+          dart run example/dns_validate.dart
 
   web:
     name: Web-portable tests (Chrome)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -135,7 +143,9 @@ jobs:
         run: dart pub get
 
       - name: Run portable tests under dart2js
-        run: dart test -p chrome
+        # One Chrome process. RSA key generation is a synchronous BigInt
+        # loop, so a second suite's load times out while it runs.
+        run: dart test -p chrome --concurrency=1
 
   interop:
     name: nghttp2, nghttp3, and OpenSSL 3.5

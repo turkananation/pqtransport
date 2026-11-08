@@ -11,8 +11,8 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 
 | Import | Platforms | Provides |
 | --- | --- | --- |
-| `package:pqtransport/pqtransport.dart` | VM, Flutter, web | TLS, HTTP/1.1, DNS codec, hybrid, memory sockets, QUIC sketch |
-| `package:pqtransport/pqtransport_io.dart` | Dart VM, Flutter mobile/desktop | Plus `IoDatagramChannel` |
+| `package:pqtransport/pqtransport.dart` | VM, Flutter, web | TLS, HTTP/1.1–2, DNSSEC, DoH codecs, hybrid, memory sockets, QUIC packet protection |
+| `package:pqtransport/pqtransport_io.dart` | Dart VM, Flutter mobile/desktop | Plus `IoDatagramChannel`, `IoTcpSocket`, `IoTcpServer` |
 
 ## Matrix
 
@@ -26,7 +26,9 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | Encrypted UDP (memory) | Yes | Yes | Yes |
 | Encrypted UDP (real NIC) | Yes | Yes | **No** |
 | mDNS on a real LAN | Yes (`joinMulticast`) | Yes | **No** |
-| QUIC / HTTP/3 | Self-interop (`PqQuicConn`) | Self-interop | No raw UDP |
+| DNSSEC validate / iterative resolve | Yes | Yes | Yes. The network send is the caller's |
+| QUIC / HTTP/3 | Self-interop on `PqQuicConn`. QPACK field sections also round-trip with nghttp3 1.11.0 | Self-interop | No raw UDP |
+| OpenSSL 3.5.9 / BoringSSL 0.20261020.0 | The [Peers](peers) job | Same code | Not a browser |
 | `SecureSocket` on PQ path | Not used | Not used | Not used |
 
 Browsers do not expose generic UDP, multicast, or a raw QUIC socket.

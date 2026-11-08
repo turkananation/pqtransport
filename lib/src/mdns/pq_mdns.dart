@@ -4,6 +4,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/errors.dart';
 import '../core/lengths.dart';
+import '../dns/dnssec.dart';
 import '../dns/records.dart';
 import '../dns/wire.dart';
 import '../socket/pq_transport_socket.dart';
@@ -116,7 +117,7 @@ final class PqMdnsServer {
     } else {
       machine.trigger(MdnsEvent.announce);
     }
-    registry.put(record.name, record);
+    registry.put(dnsNameKey(record.name) ?? record.name, record);
     final msg = DnsMessage(id: 0, flags: 0x8400, answers: [record]);
     final wire = encodeDnsMessage(msg);
     if (wire.isFailure) return Result.failure(wire.errorOrNull!);
@@ -149,7 +150,7 @@ final class PqMdnsClient {
       final msg = decodeDnsMessage(d.data);
       if (msg.isFailure) return;
       for (final rr in msg.valueOrNull!.answers) {
-        seen.put(rr.name, rr);
+        seen.put(dnsNameKey(rr.name) ?? rr.name, rr);
         bus.fire(MdnsServiceEvent(rr.name, rr));
       }
     });

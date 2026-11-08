@@ -18,8 +18,9 @@ This file records **transport** defects. Primitive KATs live in pqcrypto.
 
 ## Open bugs
 
-None. OPEN-14 (X.509) is **Fixed**. LIM-01 remains the raw-pk OpenSSL
-row. The X.509 flights do not replace that row.
+None. OPEN-14 (X.509) is **Fixed**. OPEN-19 (DNSSEC algorithms 5, 7,
+8, 10, 13, 14, 15, and 16) is **Fixed**. LIM-01 remains the raw-pk OpenSSL row. The X.509 flights
+do not replace that row.
 
 ## Blocked on pqforge
 

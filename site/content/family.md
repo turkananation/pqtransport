@@ -1,41 +1,19 @@
 ---
 title: Sister packages
-description: pqcrypto, pqforge, swissarmyknife, and pqtransport — one stack, four claim floors.
+description: pqtransport is a product of Yardenah PQ, on top of pqforge and swissarmyknife.
 ---
 
-The TurkanaNation post-quantum Dart family is four packages with a
-strict evidence floor. Do not upgrade a claim this layer is not allowed
-to make.
-
-[![pqcrypto](https://img.shields.io/badge/pqcrypto-primitives-2f855a?style=for-the-badge)](https://turkananation.github.io/pqcrypto/)
-[![pqforge](https://img.shields.io/badge/pqforge-recipes-4ee0d4?style=for-the-badge)](https://turkananation.github.io/pqforge/)
-[![swissarmyknife](https://img.shields.io/badge/swissarmyknife-utilities-b6f25c?style=for-the-badge)](https://turkananation.github.io/swissarmyknife/)
-[![pqtransport](https://img.shields.io/badge/pqtransport-this_site-f5c35b?style=for-the-badge)](./)
+[Yardenah PQ](https://yardenah.com) is the lab. pqtransport is one
+product of that lab. Cryptography stays in pqforge. This package does
+not take a direct `pqcrypto` dependency.
 
 | Package | Site | Role |
 | --- | --- | --- |
-| [pqcrypto](https://turkananation.github.io/pqcrypto/) | primitives | FIPS 203/204/205 + KAT / ACVP evidence. Zero runtime deps. |
-| [pqforge](https://turkananation.github.io/pqforge/) | recipes | KEM-DEM, hybrids, AES-256-GCM, streaming, CLI. Sits on pqcrypto. |
-| [swissarmyknife](https://turkananation.github.io/swissarmyknife/) | utilities | Result, StateMachine, Cache, CircuitBreaker, Throttler. Jaspr site. |
-| **pqtransport** | this site | Protocol layer. Sits on pqforge + swissarmyknife. |
+| [pqcrypto](https://turkananation.github.io/pqcrypto/) | primitives | FIPS 203/204/205 and the KAT corpus. Zero runtime deps. |
+| [pqforge](https://turkananation.github.io/pqforge/) | recipes | ML-KEM, ML-DSA, SLH-DSA, Ed25519, Ed448, RSA, X25519, P-256, P-384, P-521, AES-GCM, ChaCha, HKDF, HPKE, X.509. |
+| [swissarmyknife](https://turkananation.github.io/swissarmyknife/) | utilities | Result, StateMachine, Cache, CircuitBreaker, Throttler. |
+| **pqtransport** | this site | TLS, UDP, DNSSEC, DoH, DoT, mDNS, QUIC, HTTP/1.1–3. |
 
-## Routing rule for agents
-
-- Need KATs, ML-KEM encapsulate, ML-DSA sign, SLH-DSA? → **pqcrypto**.
-- Need envelopes, files, hybrid application KEX, CLI? → **pqforge**.
-- Need Result / StateMachine / breaker / cache? → **swissarmyknife**.
-- Need TLS / UDP / DNS / mDNS / QUIC / HTTP over PQ crypto? → **pqtransport**.
-
-pqtransport must not take a direct `pqcrypto` dependency unless a
-documented exception lands. Crypto stays one stack (`pqforge`).
-
-## Visual family
-
-- pqcrypto — light forest, evidence-first, algorithm tables.
-- pqforge — dark cyan / gold, named recipes, CLI.
-- swissarmyknife — cream / emerald, Jaspr docs layout, release discipline.
-- pqtransport — ink / phosphor lattice / cyan wire. Hybrid of lattice
-  and classical, because that **is** the RFC 10024 story.
-
-This site is a Jaspr static build, matching swissarmyknife, with the
-PQ/hybrid theme of the crypto sisters.
+- Need a signature or a KEM? **pqforge**.
+- Need `Result`, a state machine, or a cache? **swissarmyknife**.
+- Need a handshake, a DNSSEC check, or an HTTP client over that crypto? **pqtransport**.

@@ -19,7 +19,7 @@ Sister evidence:
 | pqcrypto | 0.4.1 (via pqforge, not a direct dep) | FIPS 203/204/205 primitives, KATs |
 | pqforge | **0.4.8** | Hybrid KEX, AEAD (incl. dart2js ChaCha), ChaCha20 keystream for QUIC HP, HKDF, signatures |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
-| pqtransport | 0.1.0 in this tree, unpublished until gates pass | Protocol layer |
+| pqtransport | 0.2.0 | Protocol layer |
 
 SDK: **`>=3.12.0 <4.0.0`**. The original blueprint said `>=3.8.0`; both
 foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
@@ -130,7 +130,7 @@ Also forbidden in meaning, even if the substring differs:
 | QUIC | RFC 9000, 9001, 9002 | Self-interop. Loss detection (§6), PTO, and NewReno (§7, Appendix B) via `QuicLossRecovery`. Flow control (§4) and CONNECTION_CLOSE / drain (§10.2). A local idle timeout closes the connection only when the caller sets it; `max_idle_timeout` is not negotiated. Handshake packet numbers are tracked; Handshake protection keys are not minted. ChaCha20 header protection is the RFC 9001 §5.4.4 mask (pqforge 0.4.8). Not ECN, migration, multipath, or anti-amplification. Not 0-RTT (LIM-05, issue 55): early data is not sent, so the Application Data space is 1-RTT only (RFC 9000 §12.3) and its PTO stays disarmed until the handshake is confirmed (RFC 9002 §6.2.1). Not `curl --http3`. The encrypted UDP handshake is an Initial long header. The client datagram is at least 1200 bytes. A peer opens it with `QuicInitialCodec` from the destination connection ID. Data packets are 1-RTT short headers opened by `QuicPacketCodec`. |
 | HTTP/2 | RFC 9113, RFC 7541, RFC 7301 | Self-interop on `PqTlsSocket` ALPN `h2`. Not nghttp2/curl. |
 | HTTP/3 | RFC 9114, RFC 9204 | Self-interop on `PqQuicConn` ALPN `h3`. Not nghttp3/curl. |
-| DNS / EDNS0 / SVCB / DoH / DoT / mDNS | RFC 1035, 6891, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH (`DohClient`, ALPN `h2`/`h3`, URI template) and DoT (ALPN `dot`). Live `curl --http3` is not claimed. |
+| DNS / EDNS0 / SVCB / DoH / DoT / mDNS / DNSSEC | RFC 1034, 1035, 2181, 2308, 3597, 3225, 4033, 4034, 4035, 5011, 5155, 5702, 6605, 6672, 6891, 7873, 8080, 8198, 9156, 9276, 9460, 8484, 7858, 6762/6763 | Wire plus production DoH and DoT. The stub sets DO and CD, matches the response id, retries truncation over TCP, and retries BADCOOKIE once. The iterative resolver starts from caller-supplied root hints, follows referrals and glue, minimizes qnames, and returns secure, insecure, or bogus. CNAME and DNAME are followed. NSEC and NSEC3 proofs are cached and answer later names in the span. NSEC3 hash algorithm 1 is `PqBytes.sha1`. The iteration field is 0 through 65535. The resolver ceiling defaults to 0. The AD bit is not validation. Algorithms 5, 7, 8, 10, 13, 14, and 15. RSA moduli 1024, 2048, 3072, and 4096. A trust anchor may be a DS set. Algorithm 16 (Ed448) verifies with an empty context. Not an authoritative server. mDNS cache keys are the DNS canonical name. Live `curl --http3` is not claimed. |
 | X25519 | RFC 7748 | Via pqforge. Also a whole TLS group (`0x001D`) when the peer does not take the hybrid. |
 
 RFC 10024 note (normative): the group name `X25519MLKEM768` does **not**

@@ -17,7 +17,7 @@ openssl_prefix=$(CDPATH= cd -- "$(dirname "$openssl_bin")/.." && pwd)
 version=8.16.0
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
-curl -fsSL -o "$workdir/curl.tar.gz" \
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o "$workdir/curl.tar.gz" \
   "https://curl.se/download/curl-${version}.tar.gz"
 tar -xzf "$workdir/curl.tar.gz" -C "$workdir"
 cd "$workdir/curl-${version}"

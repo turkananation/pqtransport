@@ -3,12 +3,35 @@ import 'dart:typed_data';
 
 import '../core/lengths.dart';
 
-enum DnsType { a, aaaa, cname, mx, txt, srv, caa, https, svcb, opt, ptr, ns }
+enum DnsType {
+  a,
+  aaaa,
+  cname,
+  dname,
+  mx,
+  txt,
+  srv,
+  caa,
+  https,
+  svcb,
+  opt,
+  ptr,
+  ns,
+  dnskey,
+  ds,
+  rrsig,
+  soa,
+  nsec,
+  nsec3,
+  nsec3param,
+  opaque,
+}
 
 int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.a => dnsTypeA,
   DnsType.aaaa => dnsTypeAaaa,
   DnsType.cname => dnsTypeCname,
+  DnsType.dname => dnsTypeDname,
   DnsType.mx => dnsTypeMx,
   DnsType.txt => dnsTypeTxt,
   DnsType.srv => dnsTypeSrv,
@@ -18,12 +41,21 @@ int dnsTypeValue(DnsType t) => switch (t) {
   DnsType.opt => dnsTypeOpt,
   DnsType.ptr => dnsTypePtr,
   DnsType.ns => dnsTypeNs,
+  DnsType.dnskey => dnsTypeDnskey,
+  DnsType.ds => dnsTypeDs,
+  DnsType.rrsig => dnsTypeRrsig,
+  DnsType.soa => dnsTypeSoa,
+  DnsType.nsec => dnsTypeNsec,
+  DnsType.nsec3 => dnsTypeNsec3,
+  DnsType.nsec3param => dnsTypeNsec3param,
+  DnsType.opaque => 0,
 };
 
 DnsType? dnsTypeFromValue(int v) => switch (v) {
   dnsTypeA => DnsType.a,
   dnsTypeAaaa => DnsType.aaaa,
   dnsTypeCname => DnsType.cname,
+  dnsTypeDname => DnsType.dname,
   dnsTypeMx => DnsType.mx,
   dnsTypeTxt => DnsType.txt,
   dnsTypeSrv => DnsType.srv,
@@ -33,6 +65,13 @@ DnsType? dnsTypeFromValue(int v) => switch (v) {
   dnsTypeOpt => DnsType.opt,
   dnsTypePtr => DnsType.ptr,
   dnsTypeNs => DnsType.ns,
+  dnsTypeDnskey => DnsType.dnskey,
+  dnsTypeDs => DnsType.ds,
+  dnsTypeRrsig => DnsType.rrsig,
+  dnsTypeSoa => DnsType.soa,
+  dnsTypeNsec => DnsType.nsec,
+  dnsTypeNsec3 => DnsType.nsec3,
+  dnsTypeNsec3param => DnsType.nsec3param,
   _ => null,
 };
 
@@ -78,6 +117,12 @@ final class DnsCname extends DnsRecord {
   DnsCname({required super.name, required this.canonical, super.ttl = 300})
     : super(type: DnsType.cname);
   final String canonical;
+}
+
+final class DnsDname extends DnsRecord {
+  DnsDname({required super.name, required this.target, super.ttl = 300})
+    : super(type: DnsType.dname);
+  final String target;
 }
 
 final class DnsMx extends DnsRecord {
@@ -176,6 +221,159 @@ final class DnsNs extends DnsRecord {
   final String nameserver;
 }
 
+/// RFC 4034 DNSKEY. [publicKey] is the algorithm-specific key, not a SPKI.
+final class DnsDnskey extends DnsRecord {
+  DnsDnskey({
+    required super.name,
+    required this.flags,
+    required this.protocol,
+    required this.algorithm,
+    required this.publicKey,
+    super.ttl = 300,
+  }) : super(type: DnsType.dnskey);
+
+  final int flags;
+  final int protocol;
+  final int algorithm;
+  final Uint8List publicKey;
+}
+
+/// RFC 4034 DS. Digest bytes are not checked until [dnskeyMatchesDs].
+final class DnsDs extends DnsRecord {
+  DnsDs({
+    required super.name,
+    required this.keyTag,
+    required this.algorithm,
+    required this.digestType,
+    required this.digest,
+    super.ttl = 300,
+  }) : super(type: DnsType.ds);
+
+  final int keyTag;
+  final int algorithm;
+  final int digestType;
+  final Uint8List digest;
+}
+
+/// RFC 4034 RRSIG. [signature] is not verified by the codec.
+final class DnsRrsig extends DnsRecord {
+  DnsRrsig({
+    required super.name,
+    required this.typeCovered,
+    required this.algorithm,
+    required this.labels,
+    required this.originalTtl,
+    required this.expiration,
+    required this.inception,
+    required this.keyTag,
+    required this.signer,
+    required this.signature,
+    super.ttl = 300,
+  }) : super(type: DnsType.rrsig);
+
+  final int typeCovered;
+  final int algorithm;
+  final int labels;
+  final int originalTtl;
+  final int expiration;
+  final int inception;
+  final int keyTag;
+  final String signer;
+  final Uint8List signature;
+}
+
+/// RFC 1035 SOA.
+final class DnsSoa extends DnsRecord {
+  DnsSoa({
+    required super.name,
+    required this.mname,
+    required this.rname,
+    required this.serial,
+    required this.refresh,
+    required this.retry,
+    required this.expire,
+    required this.minimum,
+    super.ttl = 300,
+  }) : super(type: DnsType.soa);
+
+  final String mname;
+  final String rname;
+  final int serial;
+  final int refresh;
+  final int retry;
+  final int expire;
+  final int minimum;
+}
+
+/// RFC 4034 NSEC. [types] is the wire type bitmap.
+final class DnsNsec extends DnsRecord {
+  DnsNsec({
+    required super.name,
+    required this.next,
+    required this.types,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec);
+
+  final String next;
+  final Uint8List types;
+}
+
+/// RFC 5155 NSEC3. The hash is raw owner bytes, not a presentation name.
+final class DnsNsec3 extends DnsRecord {
+  DnsNsec3({
+    required super.name,
+    required this.hashAlgorithm,
+    required this.flags,
+    required this.iterations,
+    required this.salt,
+    required this.next,
+    required this.types,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec3);
+
+  final int hashAlgorithm;
+  final int flags;
+  final int iterations;
+  final Uint8List salt;
+  final Uint8List next;
+  final Uint8List types;
+}
+
+/// RFC 5155 NSEC3PARAM.
+final class DnsNsec3param extends DnsRecord {
+  DnsNsec3param({
+    required super.name,
+    required this.hashAlgorithm,
+    required this.flags,
+    required this.iterations,
+    required this.salt,
+    super.ttl = 300,
+  }) : super(type: DnsType.nsec3param);
+
+  final int hashAlgorithm;
+  final int flags;
+  final int iterations;
+  final Uint8List salt;
+}
+
+/// RFC 3597. An RR this codec does not interpret. [rdata] is the raw body.
+final class DnsOpaque extends DnsRecord {
+  DnsOpaque({
+    required super.name,
+    required this.typeCode,
+    required this.rdata,
+    super.ttl = 0,
+    super.klass = dnsClassIn,
+  }) : super(type: DnsType.opaque);
+
+  final int typeCode;
+  final Uint8List rdata;
+}
+
+/// Wire type of [rr]. Opaque records keep the code from the message.
+int dnsRecordType(DnsRecord rr) =>
+    rr is DnsOpaque ? rr.typeCode : dnsTypeValue(rr.type);
+
 final class DnsMessage {
   const DnsMessage({
     required this.id,
@@ -195,6 +393,15 @@ final class DnsMessage {
 
   bool get isQuery => (flags & 0x8000) == 0;
   bool get isResponse => !isQuery;
+
+  /// Low 12 bits. RFC 6891 folds the OPT extended rcode above the header rcode.
+  int get rcode {
+    final base = flags & dnsRcodeMask;
+    for (final rr in additional) {
+      if (rr is DnsOpt) return (rr.extendedRcode << 4) | base;
+    }
+    return base;
+  }
 
   Duration minTtl() {
     final ttls = [

@@ -1,16 +1,16 @@
 # API
 
-Last updated: 2026-09-17
+Last updated: 2026-11-08
 
-Frozen v0.1.0 names. Adding a symbol to the web barrel requires a test that
+Public names for 0.2.0. Adding a symbol to the web barrel requires a test that
 imports only `package:pqtransport/pqtransport.dart`.
 
 ## Install
 
 ```yaml
 dependencies:
-  pqtransport: ^0.1.0
-  pqforge: ^0.4.10
+  pqtransport: ^0.2.0
+  pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```
 
@@ -59,6 +59,12 @@ import 'package:pqtransport/pqtransport_io.dart';
 
 ## TLS
 
+`TlsNamedGroup` is the group on the wire. The three RFC 10024 values
+are also `HybridGroup`. The other four are whole groups: X25519
+(`0x001D`), secp256r1 (`0x0017`), secp384r1 (`0x0018`), and ML-KEM-1024
+(`0x0202`). `tlsClassicalFallbackGroups` lists those four. The default
+ClientHello still offers the hybrid first.
+
 | Type | Role |
 |---|---|
 | `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `peerAuthenticated` is true only after the client checked CertificateVerify. `allowUnauthenticated` skips that check and is not authentication; the bit stays false. Default certificate is RFC 7250 RawPublicKey. Opt-in X.509 is `certificateTypes: [TlsCertificateType.x509]` and `PqTlsServerIdentity.x509` (chain 1..8, caller anchors). |
@@ -85,7 +91,9 @@ final key = client.exporter('app', Uint8List(0), 32);
 
 | Type | Role |
 |---|---|
-| `PqDnsClient` / `PqDnsResolver` | Lookup + cache + breaker |
+| `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, RD, DO, CD, id match, TC retry, BADCOOKIE retry. `lookup` does not validate |
+| `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0 |
+| `authenticateDns` / `verifyDnssecRrset` | One signed name, or one RRset. Algorithms 5, 7, 8, 10, 13, 14, 15, and 16 via pqforge. Ed448 is the empty context |
 | `DohClient` | RFC 8484. `DohClient.h2` / `DohClient.h3`. Template `{?dns}` or a plain POST URI. GET is unpadded base64url. |
 | `DohUriTemplate.parse` | Accepts only a trailing `{?dns}`. Other expressions fail closed. |
 | `dohQueryFromRequest` / `dohResponse` | Server-side extract and `application/dns-message` response. |
@@ -94,6 +102,17 @@ final key = client.exporter('app', Uint8List(0), 32);
 | `DohExchange` / `DotExchange` | Byte hooks under the clients. Not the production API. |
 | `DnsMessage` + `DnsA` … `DnsNs` | Records |
 | `encodeDnsMessage` / `decodeDnsMessage` | Wire |
+
+`lookup` does not validate. `authenticateDns` does, from a
+`DnsTrustAnchor` (`dnskey`, one `ds`, or a `dsSet` for the two root
+KSKs). Pass `PqDnsClient.lookup`, not `resolve`. The in-memory program
+is `example/dns_validate.dart`. `example/dns_live.dart` asks 1.1.1.1
+for `yardenah.com` and validates from the IANA root DS set. The AD bit
+is not read. `DnsIterativeResolver` walks root hints and returns
+`secure`, `insecure`, or `bogus`.
+
+| Type | Role |
+|---|---|
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |

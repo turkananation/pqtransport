@@ -20,11 +20,12 @@ class SiteHeader extends StatelessComponent {
           span([Component.text('pqtransport')]),
         ]),
         nav(classes: 'pqt-nav', [
+          a(href: 'https://yardenah.com', [Component.text('Yardenah')]),
           a(href: 'hybrid', [Component.text('Hybrid')]),
           a(href: 'protocols', [Component.text('Protocols')]),
           a(href: 'api', [Component.text('API')]),
+          a(href: 'peers', [Component.text('Peers')]),
           a(href: 'claim-boundary', [Component.text('Boundary')]),
-          a(href: 'family', [Component.text('Family')]),
           const ThemeToggle(),
           const GitHubButton(repo: 'turkananation/pqtransport'),
         ]),

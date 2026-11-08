@@ -129,6 +129,7 @@ const int dnsTypeA = 1;
 const int dnsTypeNs = 2;
 const int dnsTypeCname = 5;
 const int dnsTypeSoa = 6;
+const int dnsTypeDname = 39;
 const int dnsTypePtr = 12;
 const int dnsTypeMx = 15;
 const int dnsTypeTxt = 16;
@@ -137,9 +138,130 @@ const int dnsTypeSrv = 33;
 const int dnsTypeOpt = 41;
 const int dnsTypeDs = 43;
 const int dnsTypeRrsig = 46;
+const int dnsTypeNsec = 47;
+const int dnsTypeDnskey = 48;
+const int dnsTypeNsec3 = 50;
+const int dnsTypeNsec3param = 51;
 const int dnsTypeCaa = 257;
 const int dnsTypeHttps = 65;
 const int dnsTypeSvcb = 64;
+
+/// RFC 4034. DNSSEC protocol byte inside a DNSKEY.
+const int dnssecProtocol = 3;
+
+/// RFC 6605. ECDSAP256SHA256.
+const int dnssecAlgorithmEcdsaP256Sha256 = 13;
+
+/// RFC 4034. SHA-1 DS digest. Collision resistance is broken.
+const int dnssecDigestSha1 = 1;
+
+/// RFC 4509. SHA-256 DS digest.
+const int dnssecDigestSha256 = 2;
+
+/// RFC 6605. P-256 public key is X || Y, 32 bytes each. No `0x04` prefix.
+const int dnssecEcdsaP256PublicKeyBytes = 64;
+
+/// RFC 6605. P-256 signature is raw r || s, 32 bytes each.
+const int dnssecEcdsaP256SignatureBytes = 64;
+
+/// RFC 4034 §2.1.1. Bit 7. A DNSKEY without this bit must not verify an RRSIG.
+const int dnssecZoneKeyFlag = 0x0100;
+
+/// RFC 4034. RSASHA1. PKCS#1 v1.5, SHA-1, via pqforge. Validation only.
+const int dnssecAlgorithmRsaSha1 = 5;
+
+/// RFC 5155. Same signature as RSASHA1. NSEC3 uses this number.
+const int dnssecAlgorithmRsaSha1Nsec3Sha1 = 7;
+
+/// RFC 5702. RSASHA256. PKCS#1 v1.5, SHA-256, via pqforge.
+const int dnssecAlgorithmRsaSha256 = 8;
+
+/// RFC 5702. RSASHA512. PKCS#1 v1.5, SHA-512, via pqforge.
+const int dnssecAlgorithmRsaSha512 = 10;
+
+/// RFC 6605. ECDSAP384SHA384.
+const int dnssecAlgorithmEcdsaP384Sha384 = 14;
+
+/// RFC 8080. Ed25519.
+const int dnssecAlgorithmEd25519 = 15;
+
+/// RFC 8080. Ed448. Pure Ed448, empty context. Not Ed448ph.
+const int dnssecAlgorithmEd448 = 16;
+
+/// RFC 6605. SHA-384 DS digest.
+const int dnssecDigestSha384 = 4;
+
+/// RFC 6605. P-384 public key is X || Y, 48 bytes each. No `0x04` prefix.
+const int dnssecEcdsaP384PublicKeyBytes = 96;
+
+/// RFC 6605. P-384 signature is raw r || s, 48 bytes each.
+const int dnssecEcdsaP384SignatureBytes = 96;
+
+/// RFC 8080. Ed25519 public key and signature.
+const int dnssecEd25519PublicKeyBytes = 32;
+const int dnssecEd25519SignatureBytes = 64;
+
+/// RFC 8080. Ed448 public key and signature.
+const int dnssecEd448PublicKeyBytes = 57;
+const int dnssecEd448SignatureBytes = 114;
+
+/// SHA-1 digest length. DS digest type 1 and NSEC3 hash algorithm 1.
+const int dnssecSha1DigestBytes = 20;
+
+/// SHA-384 digest length. DS digest type 4.
+const int dnssecSha384DigestBytes = 48;
+
+/// RFC 5155. The only NSEC3 hash algorithm. SHA-1, from pqforge.
+const int dnssecNsec3HashSha1 = 1;
+
+/// RFC 5155. Opt-Out. A covering NSEC3 may hide an insecure delegation.
+const int dnsNsec3OptOutFlag = 0x01;
+
+/// RFC 5011. A revoked DNSKEY must not verify an RRSIG.
+const int dnssecRevokedKeyFlag = 0x0080;
+
+/// Protocol maximum of the NSEC3 iterations field. The field is 16 bits.
+///
+/// The iterative resolver's default ceiling is 0 (RFC 9276). Raise
+/// [DnsIterativeResolver.maxNsec3Iterations] for a zone that still uses more.
+const int dnsNsec3MaxIterations = 65535;
+
+/// RFC 1035. Authoritative answer.
+const int dnsFlagAa = 0x0400;
+
+/// RFC 1035. Recursion desired. A stub sets this when it asks a resolver
+/// to chase the name. An iterative query to an authoritative server does not.
+const int dnsFlagRd = 0x0100;
+
+/// RFC 1035. Checking disabled. A validator sets this so RRSIGs are kept.
+const int dnsFlagCd = 0x0010;
+
+/// RFC 1035. Truncation. The stub retries the same query over TCP.
+const int dnsFlagTc = 0x0200;
+
+/// RFC 6891. SERVFAIL and REFUSED. The resolver tries the next server.
+const int dnsRcodeServFail = 2;
+const int dnsRcodeRefused = 5;
+
+/// RFC 7873. BADCOOKIE is extended rcode 23. EDNS option code 10.
+const int dnsRcodeBadCookie = 23;
+const int ednsOptionCookie = 10;
+
+/// RFC 1035. Response code is the low four bits.
+const int dnsRcodeMask = 0x000f;
+const int dnsRcodeNxDomain = 3;
+
+/// RFC 3225. DNSSEC OK, in the OPT flags.
+const int ednsFlagDo = 0x8000;
+
+/// RFC 1034. Bound on a CNAME chain.
+const int dnsCnameLimit = 8;
+
+/// RFC 4034. One NSEC window bitmap is at most 32 bytes.
+const int dnsNsecWindowBytes = 32;
+
+/// SHA-256 digest length. DS digest type 2.
+const int dnssecSha256DigestBytes = 32;
 
 const int dnsClassIn = 1;
 const int dnsClassAny = 255;

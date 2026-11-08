@@ -26,13 +26,13 @@ hand-roll state machines, Result, caches, or breakers. Those come from
 ```text
 lib/
   pqtransport.dart          # web-safe public barrel (no dart:io, no dart:ffi)
-  pqtransport_io.dart       # re-exports barrel + IoDatagramChannel
+  pqtransport_io.dart       # re-exports the barrel plus IoDatagramChannel, IoTcpSocket, IoTcpServer
   src/
     core/                   # lengths, errors, bytes, hybrid, transcript, zeroize, crypto facade
     socket/                 # PqTransportSocket, memory pair, IO UDP
     udp/                    # datagram AEAD, replay, encrypted session
     tls/                    # machines, records, handshake, client/server/socket, key schedule
-    dns/                    # records, wire, client, DoH/DoT helpers
+    dns/                    # wire, stub, DoH/DoT, DNSSEC algorithms 5, 7, 8, 10, 13, 14, 15, 16, iterative resolver
     mdns/                   # probe/announce/browse, signed TXT
     quic/                   # packet protect, frames, flow control, machines
     http/                   # HTTP/1.1, HTTP/2 (HPACK + RFC 9113), HTTP/3 + QPACK, PqHttpClient
@@ -46,7 +46,7 @@ for a protocol size anywhere else is a defect.
 | Import | Contains | Must not contain |
 | --- | --- | --- |
 | `package:pqtransport/pqtransport.dart` | Codecs, machines, hybrid, TLS, DNS, HTTP, memory sockets | `dart:io`, `dart:ffi`, `SecureSocket` |
-| `package:pqtransport/pqtransport_io.dart` | Everything above plus `IoDatagramChannel` | Crypto of its own |
+| `package:pqtransport/pqtransport_io.dart` | Everything above plus `IoDatagramChannel`, `IoTcpSocket`, `IoTcpServer`, `readMlDsaIdentityPem` | Crypto of its own |
 
 Callers on web supply a byte channel (`MemoryByteSocket` or their own
 `PqTransportSocket`) and run TLS over it. Raw UDP / multicast require the
@@ -73,7 +73,7 @@ SecP384r1MLKEM1024
 
 Implemented in `lib/src/core/hybrid.dart`. See [Hybrid Groups](hybrid).
 
-## TLS 1.3 (0.1.0 shape)
+## TLS 1.3
 
 RFC 8446-shaped ClientHello / ServerHello (`legacy_version` 0x0303,
 `supported_versions`, `key_share`, SNI, ALPN). Cipher suite is IANA

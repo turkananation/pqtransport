@@ -1,6 +1,6 @@
 ---
 title: Bugs
-description: Open, blocked, limited, and fixed defects in pqtransport 0.1.0.
+description: Open, blocked, limited, and fixed defects in pqtransport 0.2.0.
 ---
 
 Canonical tracker:
@@ -15,22 +15,24 @@ Canonical tracker:
 
 ## Open
 
-None. OPEN-10 (production DoH/DoT) is fixed. The classical-peer
-handshake gap is LIM-01.
+None. OPEN-19 (DNSSEC algorithms 5, 7, 8, 10, 13, 14, 15, and 16) is fixed.
+Ed448 verifies. OPEN-21 (optional
+SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
 
 ## Blocked on pqforge
 
-None. pqforge **0.4.4** shipped BLK-01 … BLK-05. OPEN-02 (SHA-384 schedule /
-`0x1302`) and OPEN-13 (ChaCha records / `0x1303`) are **Fixed** in this tree.
+None. pqforge **0.4.13** is the floor (1024-bit RSA verify and SHA-1
+PKCS#1 for DNSSEC algorithms 5 and 7, plus the 0.4.11 SHA-1 digest,
+HPKE, X.509, and the earlier BLK-01 … BLK-05 exports). OPEN-02 and
+OPEN-13 are **Fixed** in this tree.
 
 ## Honest limits (won't fix in 0.1)
 
-LIM-01 OpenSSL 3.5.9 X25519MLKEM768 raw-pk handshake is the fixture in
-`tool/interop/openssl`. X.509 paths and BoringSSL are not that fixture.
-LIM-02 CMVP / FIPS
-140. LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
-mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not
-sent.
+LIM-01 was the raw-public-key OpenSSL row. OpenSSL 3.5.9 now completes
+that row, and the X.509 row, in both directions. LIM-02 is CMVP / FIPS 140.
+LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
+mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not sent.
+
 
 ## Fixed in 0.1.0
 

@@ -1,7 +1,32 @@
-## Unreleased
+## 0.2.0
+
+DNSSEC from a caller-supplied trust anchor, an iterative resolver, and
+the TLS groups a classical peer can force. Cryptography is pqforge
+0.4.13. The AD bit is not validation. This is not an authoritative
+DNS server, not a browser, and not WebPKI.
 
 ### Added
 
+- DNSSEC validates algorithms 5 (RSASHA1), 7 (RSASHA1-NSEC3-SHA1),
+  8 (RSASHA256), 10 (RSASHA512), 13 (ECDSAP256SHA256),
+  14 (ECDSAP384SHA384), 15 (Ed25519), and 16 (Ed448). RSA is PKCS#1 v1.5 through
+  pqforge 0.4.13. Moduli are 1024, 2048, 3072, and 4096 bits.
+  `DnsTrustAnchor.dsSet` holds more than one DS. The root publishes
+  two KSKs, and a validator that pins only one of them treats the
+  root as bogus. Ed448 is pure RFC 8032 with an empty context, which
+  is what RFC 8080 signs. RFC 8624 does not make it mandatory.
+  pqforge 0.4.13 is the hosted dependency.
+- DNSSEC NSEC3 denial uses `PqBytes.sha1` (pqforge 0.4.11). Hash
+  algorithm 1 only. The iteration field is the 16-bit range. The
+  iterative resolver's ceiling defaults to 0. DS digest type 1 is the
+  same SHA-1. It is not a signature.
+- `DnsIterativeResolver` walks from caller-supplied root hints. It
+  follows referrals and glue, minimizes qnames, synthesizes DNAME, and
+  returns secure, insecure, or bogus. Answers and NSEC or NSEC3 spans
+  use the swissarmyknife cache. Queries set CD and DO and retry
+  BADCOOKIE once. The AD bit is not validation. Not an authoritative
+  server. `example/dns_validate.dart` is the in-memory signed zone.
+  `example/dns_live.dart` asks a recursive resolver. Stub queries set RD.
 - Encrypted UDP loss recovery is RFC 9002 (OPEN-20, option A). The
   handshake is a QUIC Initial long header. The client datagram is
   padded to 1200 bytes. Initial keys are RFC 9001 §5.2, from the

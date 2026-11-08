@@ -1,11 +1,12 @@
 # pqtransport
 
-Work In Progress: Pure-Dart post-quantum transport: UDP, TLS 1.3 hybrid key exchange(RFC 10024), DNS/DoH/DoT, mDNS, QUIC, and HTTP/1.1–3.
+Pure-Dart post-quantum transport, 0.2.0. TLS 1.3 (RFC 10024 hybrids, plus X25519, secp256r1, secp384r1, and ML-KEM-1024), DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP/1.1–3. Cryptography is pqforge. No FFI.
 
 ## Project signals
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
-[![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
+[![version](https://img.shields.io/badge/version-0.2.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
+[![Yardenah PQ](https://img.shields.io/badge/Lab-Yardenah_PQ-b6f25c?style=for-the-badge)](https://yardenah.com)
 [![API](https://img.shields.io/badge/API-doc%2FAPI.md-0ea5e9?style=for-the-badge&logo=dart&logoColor=white)](doc/API.md)
 [![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
 [![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
@@ -90,8 +91,8 @@ Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Not a browser. Not WebPKI.
 
 ```yaml
 dependencies:
-  pqtransport: ^0.1.0
-  pqforge: ^0.4.10
+  pqtransport: ^0.2.0
+  pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```
 
@@ -138,7 +139,7 @@ dart test
 bash tool/check_invariants.sh .
 ```
 
-`dart analyze` is clean. **258 tests**, **90.7% line coverage** of `lib/`.
+`dart analyze` is clean when CI is. The package suite and the OpenSSL / BoringSSL interop job are the gates. The 258-test / 90.7% figure is the 0.1.0 measurement, not this release.
 Gates: hybrid concat (all three groups), AEAD round-trip, replay-before-open,
 TLS state machines, live RFC 10024 handshakes (X25519, P-256, P-384),
 IANA `0x1302` / `0x1303` suites, `requireGroup` refuse,
@@ -162,7 +163,7 @@ Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
 | [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
 | [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
 | [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.10 APIs |
+| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.13 APIs |
 | [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages

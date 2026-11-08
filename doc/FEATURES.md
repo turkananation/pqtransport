@@ -64,14 +64,17 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | DoH POST and GET `application/dns-message` | Done | RFC 8484. `DohClient.h2` / `DohClient.h3`. URI template `{?dns}`, unpadded base64url. Wrong media type fails closed. |
 | DoT length-prefix framing | Done | RFC 7858. `DotClient` requires ALPN `dot` and reassembles split TCP frames. A non-`dot` ALPN fails closed. |
 | nghttp2/curl and nghttp3 QPACK | Done | `tool/interop`. HTTP/2 prior-knowledge DoH via curl. QPACK both ways vs libnghttp3 1.11.0. Not live `curl --http3` (hybrid QUIC vs classical TLS). |
-| DNSSEC (RRSIG/DS verify) | Not started | Types reserved in `lengths.dart` only |
+| DNSSEC (RRSIG/DS verify) | Done | Algorithms 5 (RSASHA1), 7 (RSASHA1-NSEC3-SHA1), 8 (RSASHA256), 10 (RSASHA512), 13 (ECDSAP256SHA256), 14 (ECDSAP384SHA384), 15 (Ed25519), and 16 (Ed448), each via pqforge. RSA is PKCS#1, moduli 1024, 2048, 3072, and 4096. A trust anchor may be a DS set. Ed448 is pure RFC 8032 with an empty context. Canonical RDATA order. Zone bit required. 32-bit serial validity. Wildcard owner when `labels` is smaller. DS digests SHA-1, SHA-256, and SHA-384. `test/dns/dnssec_test.dart`, `test/dns/resolve_test.dart`, `test/dns/stub_test.dart` |
+| Validating stub | Done | DO bit, CD bit, matching id, TC retry over TCP, BADCOOKIE retry, CNAME chase. |
+| Iterative resolver | Done | Root hints, referrals, glue, qname minimization, DNAME, secure / insecure / bogus. NSEC and NSEC3 spans are cached. NSEC3 ceiling defaults to 0 and can be raised up to 65535. The AD bit is not validation. Not an authoritative server. |
+| SOA and unknown RR | Done | RFC 1035 SOA. RFC 3597 opaque type and rdata. |
 | Compression pointers inside rdata | Done | RFC 1035 §4.1.4 offsets from the start of the message (OPEN-08). |
 
 ## mDNS
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09) |
+| Probe / announce / browse | Done | Joins mDNS groups before receive (OPEN-09). Cache key is the DNS canonical name |
 | ML-DSA-65 signed TXT | Done | `pqsig=` field; mutate fails |
 | EventBus announcements | Done | Per-client bus |
 | `IoDatagramChannel` multicast join | Done | `224.0.0.251` / `ff02::fb`; family mismatch fails closed |

@@ -329,12 +329,15 @@ Future<Uint8List> _mintX509(
 /// This is the pqforge leaf check: X509_verify_cert, not a second TLS stack.
 Future<void> _boringSslLeaf(Map<String, String> env, Directory dir) async {
   final built = Platform.environment['BORINGSSL_VERIFY'];
-  final candidate =
-      built ??
+  final fallback =
       '${Directory.current.path}/tool/interop/boringssl/.build/bin/boringssl_verify';
+  final candidate = built != null && File(built).existsSync()
+      ? built
+      : fallback;
   if (!File(candidate).existsSync()) {
     throw StateError(
-      'boringssl_verify is missing. Run tool/interop/boringssl/build.sh',
+      'boringssl_verify is missing at ${built ?? '(unset)'}; '
+      'also looked at $fallback',
     );
   }
   await _run(candidate, env, ['${dir.path}/leaf.pem', '${dir.path}/ca.pem']);
