@@ -27,7 +27,8 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
   secp256r1, secp384r1, and MLKEM1024. Auth is raw public key by default,
   or an opt-in ML-DSA-65 X.509 chain of 1 to 8. ECH is one BoringSSL
   flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies algorithms
-  8, 13, 14, and 15, including NSEC and NSEC3 denial. Not a browser. Not WebPKI. Not a FIPS 140 module.
+  8, 13, 14, and 15. The iterative resolver returns secure, insecure, or
+  bogus, with NSEC and NSEC3 denial. Not a browser. Not WebPKI. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
@@ -65,7 +66,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 | pqforge | `^0.4.11` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
 | Live KEX | X25519, P-256, P-384, plus the four fallback groups |
-| DNSSEC | Algorithms 8, 13, 14, 15 from a trust anchor. NSEC. AD is not consulted |
+| DNSSEC | Iterative resolver. Algorithms 8, 13, 14, 15. NSEC and NSEC3. AD is not consulted |
 | FFI | none |
 | Platform TLS on PQ path | none |
 

@@ -61,7 +61,8 @@ import 'package:pqtransport/pqtransport_io.dart';
 
 | Type | Role |
 | --- | --- |
-| `PqDnsClient` / `PqDnsResolver` | Lookup + cache + breaker |
+| `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, DO, CD, id match, TC retry, BADCOOKIE retry |
+| `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0 |
 | `DohClient` / `DotClient` | RFC 8484 DoH (ALPN `h2`/`h3`, `{?dns}`) and RFC 7858 DoT (ALPN `dot`) |
 | `PqMdnsClient` / `PqMdnsServer` | Probe / announce / browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT |

@@ -85,7 +85,9 @@ final key = client.exporter('app', Uint8List(0), 32);
 
 | Type | Role |
 |---|---|
-| `PqDnsClient` / `PqDnsResolver` | Lookup + cache + breaker |
+| `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, DO, CD, id match, TC retry, BADCOOKIE retry |
+| `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0 |
+| `authenticateDns` / `verifyDnssecRrset` | One signed name, or one RRset. Algorithms 8, 13, 14, 15 via pqforge |
 | `DohClient` | RFC 8484. `DohClient.h2` / `DohClient.h3`. Template `{?dns}` or a plain POST URI. GET is unpadded base64url. |
 | `DohUriTemplate.parse` | Accepts only a trailing `{?dns}`. Other expressions fail closed. |
 | `dohQueryFromRequest` / `dohResponse` | Server-side extract and `application/dns-message` response. |
