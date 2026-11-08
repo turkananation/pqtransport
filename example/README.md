@@ -15,6 +15,6 @@ dart run example/dns_validate.dart
 | `encrypted_udp_peer.dart` | Encrypted UDP session over `MemoryDatagramNetwork` |
 | `mdns_discovery.dart` | Probe + announce; joins mDNS groups on the memory network |
 | `dns_validate.dart` | Ed25519 DNSSEC: one RRset, a DNSKEY anchor, a DS anchor, a flipped signature |
-| `dns_live.dart` | Not run here. UDP/TCP to a recursive resolver, then `authenticateDns` from the IANA root DS set. `dart run example/dns_live.dart` asks 1.1.1.1 for `yardenah.com`. Pass another resolver address as the argument. |
+| `dns_live.dart` | Not run by the command above. Asks a resolver, then `authenticateDns` from the IANA root DS set. Default resolver is 1.1.1.1 and the names are `yardenah.com`, `www.yardenah.com`, and `hardware.yardenah.com`. |
 
 Live IO sockets: `import 'package:pqtransport/pqtransport_io.dart';`

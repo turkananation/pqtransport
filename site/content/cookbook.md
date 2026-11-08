@@ -14,12 +14,61 @@ final server = PqTlsSocket.server(b, crypto: crypto, identity: identity);
 await Future.wait([server.handshake(), client.handshake()]);
 ```
 
-## HTTP/1.1 GET over that socket
+## HTTP
+
+`PqHttpClient` does not take a socket in its constructor. Pass the
+finished socket to the call. `roundTrip` follows ALPN. A silent drop
+from `h2` or `h3` to HTTP/1.1 fails unless `allowDowngrade` is set.
+HTTP/3 is `roundTripH3` on a finished `PqQuicConn` whose ALPN is `h3`.
 
 ```dart
-final http = PqHttpClient(socket: client);
-final res = await http.roundTripH1(PqHttpRequest.get('/health'));
+final http = PqHttpClient();
+final res = await http.roundTripH1(
+  tls: client,
+  request: PqHttpRequest(
+    method: 'GET',
+    uri: Uri.parse('https://localhost/health'),
+  ),
+);
 ```
+
+ALPN `h2` is the same request through `roundTripH2`. ALPN `h3` is
+`roundTripH3(conn: quic, request: request)`.
+
+## DoH and DoT
+
+DoH is RFC 8484. The template is a POST URI, or the same URI with a
+trailing `{?dns}` for GET. `DohClient.h2` needs a `PqTlsSocket` whose
+ALPN is `h2`. `DohClient.h3` needs a `PqQuicConn` whose ALPN is `h3`.
+
+```dart
+final template = DohUriTemplate.parse(
+  'https://dns.example/dns-query{?dns}',
+).valueOrNull!;
+final doh = DohClient.h2(tls, template: template);
+final answer = await doh.query(query);
+```
+
+DoT is `DotClient(tls)` after a handshake that selected ALPN `dot`.
+The bytes after a handshake, checked against curl's libnghttp2, are
+on [Peers](peers). That check is cleartext HTTP/2. curl's TLS is not
+this handshake.
+
+## Programs in this repository
+
+```bash
+dart run example/pq_tls_client.dart
+dart run example/encrypted_udp_peer.dart
+dart run example/mdns_discovery.dart
+dart run example/dns_validate.dart
+dart run example/dns_live.dart
+```
+
+`dns_live.dart` is the only one that uses the network. It asks
+1.1.1.1, then checks `yardenah.com` from the IANA root DS set. Pass
+another resolver address as the argument. `encrypted_udp_peer.dart`
+is the QUIC Initial session on `MemoryDatagramNetwork`.
+`mdns_discovery.dart` probes and announces on that same network.
 
 ## Length-filter a share
 

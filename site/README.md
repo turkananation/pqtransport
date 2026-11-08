@@ -1,6 +1,6 @@
 # pqtransport site
 
-Jaspr static documentation site for [`package:pqtransport`](https://github.com/turkananation/pqtransport).
+Documentation site for [`package:pqtransport`](https://github.com/turkananation/pqtransport), a product of [Yardenah PQ](https://yardenah.com).
 Mirrors [swissarmyknife](https://turkananation.github.io/swissarmyknife/)
 (pure Dart, `jaspr` + `jaspr_content`) with the PQ/hybrid theme of
 [pqcrypto](https://turkananation.github.io/pqcrypto/) and

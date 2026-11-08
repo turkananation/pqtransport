@@ -11,9 +11,9 @@ image: images/hero-hybrid.svg
 imageAlt: RFC 10024 hybrid concatenation for X25519MLKEM768
 ---
 
-pqtransport is the protocol layer of the TurkanaNation post-quantum stack.
-It speaks UDP, TLS 1.3 hybrid key exchange, DNS / DoH / DoT, mDNS, QUIC
-frames, and HTTP/1.1–3. Cryptography is exclusively
+pqtransport is a product of [Yardenah PQ](https://yardenah.com).
+It is the protocol layer of the stack. It speaks UDP, TLS 1.3, DNSSEC,
+DoH / DoT, mDNS, QUIC, and HTTP/1.1–3. Cryptography is exclusively
 [`package:pqforge`](https://turkananation.github.io/pqforge/).
 Infrastructure is exclusively
 [`package:swissarmyknife`](https://turkananation.github.io/swissarmyknife/).
@@ -34,6 +34,7 @@ There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
 [![version](https://img.shields.io/badge/version-0.2.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport)
+[![Yardenah PQ](https://img.shields.io/badge/Lab-Yardenah_PQ-b6f25c?style=for-the-badge)](https://yardenah.com)
 [![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
 [![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)

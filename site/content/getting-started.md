@@ -15,8 +15,15 @@ dependencies:
 ```bash
 dart pub get
 dart run example/pq_tls_client.dart
+dart run example/encrypted_udp_peer.dart
+dart run example/mdns_discovery.dart
 dart run example/dns_validate.dart
 ```
+
+`example/dns_live.dart` is the network one. It asks 1.1.1.1 and then
+checks `yardenah.com` from the IANA root DS set. The in-memory zone
+is `dns_validate.dart`. HTTP, DoH, and the OpenSSL / BoringSSL /
+nghttp rows are in the [Cookbook](cookbook) and [Peers](peers).
 
 ## Import
 

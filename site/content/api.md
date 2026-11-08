@@ -100,6 +100,7 @@ root DS set. There is no authoritative server in this package.
 | `MemoryDatagramNetwork` | Multicast only to joined sockets |
 | `IoDatagramChannel.bind` | `dart:io` UDP. IO barrel only |
 | `IoTcpSocket` / `IoTcpServer` | `dart:io` TCP. IO barrel only |
+| `readMlDsaIdentityPem` | RFC 7468 PEM or RFC 5958 OneAsymmetricKey. An encrypted key is refused |
 
 ## TLS
 

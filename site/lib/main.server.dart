@@ -1,4 +1,4 @@
-/// Static Jaspr documentation site for pqtransport.
+/// Documentation site for pqtransport, a product of Yardenah PQ.
 library;
 
 import 'package:jaspr/dom.dart';
@@ -39,6 +39,7 @@ void main() {
                   SidebarLink(text: 'Protocols', href: 'protocols'),
                   SidebarLink(text: 'API Guide', href: 'api'),
                   SidebarLink(text: 'Cookbook', href: 'cookbook'),
+                  SidebarLink(text: 'Peers', href: 'peers'),
                   SidebarLink(text: 'Platform Support', href: 'platform'),
                 ],
               ),
@@ -60,10 +61,10 @@ void main() {
           ),
           footer: footer(classes: 'site-footer', [
             p([
-              Component.text(
-                'pqtransport v0.2.0. Built with Dart and Jaspr. '
-                'Not a FIPS 140 module. ',
-              ),
+              a(href: 'https://yardenah.com', target: Target.blank, [
+                Component.text('A product of Yardenah PQ'),
+              ]),
+              Component.text('. pqtransport 0.2.0. Not a FIPS 140 module. '),
               a(
                 href: 'https://github.com/turkananation/pqtransport',
                 target: Target.blank,
@@ -71,15 +72,21 @@ void main() {
               ),
               Component.text(' · '),
               a(
-                href: 'https://turkananation.github.io/pqcrypto',
+                href: 'https://pub.dev/packages/pqtransport',
                 target: Target.blank,
-                [Component.text('pqcrypto')],
+                [Component.text('pub.dev')],
               ),
               Component.text(' · '),
               a(
                 href: 'https://turkananation.github.io/pqforge',
                 target: Target.blank,
                 [Component.text('pqforge')],
+              ),
+              Component.text(' · '),
+              a(
+                href: 'https://turkananation.github.io/pqcrypto',
+                target: Target.blank,
+                [Component.text('pqcrypto')],
               ),
               Component.text(' · '),
               a(
