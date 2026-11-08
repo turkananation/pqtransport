@@ -1,6 +1,6 @@
 ---
 title: Features
-description: Feature matrix for pqtransport 0.1.0 — done, partial, fail-closed, not started.
+description: Feature matrix for pqtransport 0.2.0 — done, partial, fail-closed, not started.
 ---
 
 Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.

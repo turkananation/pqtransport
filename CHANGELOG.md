@@ -1,4 +1,9 @@
-## Unreleased
+## 0.2.0
+
+DNSSEC from a caller-supplied trust anchor, an iterative resolver, and
+the TLS groups a classical peer can force. Cryptography is pqforge
+0.4.13. The AD bit is not validation. This is not an authoritative
+DNS server, not a browser, and not WebPKI.
 
 ### Added
 

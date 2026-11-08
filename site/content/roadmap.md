@@ -3,11 +3,9 @@ title: Roadmap
 description: What has landed on pqtransport main, and what is next. Order is not optional.
 ---
 
-0.1.0 is the self-interop vertical slice **plus live NIST groups**.
-Later slices on main are X.509, classical fallback groups, BoringSSL,
-ECH, UDP loss recovery, and DNSSEC. Order is not optional: inverting a
-slice produces fake HTTP clients on unimplemented QUIC, or a DNSSEC
-claim that is really the AD bit.
+0.2.0 is the 0.1.0 slice plus what landed after it: X.509, the four
+non-hybrid groups, BoringSSL, ECH, UDP loss recovery, and DNSSEC.
+0.1.0 remains the self-interop vertical slice plus live NIST groups.
 
 Canonical:
 [`doc/ROADMAP.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ROADMAP.md).

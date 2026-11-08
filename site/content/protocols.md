@@ -1,6 +1,6 @@
 ---
 title: Protocols
-description: UDP, TLS 1.3, DNS/DoH/DoT, mDNS, QUIC, and HTTP surfaces in pqtransport 0.1.0 — what is done, partial, or fail-closed.
+description: UDP, TLS 1.3, DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP in pqtransport 0.2.0.
 ---
 
 Status vocabulary matches [`doc/FEATURES.md`](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md):

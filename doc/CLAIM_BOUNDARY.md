@@ -19,7 +19,7 @@ Sister evidence:
 | pqcrypto | 0.4.1 (via pqforge, not a direct dep) | FIPS 203/204/205 primitives, KATs |
 | pqforge | **0.4.8** | Hybrid KEX, AEAD (incl. dart2js ChaCha), ChaCha20 keystream for QUIC HP, HKDF, signatures |
 | swissarmyknife | **0.1.0** | StateMachine, Result, Cache, CircuitBreaker, Throttler |
-| pqtransport | 0.1.0 in this tree, unpublished until gates pass | Protocol layer |
+| pqtransport | 0.2.0 | Protocol layer |
 
 SDK: **`>=3.12.0 <4.0.0`**. The original blueprint said `>=3.8.0`; both
 foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.

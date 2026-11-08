@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-17
 
-This is the canonical documentation root for `package:pqtransport` **0.1.0**.
+This is the canonical documentation root for `package:pqtransport` **0.2.0**.
 Use `doc/` links for project documentation. The README is the install
 entry; this folder is the evidence, architecture, and planning surface.
 
@@ -25,15 +25,14 @@ upgrade a claim this layer is not allowed to make. See
 
 | Area | Current state |
 | --- | --- |
-| Package version | `0.1.0` (unpublished on pub.dev; GitHub tag `vX.Y.Z` publishes via `publish.yml` once automated publishing is enabled) |
+| Package version | `0.2.0` |
 | SDK | `>=3.12.0 <4.0.0` |
 | Runtime dependencies | `pqforge ^0.4.13`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |
-| Hybrid groups | RFC 10024 codecs **and live handshakes** for X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024 |
-| Live handshake | All three groups. P-384 requires `PqForgeProfile.maximum`. Profile/group mismatch is refused. |
-| TLS wire | RFC 8446 ClientHello/ServerHello (OPEN-01). Raw-pk negotiated (OPEN-04). HRR + cookie (OPEN-05). IANA `0x1302` (SHA-384) default; `0x1303` (ChaCha) offered. `0xFF00` retired. |
-| Tests | `dart analyze` clean; **258** tests pass; **90.7%** line coverage of `lib/` |
-| OpenSSL 3.5.9 | Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024 (2026-10-20, auth mode raw-pk). [OPENSSL_INTEROP.md](OPENSSL_INTEROP.md) |
+| Hybrid groups | RFC 10024 live handshakes, plus X25519, secp256r1, secp384r1, and ML-KEM-1024 |
+| DNSSEC | Algorithms 5, 7, 8, 10, 13, 14, 15, 16. `authenticateDns` and `DnsIterativeResolver`. AD is not validation |
+| Tests | Package suite and the OpenSSL / BoringSSL interop job. The 258 / 90.7% figure is the 0.1.0 measurement |
+| OpenSSL 3.5.9 / BoringSSL 0.20261020.0 | Hybrid and the four non-hybrid groups. BoringSSL does not do the two NIST hybrids. One ECH flight |
 | CMVP / FIPS 140 | Not claimed. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md) |
 
 ## Read this first

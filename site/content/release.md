@@ -1,54 +1,58 @@
 ---
-title: v0.1.0 Release
-description: Release posture, gates, and the Jaspr site build for pqtransport 0.1.0.
+title: v0.2.0 Release
+description: What pqtransport 0.2.0 adds, what it still does not do, and how the tag is cut.
 ---
 
-pqtransport 0.1.0 is the self-interop vertical slice **plus live NIST
-groups** (pqforge 0.4.4). It is shipped in the tree and unpublished on
-pub.dev until the owner cuts a release.
+0.2.0 is the first release that validates DNSSEC and that speaks the
+groups a classical peer can force. 0.1.0 was the self-interop slice
+plus the three RFC 10024 handshakes. Tag this from `main` after the
+branch is merged. Do not tag the feature branch.
 
-## Gates that must stay green
+## What changed
 
-- `dart format`
-- `dart analyze --fatal-infos`
-- `bash tool/check_invariants.sh .` (no `dart:ffi`, no stray sizes, claim language)
-- `dart test` — 258 passed
-- Line coverage of `lib/` — 90.7%
-- This Jaspr site build (`cd site && jaspr build`)
+- DNSSEC algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA is PKCS#1
+  v1.5 through pqforge, moduli 1024, 2048, 3072, and 4096. Ed25519
+  and Ed448. Ed448 is RFC 8032 with an empty context.
+- `DnsTrustAnchor.dsSet` holds more than one DS. The root publishes
+  two KSKs.
+- `authenticateDns` checks one name from an anchor you already have.
+  `lookup` does not. The AD bit is not read.
+- `DnsIterativeResolver` walks root hints you supply. Referrals, glue,
+  qname minimization, CNAME, DNAME, NSEC, and NSEC3. NSEC3 is hash
+  algorithm 1. Extra iterations default to 0. Answers are cached.
+- `TlsNamedGroup` adds X25519 (`0x001D`), secp256r1 (`0x0017`),
+  secp384r1 (`0x0018`), and ML-KEM-1024 (`0x0202`). The hybrid share
+  stays first when the peer offered it.
+- OpenSSL 3.5.9 and BoringSSL 0.20261020.0 on those groups, both
+  directions. BoringSSL does not do the two NIST hybrid groups.
+  One BoringSSL ECH flight (RFC 9849).
+- X.509 is opt-in, chain of 1 to 8, caller anchors. The default offer
+  is still a raw public key.
+- Encrypted UDP loss recovery is RFC 9002. The handshake is a QUIC
+  Initial padded to 1200 bytes.
+- Examples: `example/dns_validate.dart` signs a zone in memory.
+  `example/dns_live.dart` asks a resolver and checks `yardenah.com`
+  from the IANA root DS set.
 
-## What 0.1.0 actually shipped
+## What this is not
 
-Live RFC 10024 handshake for all three groups, RFC 10024 codecs,
-encrypted UDP with replay-before-AEAD, DNS wire + breaker + cache,
-mDNS probe/announce/browse, HTTP/1.1 over `PqTlsSocket`, QUIC 1-RTT
-sketch. IANA `0x1302` (SHA-384 AES-GCM) default and `0x1303` (ChaCha)
-offered. `requireGroup` refuses profile/group mismatch. Evidence:
-[`doc/ACHIEVEMENTS.md`](https://github.com/turkananation/pqtransport/blob/main/doc/ACHIEVEMENTS.md).
+Not an authoritative DNS server. Not a recursive resolver that sets
+the AD bit. Not WebPKI. Not a browser. Not `curl --http3`. Not QUIC
+0-RTT. Not ML-KEM-512 or ML-KEM-768 as a standalone group. Not TLS
+1.2. Not a FIPS 140 module.
 
-## Since that slice
+## Dependency floor
 
-Main now also has opt-in X.509 (chain of 1 to 8), OpenSSL and BoringSSL
-on the named groups, one BoringSSL ECH flight, RFC 9002 loss recovery
-on the encrypted UDP path, and an iterative DNSSEC resolver for
-algorithms 5, 7, 8, 10, 13, 14, 15, and 16, including NSEC and NSEC3.
-RSA moduli are 1024, 2048, 3072, and 4096 bits. Ed448 verifies with
-an empty context. The AD bit is not validation. QUIC 0-RTT is still not
-implemented. An authoritative DNS server is not implemented.
+`pqforge ^0.4.13`. `swissarmyknife ^0.1.0`. Dart `^3.12.0`.
 
 ## Tag
 
 ```bash
-git tag -a v0.1.0 -m "pqtransport v0.1.0"
-git push origin v0.1.0
+git checkout main
+git pull
+git tag -a v0.2.0 -m "pqtransport 0.2.0"
+git push origin v0.2.0
 ```
 
-## Site
-
-```bash
-cd site
-dart pub get
-dart pub global activate jaspr_cli
-dart pub global run jaspr_cli:jaspr build --sitemap-domain https://turkananation.github.io/pqtransport
-```
-
-GitHub Pages deploys `site/build/jaspr` from `.github/workflows/pages.yml`.
+The notes above are the release text. The long form is
+[CHANGELOG.md](https://github.com/turkananation/pqtransport/blob/main/CHANGELOG.md).

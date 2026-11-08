@@ -49,7 +49,7 @@ void main() {
                   SidebarLink(text: 'Claim Boundary', href: 'claim-boundary'),
                   SidebarLink(text: 'Bugs', href: 'bugs'),
                   SidebarLink(text: 'Roadmap', href: 'roadmap'),
-                  SidebarLink(text: 'v0.1.0 Release', href: 'release'),
+                  SidebarLink(text: 'v0.2.0 Release', href: 'release'),
                 ],
               ),
               SidebarGroup(
@@ -61,7 +61,7 @@ void main() {
           footer: footer(classes: 'site-footer', [
             p([
               Component.text(
-                'pqtransport v0.1.0. Built with Dart and Jaspr. '
+                'pqtransport v0.2.0. Built with Dart and Jaspr. '
                 'Not a FIPS 140 module. ',
               ),
               a(

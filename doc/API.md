@@ -1,15 +1,15 @@
 # API
 
-Last updated: 2026-09-17
+Last updated: 2026-11-08
 
-Frozen v0.1.0 names. Adding a symbol to the web barrel requires a test that
+Public names for 0.2.0. Adding a symbol to the web barrel requires a test that
 imports only `package:pqtransport/pqtransport.dart`.
 
 ## Install
 
 ```yaml
 dependencies:
-  pqtransport: ^0.1.0
+  pqtransport: ^0.2.0
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```
@@ -58,6 +58,12 @@ import 'package:pqtransport/pqtransport_io.dart';
 | `udpStateMachine` | Unused sketch. Not the live loss detector. |
 
 ## TLS
+
+`TlsNamedGroup` is the group on the wire. The three RFC 10024 values
+are also `HybridGroup`. The other four are whole groups: X25519
+(`0x001D`), secp256r1 (`0x0017`), secp384r1 (`0x0018`), and ML-KEM-1024
+(`0x0202`). `tlsClassicalFallbackGroups` lists those four. The default
+ClientHello still offers the hybrid first.
 
 | Type | Role |
 |---|---|

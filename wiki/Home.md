@@ -8,7 +8,7 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 ## Project signals
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
-[![version](https://img.shields.io/badge/version-0.1.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
+[![version](https://img.shields.io/badge/version-0.2.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/main/pubspec.yaml)
 [![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=white)](https://turkananation.github.io/pqtransport/)
 [![Wiki](https://img.shields.io/badge/Wiki-this_page-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
 [![license](https://img.shields.io/github/license/turkananation/pqtransport?style=for-the-badge&label=license&color=2ea043)](https://github.com/turkananation/pqtransport/blob/main/LICENSE)
@@ -47,6 +47,13 @@ This wiki is a mirror of the high-traffic pages so GitHub Wiki search works.
 | [Architecture](Architecture) | `doc/ARCHITECTURE.md` |
 | [Roadmap](Roadmap) | `doc/ROADMAP.md` |
 | [Bugs](Bugs) | `doc/BUGS.md` |
+
+## 0.2.0
+
+0.1.0 was the self-interop slice and the three RFC 10024 handshakes.
+0.2.0 adds DNSSEC (algorithms 5, 7, 8, 10, 13, 14, 15, 16), the
+iterative resolver, and X25519, secp256r1, secp384r1, and ML-KEM-1024.
+The AD bit is not validation. Not an authoritative server. Not a browser.
 
 ## 0.1.0 snapshot
 
