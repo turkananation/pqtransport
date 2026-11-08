@@ -6,7 +6,9 @@ root="$(cd "$(dirname "$0")" && pwd)"
 prefix="$root/.build"
 version="3.5.9"
 tarball="openssl-${version}.tar.gz"
-url="https://github.com/openssl/openssl/releases/download/openssl-${version}/${tarball}"
+# The release asset is release-assets.githubusercontent.com, which
+# Actions answers with 504. The tag archive is the same commit.
+url="https://codeload.github.com/openssl/openssl/tar.gz/refs/tags/openssl-${version}"
 
 is_new_enough() {
   local bin="$1"
@@ -29,7 +31,7 @@ workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" -o "$workdir/$tarball"
 tar -xzf "$workdir/$tarball" -C "$workdir"
-src="$workdir/openssl-${version}"
+src="$workdir/openssl-openssl-${version}"
 cd "$src"
 ./Configure "linux-$(uname -m)" \
   --prefix="$prefix" --libdir=lib shared no-tests \

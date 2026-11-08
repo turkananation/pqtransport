@@ -3,9 +3,11 @@
 Round trip of one HTTP/3 field section with libnghttp3 **1.11.0**
 (the QPACK implementation used by ngtcp2 and by curl's HTTP/3 builds).
 
-There is no `dart:ffi`. `build.sh` downloads the pinned release,
-configures it, and links `qpack_iov.c` against `libnghttp3.so`.
-Build output lives in `.build/` and is gitignored.
+There is no `dart:ffi`. `build.sh` downloads the pinned v1.11.0 tag
+archive from codeload (not the GitHub release asset, which returns
+504 from Actions), builds it with CMake, and links `qpack_iov.c`
+against `libnghttp3.so`. Build output lives in `.build/` and is
+gitignored.
 
 ## What is exchanged
 
@@ -37,8 +39,8 @@ version, not a string we invent.
 
 ## Run
 
-From the repository root. Needs `dart`, `gcc`, `make`, `curl`, and
-`tar` (to fetch the release).
+From the repository root. Needs `dart`, `gcc`, `cmake`, `make`, `curl`, and
+`tar`.
 
 ```bash
 bash tool/interop/nghttp3-qpack/run.sh

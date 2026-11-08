@@ -7,7 +7,10 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 ver="1.11.0"
 prefix="$dir/.build/nghttp3"
 bin="$dir/.build/bin/qpack_iov"
-url="https://github.com/ngtcp2/nghttp3/releases/download/v${ver}/nghttp3-${ver}.tar.xz"
+# The release asset lives on release-assets.githubusercontent.com.
+# GitHub Actions gets HTTP 504 from that host. The tag archive is the
+# same commit, and codeload.github.com answers it.
+url="https://codeload.github.com/ngtcp2/nghttp3/tar.gz/refs/tags/v${ver}"
 
 if [[ -x "$bin" && -f "$prefix/lib/libnghttp3.so" ]]; then
   echo "$bin"
@@ -24,26 +27,32 @@ need curl
 need tar
 need make
 need gcc
+need cmake
 
 mkdir -p "$dir/.build/src" "$dir/.build/bin"
-tarball="$dir/.build/src/nghttp3-${ver}.tar.xz"
+tarball="$dir/.build/src/nghttp3-${ver}.tar.gz"
 if [[ ! -f "$tarball" ]]; then
   curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o "$tarball" -L "$url"
 fi
 rm -rf "$dir/.build/src/nghttp3-${ver}"
-# The release tarball may fail chown inside this sandbox. Files are
-# still on disk; require configure to exist rather than tar's status.
+# The archive may fail chown inside this sandbox. Files are still on
+# disk; require CMakeLists.txt rather than tar's status.
 set +e
-tar --no-same-owner -xf "$tarball" -C "$dir/.build/src"
+tar --no-same-owner -xzf "$tarball" -C "$dir/.build/src"
 set -e
-if [[ ! -f "$dir/.build/src/nghttp3-${ver}/configure" ]]; then
+src="$dir/.build/src/nghttp3-${ver}"
+if [[ ! -f "$src/CMakeLists.txt" ]]; then
   echo "nghttp3 ${ver} did not extract" >&2
   exit 1
 fi
-cd "$dir/.build/src/nghttp3-${ver}"
-./configure --prefix="$prefix" --disable-static >/dev/null
-make -j"$(nproc)" >/dev/null
-make install >/dev/null
+cmake -S "$src" -B "$src/build" \
+  -DENABLE_LIB_ONLY=ON \
+  -DENABLE_STATIC_LIB=OFF \
+  -DENABLE_SHARED_LIB=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$prefix"
+cmake --build "$src/build" -j"$(nproc)"
+cmake --install "$src/build"
 
 gcc -O2 -Wall -Wextra -o "$bin" "$dir/qpack_iov.c" \
   -I"$prefix/include" \
