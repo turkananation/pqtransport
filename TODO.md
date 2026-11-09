@@ -52,17 +52,17 @@ of this list.
 
 ## 2. HTTP/2 (RFC 9113, RFC 7541)
 
-- [ ] H2-1. Connection and stream windows. WINDOW_UPDATE is applied.
+- [x] H2-1. Connection and stream windows. WINDOW_UPDATE is applied.
   DATA is not written past the window. Received DATA is answered
   before the peer stalls at 65535. Overflow is FLOW_CONTROL_ERROR.
-- [ ] H2-2. Enforce MAX_CONCURRENT_STREAMS, MAX_FRAME_SIZE,
+- [x] H2-2. Enforce MAX_CONCURRENT_STREAMS, MAX_FRAME_SIZE,
   MAX_HEADER_LIST_SIZE, and INITIAL_WINDOW_SIZE.
-- [ ] H2-3. Stream states: idle, open, half-closed, closed.
-- [ ] H2-4. close() sends GOAWAY. A stream error sends RST_STREAM.
-- [ ] H2-5. A second HEADERS block with END_STREAM is trailers.
-- [ ] H2-6. CONTINUATION follows HEADERS on the same stream with no
+- [x] H2-3. Stream states: idle, open, half-closed, closed.
+- [x] H2-4. close() sends GOAWAY. A stream error sends RST_STREAM.
+- [x] H2-5. A second HEADERS block with END_STREAM is trailers.
+- [x] H2-6. CONTINUATION follows HEADERS on the same stream with no
   other frames between them.
-- [ ] H2-7. Tests: body larger than 65535, window overflow, trailer,
+- [x] H2-7. Tests: body larger than 65535, window overflow, trailer,
   GOAWAY. Push stays off. PRIORITY stays ignored.
 
 ## 3. HTTP/3 (RFC 9114, RFC 9204)

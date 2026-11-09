@@ -50,7 +50,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | HTTP/1.1 GET over `PqTlsSocket` | Done |
 | QUIC 1-RTT protect + CRYPTO/STREAM | Done |
 | QUIC loss recovery (RFC 9002 NewReno) | Done |
-| HTTP/2 | Done (ALPN `h2`, RFC 9113 + RFC 7541) |
+| HTTP/2 | Slice. Windows, SETTINGS limits, stream states, GOAWAY, RST_STREAM, trailers, CONTINUATION. Not a complete RFC 9113 stack |
 | HTTP/3 QPACK | Done (ALPN `h3`, RFC 9114 + RFC 9204) |
 | IoDatagramChannel multicast join | Done |
 

@@ -118,8 +118,10 @@ no TLS records). This QUIC is self-interop across those spaces. It is
 not a third-party stack and not `curl --http3`. HTTP/1.1, HTTP/2, and
 HTTP/3 remain self-interop slices. The gap list is `TODO.md`.
 
-HTTP/1.1 is one request and one response. HTTP/2 is preface, SETTINGS,
-HEADERS, DATA, and HPACK, without enforced flow control. HTTP/3 is
+HTTP/1.1 is one request and one response. HTTP/2 enforces connection and
+stream windows, the four SETTINGS limits, stream states, GOAWAY,
+RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is
+ignored. It is not a complete RFC 9113 stack. HTTP/3 is
 SETTINGS, HEADERS, and DATA on `PqQuicConn`. Silent h2/h3→h1 downgrade
 is refused (`allowDowngrade: false`).
 

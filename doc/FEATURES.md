@@ -98,7 +98,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | 0-RTT | Slice | Self-interop only. Long header in the Application Data space (RFC 9000 §12.3). The ticket remembers the server flow-control limits. `writeEarly` refuses bytes past them. |
 | HTTP/1.1 request/response | Slice | One request and one response. Not chunked. Not a complete RFC 9112 recipient. |
 | HTTP/1.1 GET over `PqTlsSocket` | Slice | One application-data event. |
-| HTTP/2 | Slice | Self-interop preface, SETTINGS, HEADERS, DATA, HPACK. Flow control is not enforced. Not a complete RFC 9113 stack. |
+| HTTP/2 | Slice | Self-interop. Connection and stream windows, SETTINGS limits, idle/open/half-closed/closed, GOAWAY, RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is ignored. Not a complete RFC 9113 stack. |
 | HTTP/3 + QPACK | Slice | Self-interop on `PqQuicConn`. Not a complete RFC 9114 stack. Not nghttp3. |
 | Silent h2/h3→h1 downgrade | Refused | `allowDowngrade: false` default |
 

@@ -33,12 +33,14 @@ final class PqHttpResponse {
     required this.headers,
     required this.body,
     required this.version,
+    this.trailers = const {},
   });
 
   final int status;
   final Map<String, String> headers;
   final Uint8List body;
   final HttpVersion version;
+  final Map<String, String> trailers;
 }
 
 /// HTTP/1.1 request encoder / response parser.

@@ -214,8 +214,9 @@ Result<PqHttpRequest, PqTransportError> http2ParseRequest(
 
 Result<PqHttpResponse, PqTransportError> http2ParseResponse(
   List<HpackHeader> headers,
-  Uint8List body,
-) {
+  Uint8List body, {
+  List<HpackHeader> trailers = const [],
+}) {
   String? statusText;
   final regular = <String, String>{};
   for (final h in headers) {
@@ -233,12 +234,22 @@ Result<PqHttpResponse, PqTransportError> http2ParseResponse(
   if (status == null) {
     return Result.failure(PqTransportError.decodeFailure('http2 :status'));
   }
+  final trailerMap = <String, String>{};
+  for (final h in trailers) {
+    if (h.name.startsWith(':')) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 trailer ${h.name}'),
+      );
+    }
+    trailerMap[h.name] = h.value;
+  }
   return Result.success(
     PqHttpResponse(
       status: status,
       headers: regular,
       body: body,
       version: HttpVersion.h2,
+      trailers: trailerMap,
     ),
   );
 }
@@ -248,13 +259,62 @@ const Map<int, int> http2ClientSettings = {
   http2SettingsMaxConcurrentStreams: http2DefaultMaxConcurrentStreams,
   http2SettingsInitialWindowSize: http2DefaultInitialWindowSize,
   http2SettingsMaxFrameSize: http2DefaultMaxFrameSize,
+  http2SettingsMaxHeaderListSize: http2DefaultMaxHeaderListSize,
 };
 
 const Map<int, int> http2ServerSettings = {
   http2SettingsMaxConcurrentStreams: http2DefaultMaxConcurrentStreams,
   http2SettingsInitialWindowSize: http2DefaultInitialWindowSize,
   http2SettingsMaxFrameSize: http2DefaultMaxFrameSize,
+  http2SettingsMaxHeaderListSize: http2DefaultMaxHeaderListSize,
 };
+
+enum Http2StreamState { idle, open, halfClosedLocal, halfClosedRemote, closed }
+
+int http2HeaderListSize(List<HpackHeader> headers) {
+  var size = 0;
+  for (final header in headers) {
+    size += header.name.length + header.value.length + hpackEntryOverheadBytes;
+  }
+  return size;
+}
+
+Uint8List encodeHttp2WindowUpdate(int streamId, int increment) {
+  final payload = BytesBuilder(copy: false);
+  writeUint32(payload, increment & http2StreamIdMask);
+  return Http2Frame(
+    type: http2FrameWindowUpdate,
+    flags: 0,
+    streamId: streamId,
+    payload: payload.takeBytes(),
+  ).encode();
+}
+
+Uint8List encodeHttp2RstStream(int streamId, int errorCode) {
+  final payload = BytesBuilder(copy: false);
+  writeUint32(payload, errorCode);
+  return Http2Frame(
+    type: http2FrameRstStream,
+    flags: 0,
+    streamId: streamId,
+    payload: payload.takeBytes(),
+  ).encode();
+}
+
+Uint8List encodeHttp2Goaway({
+  required int lastStreamId,
+  required int errorCode,
+}) {
+  final payload = BytesBuilder(copy: false);
+  writeUint32(payload, lastStreamId & http2StreamIdMask);
+  writeUint32(payload, errorCode);
+  return Http2Frame(
+    type: http2FrameGoaway,
+    flags: 0,
+    streamId: 0,
+    payload: payload.takeBytes(),
+  ).encode();
+}
 
 /// HTTP/2 session over a completed [PqTlsSocket] (ALPN `h2`).
 final class PqHttp2Session {
@@ -291,9 +351,29 @@ final class PqHttp2Session {
   var _closed = false;
   var _nextStreamId = http2ClientInitialStreamId;
   var _peerMaxFrameSize = http2DefaultMaxFrameSize;
+  final int _localMaxFrameSize = http2DefaultMaxFrameSize;
+  final int _localInitialWindow = http2DefaultInitialWindowSize;
+  var _peerInitialWindow = http2DefaultInitialWindowSize;
+  var _sendConnWindow = http2DefaultInitialWindowSize;
+  var _recvConnWindow = http2DefaultInitialWindowSize;
+  var _peerMaxConcurrent = http2DefaultMaxConcurrentStreams;
+  final int _localMaxConcurrent = http2DefaultMaxConcurrentStreams;
+  int? _peerMaxHeaderList;
+  final int _localMaxHeaderList = http2DefaultMaxHeaderListSize;
+  var _expectContinuation = false;
+  var _continuationStream = 0;
+  var _highestPeerStream = 0;
+  var _goawaySent = false;
+  final Map<int, _H2Stream> _streams = {};
+  Completer<void>? _windowWaiter;
   Future<void> _outbox = Future<void>.value();
 
   bool get isStarted => _started;
+
+  PqTransportError? get error => _error;
+
+  Http2StreamState streamState(int id) =>
+      _streams[id]?.state ?? Http2StreamState.idle;
 
   Future<Result<void, PqTransportError>> start({
     Duration timeout = const Duration(seconds: 10),
@@ -333,27 +413,45 @@ final class PqHttp2Session {
     }
     final started = await ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
+    if (_error != null) return Result.failure(_error!);
+    if (_localActive() >= _peerMaxConcurrent) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 max streams'),
+      );
+    }
+    final headers = http2RequestHeaders(req);
+    final limited = _headerListTooLarge(headers, peer: true);
+    if (limited != null) return Result.failure(limited);
     final streamId = _nextStreamId;
     _nextStreamId += 2;
-    final block = _encode.encode(http2RequestHeaders(req));
     final endStream = req.body.isEmpty;
+    _onLocalHeaders(streamId, endStream: endStream);
+    final block = _encode.encode(headers);
     final sent = await _sendHeaderBlock(streamId, block, endStream: endStream);
     if (sent.isFailure) return Result.failure(sent.errorOrNull!);
     if (!endStream) {
-      final data = await _send(
-        Http2Frame(
-          type: http2FrameData,
-          flags: http2FlagEndStream,
-          streamId: streamId,
-          payload: Uint8List.fromList(req.body),
-        ).encode(),
+      final data = await _sendBody(
+        streamId,
+        req.body,
+        endStream: true,
+        timeout: timeout,
       );
       if (data.isFailure) return Result.failure(data.errorOrNull!);
     }
     final assembled = await _collect(streamId, timeout);
     if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
-    final (headers, body, _) = assembled.valueOrNull!;
-    return http2ParseResponse(headers, body);
+    final (responseHeaders, body, _, trailers) = assembled.valueOrNull!;
+    final sized = _headerListTooLarge(responseHeaders, peer: false);
+    if (sized != null) {
+      _failStream(streamId, http2ErrorProtocol);
+      return Result.failure(sized);
+    }
+    final trailerSized = _headerListTooLarge(trailers, peer: false);
+    if (trailerSized != null) {
+      _failStream(streamId, http2ErrorProtocol);
+      return Result.failure(trailerSized);
+    }
+    return http2ParseResponse(responseHeaders, body, trailers: trailers);
   }
 
   Future<Result<(int, PqHttpRequest), PqTransportError>> accept({
@@ -368,7 +466,12 @@ final class PqHttp2Session {
     if (started.isFailure) return Result.failure(started.errorOrNull!);
     final assembled = await _collect(0, timeout);
     if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
-    final (headers, body, streamId) = assembled.valueOrNull!;
+    final (headers, body, streamId, _) = assembled.valueOrNull!;
+    final sized = _headerListTooLarge(headers, peer: false);
+    if (sized != null) {
+      _failStream(streamId, http2ErrorProtocol);
+      return Result.failure(sized);
+    }
     final req = http2ParseRequest(headers, body);
     if (req.isFailure) return Result.failure(req.errorOrNull!);
     return Result.success((streamId, req.valueOrNull!));
@@ -376,30 +479,58 @@ final class PqHttp2Session {
 
   Future<Result<void, PqTransportError>> respond(
     int streamId,
-    PqHttpResponse resp,
-  ) async {
-    final block = _encode.encode(http2ResponseHeaders(resp));
-    final endStream = resp.body.isEmpty;
+    PqHttpResponse resp, {
+    Map<String, String> trailers = const {},
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final trailerHeaders = [
+      for (final entry in trailers.entries)
+        HpackHeader(entry.key.toLowerCase(), entry.value),
+    ];
+    final headers = http2ResponseHeaders(resp);
+    final limited = _headerListTooLarge(headers, peer: true);
+    if (limited != null) return Result.failure(limited);
+    final endStream = resp.body.isEmpty && trailerHeaders.isEmpty;
+    _onLocalHeaders(streamId, endStream: endStream);
+    final block = _encode.encode(headers);
     final sent = await _sendHeaderBlock(streamId, block, endStream: endStream);
     if (sent.isFailure) return sent;
-    if (!endStream) {
-      return _send(
-        Http2Frame(
-          type: http2FrameData,
-          flags: http2FlagEndStream,
-          streamId: streamId,
-          payload: resp.body,
-        ).encode(),
+    if (resp.body.isNotEmpty) {
+      final data = await _sendBody(
+        streamId,
+        resp.body,
+        endStream: trailerHeaders.isEmpty,
+        timeout: timeout,
       );
+      if (data.isFailure) return data;
     }
-    return const Result.success(null);
+    if (trailerHeaders.isEmpty) return const Result.success(null);
+    final trailerLimited = _headerListTooLarge(trailerHeaders, peer: true);
+    if (trailerLimited != null) return Result.failure(trailerLimited);
+    final trailersSent = await _sendHeaderBlock(
+      streamId,
+      _encode.encode(trailerHeaders),
+      endStream: true,
+    );
+    if (trailersSent.isSuccess) _onLocalEnd(streamId);
+    return trailersSent;
   }
 
   Future<void> close() async {
+    if (!_goawaySent && _started && _error == null) {
+      _goawaySent = true;
+      await _send(
+        encodeHttp2Goaway(
+          lastStreamId: _highestPeerStream,
+          errorCode: http2ErrorNoError,
+        ),
+      );
+    }
     _closed = true;
     await _sub?.cancel();
     _sub = null;
     _wake();
+    _wakeWindow();
   }
 
   Future<Result<void, PqTransportError>> _sendHeaderBlock(
@@ -407,7 +538,9 @@ final class PqHttp2Session {
     Uint8List block, {
     required bool endStream,
   }) async {
-    final max = _peerMaxFrameSize;
+    final max = _peerMaxFrameSize < http2TlsSafeDataBytes
+        ? _peerMaxFrameSize
+        : http2TlsSafeDataBytes;
     if (block.length <= max) {
       return _send(
         Http2Frame(
@@ -452,10 +585,17 @@ final class PqHttp2Session {
     return const Result.success(null);
   }
 
-  Future<Result<(List<HpackHeader>, Uint8List, int), PqTransportError>>
+  Future<
+    Result<
+      (List<HpackHeader>, Uint8List, int, List<HpackHeader>),
+      PqTransportError
+    >
+  >
   _collect(int wantStream, Duration timeout) async {
     final headerParts = BytesBuilder(copy: false);
+    final trailerParts = BytesBuilder(copy: false);
     final dataParts = BytesBuilder(copy: false);
+    var headerPartsAreTrailers = false;
     var headersOpen = false;
     var headersDone = false;
     var streamEnded = false;
@@ -487,13 +627,19 @@ final class PqHttp2Session {
       }
       if (frame.type == http2FrameHeaders) {
         if (headersDone) {
-          if (frame.endStream) {
-            ended = true;
-            continue;
+          if (!frame.endStream) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 unexpected headers'),
+            );
           }
-          return Result.failure(
-            PqTransportError.decodeFailure('http2 unexpected headers'),
-          );
+          headerPartsAreTrailers = true;
+          streamId = frame.streamId;
+          final body = http2Unpad(frame, allowPriority: true);
+          if (body.isFailure) return Result.failure(body.errorOrNull!);
+          trailerParts.add(body.valueOrNull!);
+          headersOpen = !frame.endHeaders;
+          ended = frame.endHeaders;
+          continue;
         }
         if (frame.streamId == 0) {
           return Result.failure(
@@ -514,10 +660,16 @@ final class PqHttp2Session {
             PqTransportError.decodeFailure('http2 continuation'),
           );
         }
-        headerParts.add(frame.payload);
+        if (headerPartsAreTrailers) {
+          trailerParts.add(frame.payload);
+        } else {
+          headerParts.add(frame.payload);
+        }
         headersOpen = !frame.endHeaders;
-        headersDone = frame.endHeaders;
-        ended = streamEnded && headersDone;
+        if (!headerPartsAreTrailers) headersDone = frame.endHeaders;
+        ended = headerPartsAreTrailers
+            ? frame.endHeaders
+            : streamEnded && headersDone;
       } else if (frame.type == http2FrameData) {
         if (!headersDone || headersOpen || frame.streamId != streamId) {
           return Result.failure(
@@ -537,10 +689,18 @@ final class PqHttp2Session {
     }
     final decoded = _decode.decode(headerParts.takeBytes());
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+    final trailerBytes = trailerParts.takeBytes();
+    final decodedTrailers = trailerBytes.isEmpty
+        ? const Result<List<HpackHeader>, PqTransportError>.success([])
+        : _decode.decode(trailerBytes);
+    if (decodedTrailers.isFailure) {
+      return Result.failure(decodedTrailers.errorOrNull!);
+    }
     return Result.success((
       decoded.valueOrNull!,
       dataParts.takeBytes(),
       streamId,
+      decodedTrailers.valueOrNull!,
     ));
   }
 
@@ -575,10 +735,10 @@ final class PqHttp2Session {
       }
       final decoded = Http2Frame.tryDecode(
         wire,
-        maxFrameSize: http2DefaultMaxFrameSize,
+        maxFrameSize: _localMaxFrameSize,
       );
       if (decoded.isFailure) {
-        _fail(decoded.errorOrNull!);
+        _failConnection(http2ErrorFrameSize, 'http2 frame too large');
         return;
       }
       final pair = decoded.valueOrNull;
@@ -594,42 +754,30 @@ final class PqHttp2Session {
   }
 
   void _handleFrame(Http2Frame frame) {
+    if (_expectContinuation &&
+        (frame.type != http2FrameContinuation ||
+            frame.streamId != _continuationStream)) {
+      _failConnection(http2ErrorProtocol, 'http2 continuation interrupted');
+      return;
+    }
     switch (frame.type) {
       case http2FrameSettings:
         if (frame.streamId != 0) {
-          _fail(PqTransportError.decodeFailure('http2 settings stream'));
+          _failConnection(http2ErrorProtocol, 'http2 settings stream');
           return;
         }
         if (frame.ack) {
           if (frame.payload.isNotEmpty) {
-            _fail(PqTransportError.decodeFailure('http2 settings ack payload'));
+            _failConnection(http2ErrorProtocol, 'http2 settings ack payload');
           }
           return;
         }
         final settings = decodeHttp2Settings(frame.payload);
         if (settings.isFailure) {
-          _fail(settings.errorOrNull!);
+          _failConnection(http2ErrorProtocol, 'http2 settings');
           return;
         }
-        final map = settings.valueOrNull!;
-        final maxFrame = map[http2SettingsMaxFrameSize];
-        if (maxFrame != null) {
-          if (maxFrame < http2MinMaxFrameSize ||
-              maxFrame > http2MaxMaxFrameSize) {
-            _fail(PqTransportError.decodeFailure('http2 max frame'));
-            return;
-          }
-          _peerMaxFrameSize = maxFrame;
-        }
-        final table = map[http2SettingsHeaderTableSize];
-        if (table != null) {
-          _encode.setMaxTableSize(table);
-        }
-        final window = map[http2SettingsInitialWindowSize];
-        if (window != null && window > http2MaxWindowSize) {
-          _fail(PqTransportError.decodeFailure('http2 window'));
-          return;
-        }
+        _applySettings(settings.valueOrNull!);
         _sawPeerSettings = true;
         unawaited(
           _send(encodeHttp2Settings(const {}, ack: true)).then((r) {
@@ -640,7 +788,7 @@ final class PqHttp2Session {
       case http2FramePing:
         if (frame.streamId != 0 ||
             frame.payload.length != http2PingPayloadBytes) {
-          _fail(PqTransportError.decodeFailure('http2 ping'));
+          _failConnection(http2ErrorProtocol, 'http2 ping');
           return;
         }
         if (!frame.ack) {
@@ -656,22 +804,357 @@ final class PqHttp2Session {
           );
         }
       case http2FrameWindowUpdate:
-        if (frame.payload.length != http2WindowUpdatePayloadBytes) {
-          _fail(PqTransportError.decodeFailure('http2 window update'));
-          return;
-        }
-        final inc = readUint32(frame.payload, 0) & http2StreamIdMask;
-        if (inc == 0) {
-          _fail(PqTransportError.decodeFailure('http2 window increment 0'));
-        }
+        _applyWindowUpdate(frame);
       case http2FramePriority:
         return;
       case http2FramePushPromise:
-        _fail(PqTransportError.decodeFailure('http2 push'));
-      default:
+        _failConnection(http2ErrorProtocol, 'http2 push');
+      case http2FrameGoaway:
         _frames.add(frame);
         _wake();
+      case http2FrameRstStream:
+        if (frame.payload.length != http2RstStreamPayloadBytes) {
+          _failConnection(http2ErrorFrameSize, 'http2 rst');
+          return;
+        }
+        if (frame.streamId == 0) {
+          _failConnection(http2ErrorProtocol, 'http2 rst');
+          return;
+        }
+        final existing = _streams[frame.streamId];
+        if (existing == null || existing.state == Http2StreamState.idle) {
+          _failConnection(http2ErrorProtocol, 'http2 rst idle');
+          return;
+        }
+        _onRemoteReset(frame.streamId);
+        _frames.add(frame);
+        _wake();
+      case http2FrameData:
+      case http2FrameHeaders:
+      case http2FrameContinuation:
+        if (!_acceptStreamFrame(frame)) return;
+        _frames.add(frame);
+        _wake();
+      default:
+        _failConnection(http2ErrorProtocol, 'http2 frame');
     }
+  }
+
+  void _applySettings(Map<int, int> map) {
+    final maxFrame = map[http2SettingsMaxFrameSize];
+    if (maxFrame != null) {
+      if (maxFrame < http2MinMaxFrameSize || maxFrame > http2MaxMaxFrameSize) {
+        _failConnection(http2ErrorProtocol, 'http2 max frame');
+        return;
+      }
+      _peerMaxFrameSize = maxFrame;
+    }
+    final table = map[http2SettingsHeaderTableSize];
+    if (table != null) _encode.setMaxTableSize(table);
+    final concurrent = map[http2SettingsMaxConcurrentStreams];
+    if (concurrent != null) _peerMaxConcurrent = concurrent;
+    final headerList = map[http2SettingsMaxHeaderListSize];
+    if (headerList != null) _peerMaxHeaderList = headerList;
+    final window = map[http2SettingsInitialWindowSize];
+    if (window == null) return;
+    if (window > http2MaxWindowSize) {
+      _failConnection(http2ErrorFlowControl, 'http2 window');
+      return;
+    }
+    final delta = window - _peerInitialWindow;
+    _peerInitialWindow = window;
+    if (delta == 0) return;
+    for (final stream in _streams.values) {
+      final next = stream.send + delta;
+      if (next < 0 || next > http2MaxWindowSize) {
+        _failConnection(http2ErrorFlowControl, 'http2 window');
+        return;
+      }
+      stream.send = next;
+    }
+    _wakeWindow();
+  }
+
+  void _applyWindowUpdate(Http2Frame frame) {
+    if (frame.payload.length != http2WindowUpdatePayloadBytes) {
+      _failConnection(http2ErrorProtocol, 'http2 window update');
+      return;
+    }
+    final inc = readUint32(frame.payload, 0) & http2StreamIdMask;
+    if (inc == 0) {
+      _failConnection(http2ErrorProtocol, 'http2 window increment 0');
+      return;
+    }
+    if (frame.streamId == 0) {
+      if (_sendConnWindow > http2MaxWindowSize - inc) {
+        _failConnection(http2ErrorFlowControl, 'http2 flow control');
+        return;
+      }
+      _sendConnWindow += inc;
+      _wakeWindow();
+      return;
+    }
+    final stream = _streams[frame.streamId];
+    if (stream == null || stream.state == Http2StreamState.idle) {
+      _failConnection(http2ErrorProtocol, 'http2 window stream');
+      return;
+    }
+    if (stream.state == Http2StreamState.closed) return;
+    if (stream.send > http2MaxWindowSize - inc) {
+      _failStream(frame.streamId, http2ErrorFlowControl);
+      return;
+    }
+    stream.send += inc;
+    _wakeWindow();
+  }
+
+  bool _acceptStreamFrame(Http2Frame frame) {
+    if (frame.streamId == 0) {
+      _failConnection(http2ErrorProtocol, 'http2 stream 0');
+      return false;
+    }
+    if (frame.type == http2FrameHeaders && !frame.endHeaders) {
+      _expectContinuation = true;
+      _continuationStream = frame.streamId;
+    } else if (frame.type == http2FrameContinuation) {
+      _expectContinuation = !frame.endHeaders;
+    } else if (frame.type == http2FrameHeaders) {
+      _expectContinuation = false;
+    }
+    final remote = _remoteInitiated(frame.streamId);
+    if (remote && frame.streamId > _highestPeerStream) {
+      _highestPeerStream = frame.streamId;
+    }
+    final stream = _ensure(frame.streamId);
+    if (frame.type != http2FrameContinuation &&
+        (stream.state == Http2StreamState.closed ||
+            stream.state == Http2StreamState.halfClosedRemote)) {
+      _failStream(frame.streamId, http2ErrorStreamClosed);
+      return false;
+    }
+    if (stream.state == Http2StreamState.idle &&
+        frame.type != http2FrameHeaders) {
+      _failConnection(http2ErrorProtocol, 'http2 idle');
+      return false;
+    }
+    if (frame.type == http2FrameHeaders &&
+        stream.state == Http2StreamState.idle &&
+        remote &&
+        _remoteActive() >= _localMaxConcurrent) {
+      _failStream(frame.streamId, http2ErrorRefusedStream);
+      return false;
+    }
+    if (frame.type == http2FrameData) {
+      final n = frame.payload.length;
+      if (n > _recvConnWindow || n > stream.recv) {
+        if (n > _recvConnWindow) {
+          _failConnection(http2ErrorFlowControl, 'http2 flow control');
+        } else {
+          _failStream(frame.streamId, http2ErrorFlowControl);
+        }
+        return false;
+      }
+      _recvConnWindow -= n;
+      stream.recv -= n;
+      _credit(frame.streamId, n);
+    }
+    _onRemoteFrame(frame);
+    return true;
+  }
+
+  void _credit(int streamId, int n) {
+    if (n == 0) return;
+    _recvConnWindow += n;
+    final stream = _streams[streamId];
+    if (stream != null) stream.recv += n;
+    unawaited(_send(encodeHttp2WindowUpdate(0, n)));
+    unawaited(_send(encodeHttp2WindowUpdate(streamId, n)));
+  }
+
+  Future<Result<void, PqTransportError>> _sendBody(
+    int streamId,
+    List<int> body, {
+    required bool endStream,
+    required Duration timeout,
+  }) async {
+    final data = Uint8List.fromList(body);
+    var offset = 0;
+    while (offset < data.length) {
+      final ready = await _waitSendWindow(streamId, timeout);
+      if (ready.isFailure) return ready;
+      final stream = _ensure(streamId);
+      var n = data.length - offset;
+      final frameCap = _peerMaxFrameSize < http2TlsSafeDataBytes
+          ? _peerMaxFrameSize
+          : http2TlsSafeDataBytes;
+      if (n > frameCap) n = frameCap;
+      if (n > _sendConnWindow) n = _sendConnWindow;
+      if (n > stream.send) n = stream.send;
+      if (n == 0) continue;
+      final last = offset + n == data.length;
+      _sendConnWindow -= n;
+      stream.send -= n;
+      final sent = await _send(
+        Http2Frame(
+          type: http2FrameData,
+          flags: last && endStream ? http2FlagEndStream : 0,
+          streamId: streamId,
+          payload: Uint8List.sublistView(data, offset, offset + n),
+        ).encode(),
+      );
+      if (sent.isFailure) return sent;
+      offset += n;
+      if (last && endStream) _onLocalEnd(streamId);
+    }
+    return const Result.success(null);
+  }
+
+  Future<Result<void, PqTransportError>> _waitSendWindow(
+    int streamId,
+    Duration timeout,
+  ) async {
+    final deadline = DateTime.now().add(timeout);
+    while (_sendConnWindow == 0 || (_streams[streamId]?.send ?? 0) == 0) {
+      if (_error != null) return Result.failure(_error!);
+      if (_closed) return Result.failure(PqTransportError.closed('http2'));
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining.isNegative) {
+        return Result.failure(
+          PqTransportError.decodeFailure('http2 window timeout'),
+        );
+      }
+      final done = Completer<void>();
+      _windowWaiter = done;
+      if (_sendConnWindow > 0 && (_streams[streamId]?.send ?? 0) > 0) {
+        if (identical(_windowWaiter, done)) _windowWaiter = null;
+        break;
+      }
+      try {
+        await done.future.timeout(remaining);
+      } on TimeoutException {
+        return Result.failure(
+          PqTransportError.decodeFailure('http2 window timeout'),
+        );
+      } finally {
+        if (identical(_windowWaiter, done)) _windowWaiter = null;
+      }
+    }
+    if (_error != null) return Result.failure(_error!);
+    return const Result.success(null);
+  }
+
+  _H2Stream _ensure(int id) => _streams.putIfAbsent(
+    id,
+    () => _H2Stream(send: _peerInitialWindow, recv: _localInitialWindow),
+  );
+
+  void _onLocalHeaders(int id, {required bool endStream}) {
+    final stream = _ensure(id);
+    switch (stream.state) {
+      case Http2StreamState.idle:
+        stream.state = endStream
+            ? Http2StreamState.halfClosedLocal
+            : Http2StreamState.open;
+      case Http2StreamState.open:
+        if (endStream) stream.state = Http2StreamState.halfClosedLocal;
+      case Http2StreamState.halfClosedRemote:
+        if (endStream) stream.state = Http2StreamState.closed;
+      case Http2StreamState.halfClosedLocal:
+      case Http2StreamState.closed:
+        break;
+    }
+  }
+
+  void _onLocalEnd(int id) {
+    final stream = _streams[id];
+    if (stream == null) return;
+    stream.state = stream.state == Http2StreamState.halfClosedRemote
+        ? Http2StreamState.closed
+        : Http2StreamState.halfClosedLocal;
+  }
+
+  void _onRemoteFrame(Http2Frame frame) {
+    final stream = _ensure(frame.streamId);
+    final end = frame.endStream && frame.type != http2FrameContinuation;
+    if (frame.type == http2FrameHeaders &&
+        stream.state == Http2StreamState.idle) {
+      stream.state = end
+          ? Http2StreamState.halfClosedRemote
+          : Http2StreamState.open;
+      return;
+    }
+    if (!end) return;
+    stream.state = stream.state == Http2StreamState.halfClosedLocal
+        ? Http2StreamState.closed
+        : Http2StreamState.halfClosedRemote;
+  }
+
+  void _onRemoteReset(int id) {
+    final stream = _streams[id];
+    if (stream == null) return;
+    stream.state = Http2StreamState.closed;
+  }
+
+  int _localActive() {
+    var n = 0;
+    for (final entry in _streams.entries) {
+      if (!_remoteInitiated(entry.key) && _active(entry.value.state)) n++;
+    }
+    return n;
+  }
+
+  int _remoteActive() {
+    var n = 0;
+    for (final entry in _streams.entries) {
+      if (_remoteInitiated(entry.key) && _active(entry.value.state)) n++;
+    }
+    return n;
+  }
+
+  bool _remoteInitiated(int id) => isClient ? id.isEven : id.isOdd;
+
+  bool _active(Http2StreamState state) =>
+      state == Http2StreamState.open ||
+      state == Http2StreamState.halfClosedLocal ||
+      state == Http2StreamState.halfClosedRemote;
+
+  PqTransportError? _headerListTooLarge(
+    List<HpackHeader> headers, {
+    required bool peer,
+  }) {
+    final limit = peer ? _peerMaxHeaderList : _localMaxHeaderList;
+    if (limit != null && http2HeaderListSize(headers) > limit) {
+      return PqTransportError.decodeFailure('http2 header list');
+    }
+    return null;
+  }
+
+  void _failStream(int id, int code) {
+    final stream = _streams[id];
+    if (stream != null) stream.state = Http2StreamState.closed;
+    unawaited(_send(encodeHttp2RstStream(id, code)));
+    _wake();
+    _wakeWindow();
+  }
+
+  void _failConnection(int code, String why) {
+    if (_error != null) return;
+    _error = PqTransportError.decodeFailure(why);
+    if (!_goawaySent) {
+      _goawaySent = true;
+      unawaited(
+        _send(
+          encodeHttp2Goaway(lastStreamId: _highestPeerStream, errorCode: code),
+        ),
+      );
+    }
+    _wake();
+    _wakeWindow();
+  }
+
+  void _wakeWindow() {
+    final waiter = _windowWaiter;
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
   }
 
   Future<Result<Http2Frame, PqTransportError>> _waitFrame(
@@ -741,4 +1224,12 @@ final class PqHttp2Session {
     });
     return done.future;
   }
+}
+
+final class _H2Stream {
+  _H2Stream({required this.send, required this.recv});
+
+  int send;
+  int recv;
+  Http2StreamState state = Http2StreamState.idle;
 }

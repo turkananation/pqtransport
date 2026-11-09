@@ -765,6 +765,11 @@ const String dohTemplateQuery = '{?dns}';
 const String http2ConnectionPreface = 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n';
 const int http2PrefaceBytes = 24;
 const int http2FrameHeaderBytes = 9;
+
+/// Largest DATA payload that still fits in one TLS 1.3 record. The frame
+/// header, the inner content-type byte, and the AEAD tag share the budget.
+const int http2TlsSafeDataBytes =
+    tlsMaxPlaintextBytes - aeadTagBytes - 1 - http2FrameHeaderBytes;
 const int http2DefaultMaxFrameSize = 16384;
 const int http2MinMaxFrameSize = 16384;
 const int http2MaxMaxFrameSize = 16777215;
@@ -804,6 +809,14 @@ const int http2SettingsMaxConcurrentStreams = 0x03;
 const int http2SettingsInitialWindowSize = 0x04;
 const int http2SettingsMaxFrameSize = 0x05;
 const int http2SettingsMaxHeaderListSize = 0x06;
+const int http2DefaultMaxHeaderListSize = 65536;
+
+const int http2ErrorNoError = 0x0;
+const int http2ErrorProtocol = 0x1;
+const int http2ErrorFlowControl = 0x3;
+const int http2ErrorStreamClosed = 0x5;
+const int http2ErrorFrameSize = 0x6;
+const int http2ErrorRefusedStream = 0x7;
 
 const int hpackStaticTableLength = 61;
 const int hpackEntryOverheadBytes = 32;
