@@ -28,6 +28,8 @@ export 'src/mdns/pq_mdns.dart';
 export 'src/mdns/signed_record.dart';
 export 'src/quic/packet.dart';
 export 'src/quic/initial.dart';
+export 'src/quic/datagram.dart';
+export 'src/quic/transport_params.dart';
 export 'src/quic/tls_in_quic.dart';
 export 'src/quic/stream.dart';
 export 'src/quic/connection.dart';

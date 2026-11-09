@@ -21,6 +21,8 @@ final class QuicResumptionTicket {
     required this.cipherSuite,
     required this.issuedAt,
     this.lifetimeSeconds = 86400,
+    this.maxEarlyData = quicMaxDataDefault,
+    this.maxEarlyStreamData = quicMaxStreamDataDefault,
   });
 
   final Uint8List identity;
@@ -30,6 +32,10 @@ final class QuicResumptionTicket {
   final int cipherSuite;
   final DateTime issuedAt;
   final int lifetimeSeconds;
+
+  /// Server receive limits remembered for 0-RTT (RFC 9000 §7.4.1).
+  final int maxEarlyData;
+  final int maxEarlyStreamData;
 
   int obfuscatedAge(DateTime now) {
     final age = now.toUtc().difference(issuedAt.toUtc()).inMilliseconds;
@@ -55,6 +61,8 @@ final class QuicEarlyDataStore {
     required PqTransportCrypto crypto,
     required int cipherSuite,
     DateTime? now,
+    int maxEarlyData = quicMaxDataDefault,
+    int maxEarlyStreamData = quicMaxStreamDataDefault,
   }) {
     final identity = crypto.randomBytes(32);
     final nonce = crypto.randomBytes(8);
@@ -67,6 +75,8 @@ final class QuicEarlyDataStore {
       ageAdd: ageAdd,
       cipherSuite: cipherSuite,
       issuedAt: (now ?? DateTime.now()).toUtc(),
+      maxEarlyData: maxEarlyData,
+      maxEarlyStreamData: maxEarlyStreamData,
     );
     _live[_id(identity)] = ticket;
     return ticket;

@@ -189,6 +189,7 @@ final class PqTlsServer {
     this.quic = false,
     this.ech,
     this.earlyData,
+    this.quicTransportParameters,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        identity =
            identity ??
@@ -209,6 +210,12 @@ final class PqTlsServer {
 
   /// Single-use 0-RTT tickets. Null rejects every resumption.
   final QuicEarlyDataStore? earlyData;
+
+  /// Local transport parameters, sent in EncryptedExtensions.
+  final Uint8List? quicTransportParameters;
+
+  /// Client's transport parameters, from ClientHello.
+  Uint8List? peerQuicTransportParameters;
 
   Uint8List? earlyTrafficSecret;
   bool earlyDataAccepted = false;
@@ -290,6 +297,7 @@ final class PqTlsServer {
     final ch = ClientHello.decode(acceptedHello);
     if (ch.isFailure) return Result.failure(ch.errorOrNull!);
     final hello = ch.valueOrNull!;
+    peerQuicTransportParameters = hello.quicTransportParameters;
     if (_hrrCookie != null) {
       if (!hello.cipherSuites.contains(_suite.codepoint)) {
         return _fail('cipher dropped after hrr');
@@ -489,6 +497,7 @@ final class PqTlsServer {
       serverCertificateType: echoType,
       alpnProtocol: selectedAlpn,
       earlyData: earlyDataAccepted,
+      quicTransportParameters: quic ? quicTransportParameters : null,
     );
     transcript.add(ee);
     final cert = sendX509

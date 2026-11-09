@@ -48,6 +48,7 @@ final class ClientHello {
     this.pskIdentity,
     this.pskObfuscatedAge,
     this.pskBinder,
+    this.quicTransportParameters,
   });
 
   final Uint8List random;
@@ -90,6 +91,9 @@ final class ClientHello {
   final Uint8List? pskIdentity;
   final int? pskObfuscatedAge;
   final Uint8List? pskBinder;
+
+  /// RFC 9001 `quic_transport_parameters` (extension 57). Null omits it.
+  final Uint8List? quicTransportParameters;
 
   List<({TlsNamedGroup group, Uint8List share})> get offeredKeyShares =>
       keyShares ?? [(group: group, share: share)];
@@ -147,6 +151,10 @@ final class ClientHello {
     b.add(_extKeyShareClients(offeredKeyShares, ignoredKeyShareGroups));
     if (echInner) {
       b.add(_ext(tlsExtEncryptedClientHello, Uint8List.fromList([1])));
+    }
+    final tp = quicTransportParameters;
+    if (tp != null) {
+      b.add(_ext(tlsExtQuicTransportParameters, tp));
     }
     return b.takeBytes();
   }
@@ -275,6 +283,7 @@ final class ClientHello {
         pskIdentity: pskOffered?.identity,
         pskObfuscatedAge: pskOffered?.age,
         pskBinder: pskOffered?.binder,
+        quicTransportParameters: map[tlsExtQuicTransportParameters],
       ),
     );
   }
@@ -813,6 +822,7 @@ Uint8List encodeEncryptedExtensions({
   int? serverCertificateType = tlsCertTypeRawPublicKey,
   String? alpnProtocol,
   bool earlyData = false,
+  Uint8List? quicTransportParameters,
 }) {
   final parts = BytesBuilder(copy: false);
   if (serverCertificateType != null) {
@@ -829,6 +839,9 @@ Uint8List encodeEncryptedExtensions({
   if (earlyData) {
     parts.add(_ext(tlsExtEarlyData, Uint8List(0)));
   }
+  if (quicTransportParameters != null) {
+    parts.add(_ext(tlsExtQuicTransportParameters, quicTransportParameters));
+  }
   final b = BytesBuilder(copy: false);
   writeOpaque16(b, parts.takeBytes());
   return encodeHandshake(tlsHsEncryptedExtensions, b.takeBytes());
@@ -841,11 +854,13 @@ final class EncryptedExtensions {
     this.serverCertificateType,
     this.alpnProtocol,
     this.earlyData = false,
+    this.quicTransportParameters,
   });
 
   final int? serverCertificateType;
   final String? alpnProtocol;
   final bool earlyData;
+  final Uint8List? quicTransportParameters;
 }
 
 Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
@@ -906,6 +921,7 @@ Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
       serverCertificateType: certificateType,
       alpnProtocol: protocols?.first,
       earlyData: early != null,
+      quicTransportParameters: map[tlsExtQuicTransportParameters],
     ),
   );
 }

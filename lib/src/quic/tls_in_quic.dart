@@ -85,12 +85,14 @@ final class QuicTlsHandshake {
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
     QuicResumptionTicket? ticket,
+    Uint8List? transportParameters,
   }) : _client = PqTlsClient(
          crypto: crypto,
          group: group,
          quic: true,
          alpnProtocols: alpnProtocols,
          ticket: ticket,
+         quicTransportParameters: transportParameters,
        ),
        _server = null;
 
@@ -100,6 +102,7 @@ final class QuicTlsHandshake {
     PqTlsServerIdentity? identity,
     List<String>? alpnProtocols,
     QuicEarlyDataStore? earlyData,
+    Uint8List? transportParameters,
   }) : _client = null,
        _server = PqTlsServer(
          crypto: crypto,
@@ -108,6 +111,7 @@ final class QuicTlsHandshake {
          quic: true,
          alpnProtocols: alpnProtocols,
          earlyData: earlyData,
+         quicTransportParameters: transportParameters,
        );
 
   final PqTlsClient? _client;
@@ -129,6 +133,12 @@ final class QuicTlsHandshake {
   bool get earlyDataAccepted =>
       (_client?.earlyDataAccepted ?? false) ||
       (_server?.earlyDataAccepted ?? false);
+
+  bool get handshakeSecretsReady => schedule.handshakeSecretsReady;
+
+  Uint8List? get peerTransportParameters =>
+      _client?.peerQuicTransportParameters ??
+      _server?.peerQuicTransportParameters;
 
   Uint8List exporterBytes(String label, Uint8List context, int length) {
     final c = _client;

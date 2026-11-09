@@ -62,6 +62,9 @@ final class PqTlsClient {
 
     /// RFC 8446 resumption ticket. QUIC only. Sends early_data and a PSK.
     this.ticket,
+
+    /// RFC 9001 transport parameters. Sent when QUIC and non-null.
+    this.quicTransportParameters,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -111,6 +114,12 @@ final class PqTlsClient {
 
   /// Set only for a QUIC resumption. Null is a full handshake.
   final QuicResumptionTicket? ticket;
+
+  /// Local `quic_transport_parameters` extension body.
+  final Uint8List? quicTransportParameters;
+
+  /// Peer's parameters, from EncryptedExtensions. Null until then.
+  Uint8List? peerQuicTransportParameters;
 
   Uint8List? earlyTrafficSecret;
   bool earlyDataAccepted = false;
@@ -382,6 +391,7 @@ final class PqTlsClient {
           return _fail('alpn not offered');
         }
         selectedAlpn = selected;
+        peerQuicTransportParameters = ee.valueOrNull!.quicTransportParameters;
         if (ee.valueOrNull!.earlyData) {
           if (ticket == null) return _fail('early_data not offered');
           earlyDataAccepted = true;
@@ -597,6 +607,7 @@ final class PqTlsClient {
                   tlsSignatureRsaPssSha512,
                 ]
               : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
+      quicTransportParameters: quic ? quicTransportParameters : null,
     );
   }
 

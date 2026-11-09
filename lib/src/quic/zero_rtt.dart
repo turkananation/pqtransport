@@ -15,11 +15,15 @@ final class QuicZeroRttCodec {
     required this.crypto,
     required this.keys,
     required this.aead,
+    this.longType = 0xD0,
   });
 
   final PqTransportCrypto crypto;
   final QuicPacketKeys keys;
   final TransportAead aead;
+
+  /// 0xD0 is 0-RTT. 0xE0 is Handshake. The long-header layout matches.
+  final int longType;
 
   static const pnLength = 4;
 
@@ -39,7 +43,7 @@ final class QuicZeroRttCodec {
       return Result.failure(PqTransportError.decodeFailure('pn length'));
     }
     final headerNoPn = BytesBuilder(copy: false);
-    headerNoPn.addByte(0xD0 | (packetNumberLength - 1));
+    headerNoPn.addByte(longType | (packetNumberLength - 1));
     writeUint32(headerNoPn, quicVersion1);
     headerNoPn.addByte(dcid.length);
     headerNoPn.add(dcid);
@@ -82,8 +86,8 @@ final class QuicZeroRttCodec {
   Result<({int packetNumber, Uint8List payload}), PqTransportError> open(
     Uint8List wire,
   ) {
-    if (wire.length < 7 || (wire[0] & 0xF0) != 0xD0) {
-      return Result.failure(PqTransportError.decodeFailure('not 0-rtt'));
+    if (wire.length < 7 || (wire[0] & 0xF0) != longType) {
+      return Result.failure(PqTransportError.decodeFailure('not long header'));
     }
     final packet = Uint8List.fromList(wire);
     if (readUint32(packet, 1) != quicVersion1) {

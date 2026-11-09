@@ -917,13 +917,14 @@ Future<_Link> _linked({
   final clientApp = <Uint8List>[];
   final appPackets = <int>[0];
   var dropNext = dropNextClientApp;
+  var armed = !dropNextClientApp && !dropAllClientApp;
   client = PqQuicConn.client(
     crypto: crypto,
     localCid: clientCid,
     peerCid: serverCid,
     clock: clock,
     deliver: (packet) {
-      if ((packet[0] & 0x80) == 0) {
+      if ((packet[0] & 0x80) == 0 && armed) {
         appPackets[0]++;
         clientApp.add(Uint8List.fromList(packet));
         if (dropAllClientApp || dropNext) {
@@ -947,5 +948,6 @@ Future<_Link> _linked({
   final hand = await client.handshake();
   expect(hand.isSuccess, isTrue, reason: '${hand.errorOrNull}');
   await _pump();
+  armed = true;
   return _Link(client, server, clientApp, appPackets);
 }

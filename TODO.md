@@ -16,38 +16,38 @@ of this list.
 
 ## 1. QUIC (RFC 9000, 9001, 9002)
 
-- [ ] Q1. Transport parameters, both sides. Required CIDs. Idle timeout,
+- [x] Q1. Transport parameters, both sides. Required CIDs. Idle timeout,
   flow-control limits, stream limits, ack delay, active connection
   id limit. A missing or duplicate required parameter is a connection
   error.
-- [ ] Q2. Handshake packet protection. ClientHello and ServerHello stay
+- [x] Q2. Handshake packet protection. ClientHello and ServerHello stay
   in Initial. EncryptedExtensions through Finished move to Handshake
   packets. NewSessionTicket stays in 1-RTT.
-- [ ] Q3. Coalesced datagrams. A short header packet is last. Retry is
+- [x] Q3. Coalesced datagrams. A short header packet is last. Retry is
   not coalesced.
-- [ ] Q4. Server sends HANDSHAKE_DONE once in 1-RTT. The client confirms
+- [x] Q4. Server sends HANDSHAKE_DONE once in 1-RTT. The client confirms
   the handshake on that frame.
-- [ ] Q5. Parse ACK_ECN (0x03). Ignore ECN counts unless a mark was seen.
-- [ ] Q6. STOP_SENDING, MAX_STREAMS, STREAMS_BLOCKED, NEW_CONNECTION_ID,
+- [x] Q5. Parse ACK_ECN (0x03). Ignore ECN counts unless a mark was seen.
+- [x] Q6. STOP_SENDING, MAX_STREAMS, STREAMS_BLOCKED, NEW_CONNECTION_ID,
   RETIRE_CONNECTION_ID, NEW_TOKEN, PATH_CHALLENGE, PATH_RESPONSE.
   Unknown frame types remain a connection error.
-- [ ] Q7. DATA_BLOCKED and STREAM_DATA_BLOCKED move the window or are sent
+- [x] Q7. DATA_BLOCKED and STREAM_DATA_BLOCKED move the window or are sent
   when the local send is blocked.
-- [ ] Q8. Stream limits from transport parameters. Excess streams fail.
-- [ ] Q9. Connection IDs up to the active limit. Retire on request.
-- [ ] Q10. Retry with the RFC 9001 integrity tag, Version Negotiation,
+- [x] Q8. Stream limits from transport parameters. Excess streams fail.
+- [x] Q9. Connection IDs up to the active limit. Retire on request.
+- [x] Q10. Retry with the RFC 9001 integrity tag, Version Negotiation,
   stateless reset. Not forced on every handshake.
-- [ ] Q11. Anti-amplification: three times the bytes received until the
+- [x] Q11. Anti-amplification: three times the bytes received until the
   client address is validated. The client Initial is large enough that
   an ML-DSA flight fits under that budget.
-- [ ] Q12. One QUIC key update. A second update before confirmation fails.
-- [ ] Q13. PATH_CHALLENGE is answered on the same path. Migration waits
+- [x] Q12. One QUIC key update. A second update before confirmation fails.
+- [x] Q13. PATH_CHALLENGE is answered on the same path. Migration waits
   for a matching PATH_RESPONSE.
-- [ ] Q14. ECN counts are parsed. This stack does not claim the mark is
+- [x] Q14. ECN counts are parsed. This stack does not claim the mark is
   visible on a memory datagram.
-- [ ] Q15. The resumption ticket remembers the server flow-control limits.
+- [x] Q15. The resumption ticket remembers the server flow-control limits.
   writeEarly refuses bytes past them.
-- [ ] Q16. Tests for each frame, a coalesced datagram, Retry, key update,
+- [x] Q16. Tests for each frame, a coalesced datagram, Retry, key update,
   and path challenge. The existing suite still passes.
 
 ## 2. HTTP/2 (RFC 9113, RFC 7541)

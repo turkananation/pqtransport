@@ -317,6 +317,7 @@ const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
 const int tlsExtPreSharedKey = 41;
 const int tlsExtEarlyData = 42;
+const int tlsExtQuicTransportParameters = 57;
 
 /// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.
 const int tlsExtEncryptedClientHello = 0xfe0d;
@@ -437,6 +438,47 @@ const int quicMaxConnectionIdBytes = 20;
 /// RFC 9000 §14.1: UDP datagrams carrying client Initial packets.
 const int quicMinClientInitialUdpBytes = 1200;
 
+/// Client Initial datagram size. Three times this covers one raw ML-DSA
+/// server flight under the anti-amplification limit (RFC 9000 §8.1).
+const int quicAntiAmplificationInitialBytes = 8192;
+
+/// RFC 9000 §18.2. Absent `active_connection_id_limit` means 2.
+const int quicActiveConnectionIdLimitDefault = 2;
+
+const int quicInitialMaxStreams = 100;
+const int quicAckDelayExponentDefault = 3;
+const int quicMaxAckDelayMsDefault = 25;
+const int quicStatelessResetTokenBytes = 16;
+const int quicPathChallengeBytes = 8;
+const int quicRetryIntegrityTagBytes = 16;
+
+/// RFC 9001 §5.8 Retry Integrity Tag key and nonce for QUIC version 1.
+const List<int> quicRetryIntegrityKeyV1 = [
+  0xbe, 0x0c, 0x69, 0x0b, 0x9f, 0x66, 0x57, 0x5a, //
+  0x1d, 0x76, 0x6b, 0x54, 0xe3, 0x68, 0xc8, 0x4e,
+];
+const List<int> quicRetryIntegrityNonceV1 = [
+  0x46, 0x15, 0x99, 0xd3, 0x5d, 0x63, 0x2b, 0xf2, //
+  0x23, 0x98, 0x25, 0xbb,
+];
+
+const int quicTpOriginalDestinationConnectionId = 0x00;
+const int quicTpMaxIdleTimeout = 0x01;
+const int quicTpStatelessResetToken = 0x02;
+const int quicTpMaxUdpPayloadSize = 0x03;
+const int quicTpInitialMaxData = 0x04;
+const int quicTpInitialMaxStreamDataBidiLocal = 0x05;
+const int quicTpInitialMaxStreamDataBidiRemote = 0x06;
+const int quicTpInitialMaxStreamDataUni = 0x07;
+const int quicTpInitialMaxStreamsBidi = 0x08;
+const int quicTpInitialMaxStreamsUni = 0x09;
+const int quicTpAckDelayExponent = 0x0a;
+const int quicTpMaxAckDelay = 0x0b;
+const int quicTpDisableActiveMigration = 0x0c;
+const int quicTpActiveConnectionIdLimit = 0x0e;
+const int quicTpInitialSourceConnectionId = 0x0f;
+const int quicTpRetrySourceConnectionId = 0x10;
+
 /// RFC 9001 §5.2 Initial salt for QUIC version 1.
 const List<int> quicInitialSaltV1 = [
   0x38,
@@ -466,24 +508,36 @@ const String quicLabelServerIn = 'server in';
 const String quicLabelKey = 'quic key';
 const String quicLabelIv = 'quic iv';
 const String quicLabelHp = 'quic hp';
+const String quicLabelKeyUpdate = 'quic ku';
 
 const int quicFramePadding = 0x00;
 const int quicFramePing = 0x01;
 const int quicFrameAck = 0x02;
 const int quicFrameAckEcn = 0x03;
+const int quicFrameResetStream = 0x04;
+const int quicFrameStopSending = 0x05;
 const int quicFrameCrypto = 0x06;
+const int quicFrameNewToken = 0x07;
 const int quicFrameStream = 0x08;
 const int quicFrameStreamTypeMask = 0xF8;
 const int quicFrameStreamOffBit = 0x04;
 const int quicFrameStreamLenBit = 0x02;
 const int quicFrameStreamFinBit = 0x01;
-const int quicFrameResetStream = 0x04;
 const int quicFrameMaxData = 0x10;
 const int quicFrameMaxStreamData = 0x11;
+const int quicFrameMaxStreamsBidi = 0x12;
+const int quicFrameMaxStreamsUni = 0x13;
 const int quicFrameDataBlocked = 0x14;
 const int quicFrameStreamDataBlocked = 0x15;
+const int quicFrameStreamsBlockedBidi = 0x16;
+const int quicFrameStreamsBlockedUni = 0x17;
+const int quicFrameNewConnectionId = 0x18;
+const int quicFrameRetireConnectionId = 0x19;
+const int quicFramePathChallenge = 0x1a;
+const int quicFramePathResponse = 0x1b;
 const int quicFrameConnectionClose = 0x1c;
 const int quicFrameConnectionCloseApp = 0x1d;
+const int quicFrameHandshakeDone = 0x1e;
 
 /// RFC 9000 §20. A STREAM past MAX_DATA or MAX_STREAM_DATA.
 const int quicErrorFlowControl = 0x03;
@@ -491,9 +545,19 @@ const int quicErrorFlowControl = 0x03;
 /// RFC 9000 §20.1. No error. Used by an application CONNECTION_CLOSE.
 const int quicErrorNoError = 0x00;
 
-/// Local idle timer. Not the negotiated `max_idle_timeout` transport
-/// parameter (this stack does not send transport parameters). Null on
-/// [PqQuicConn] leaves the timer disarmed. RFC 9000 §10.1.
+/// RFC 9000 §20. A STREAM past the peer's stream limit.
+const int quicErrorStreamLimit = 0x04;
+
+/// RFC 9000 §20. A transport parameter that is missing, duplicated, or
+/// inconsistent with the handshake.
+const int quicErrorTransportParameter = 0x08;
+
+/// RFC 9000 §20. A frame that is not allowed in this state.
+const int quicErrorProtocolViolation = 0x0a;
+
+/// Local idle timer. `max_idle_timeout` is negotiated in transport
+/// parameters. Null on [PqQuicConn] leaves the local timer disarmed.
+/// RFC 9000 §10.1.
 const int quicLocalIdleTimeoutMicros = 30000000;
 
 /// RFC 9000 §10.2. The draining period is three times the current PTO.
@@ -545,9 +609,6 @@ const int quicInitialRttMicros = 333000;
 
 /// RFC 9000 §18.2. Default `max_ack_delay` (25 milliseconds).
 const int quicMaxAckDelayMicros = 25000;
-
-/// RFC 9000 §18.2. Default `ack_delay_exponent` (delay × 2^3 microseconds).
-const int quicAckDelayExponentDefault = 3;
 
 /// RFC 9002 §7.2. Recommended initial window, in maximum datagrams.
 const int quicInitialWindowDatagrams = 10;
@@ -629,9 +690,13 @@ int quicClientInitialPayloadBytes({
   required int dcidLength,
   required int scidLength,
   required int payloadLength,
+  int datagramBytes = quicMinClientInitialUdpBytes,
 }) {
   final prefix = 1 + 4 + 1 + dcidLength + 1 + scidLength + 1;
   var payload = payloadLength < 0 ? 0 : payloadLength;
+  final target = datagramBytes < quicMinClientInitialUdpBytes
+      ? quicMinClientInitialUdpBytes
+      : datagramBytes;
   while (true) {
     final bodyLen = quicPacketNumberMaxBytes + payload + aeadTagBytes;
     final lengthField = quicVarintLength(bodyLen);
@@ -641,8 +706,8 @@ int quicClientInitialPayloadBytes({
         quicPacketNumberMaxBytes +
         payload +
         aeadTagBytes;
-    if (total >= quicMinClientInitialUdpBytes) {
-      final extra = total - quicMinClientInitialUdpBytes;
+    if (total >= target) {
+      final extra = total - target;
       if (extra > 0 &&
           payload - extra >= (payloadLength < 0 ? 0 : payloadLength)) {
         final shrunk = payload - extra;
@@ -651,7 +716,7 @@ int quicClientInitialPayloadBytes({
       }
       return payload;
     }
-    final deficit = quicMinClientInitialUdpBytes - total;
+    final deficit = target - total;
     payload += deficit > 0 ? deficit : 1;
   }
 }

@@ -110,17 +110,18 @@ in the [Cookbook](cookbook#mdns). The program is
 
 ## QUIC / HTTP
 
-1-RTT short-header HP and Initial long-header HP. AES for Initial and
-for an AES 1-RTT suite. ChaCha20 header protection (RFC 9001 §5.4.4)
-uses the pqforge keystream. CRYPTO frames carry a live TLS handshake
-(RFC 9001, no TLS records). ACK processor is present. QUIC, HTTP/2,
-and HTTP/3 in this tree are self-interop slices. They are not complete
-RFC 9000, 9113, or 9114 stacks. The gap list is `TODO.md`.
+1-RTT short-header HP and Initial long-header HP. Handshake packets
+use the TLS handshake traffic secrets. ClientHello and ServerHello stay
+in Initial. Transport parameters ride in ClientHello and
+EncryptedExtensions. CRYPTO frames carry a live TLS handshake (RFC 9001,
+no TLS records). This QUIC is self-interop across those spaces. It is
+not a third-party stack and not `curl --http3`. HTTP/1.1, HTTP/2, and
+HTTP/3 remain self-interop slices. The gap list is `TODO.md`.
 
-HTTP/1.1 request/response is Done, including GET over a completed
-`PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
-is Done on ALPN `h3` (RFC 9114 + RFC 9204 QPACK on QUIC STREAM). Silent
-h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
+HTTP/1.1 is one request and one response. HTTP/2 is preface, SETTINGS,
+HEADERS, DATA, and HPACK, without enforced flow control. HTTP/3 is
+SETTINGS, HEADERS, and DATA on `PqQuicConn`. Silent h2/h3→h1 downgrade
+is refused (`allowDowngrade: false`).
 
 HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
 `applicationData`. HTTP/2 is `PqHttp2Session.server` plus

@@ -94,8 +94,8 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Header protection | Done | AES-ECB for Initial and AES 1-RTT. ChaCha20 mask (RFC 9001 §5.4.4) via pqforge 0.4.8 `chacha20`. |
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
-| `PqQuicConn` 1-RTT STREAM | Slice | Linked in-memory pair. `driveLossRecovery` / `bindLossTimer`. Not a complete RFC 9000 connection. |
-| 0-RTT | Slice | Self-interop only. Long header in the Application Data space (RFC 9000 §12.3). Replayable. Single-use ticket. Not a complete 0-RTT deployment: transport parameters are not remembered until section 1 of TODO.md lands. |
+| `PqQuicConn` 1-RTT STREAM | Slice | Linked in-memory pair. Handshake packet protection, transport parameters, coalesced datagrams, HANDSHAKE_DONE, and one key update. Not a third-party QUIC stack. |
+| 0-RTT | Slice | Self-interop only. Long header in the Application Data space (RFC 9000 §12.3). The ticket remembers the server flow-control limits. `writeEarly` refuses bytes past them. |
 | HTTP/1.1 request/response | Slice | One request and one response. Not chunked. Not a complete RFC 9112 recipient. |
 | HTTP/1.1 GET over `PqTlsSocket` | Slice | One application-data event. |
 | HTTP/2 | Slice | Self-interop preface, SETTINGS, HEADERS, DATA, HPACK. Flow control is not enforced. Not a complete RFC 9113 stack. |
