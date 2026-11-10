@@ -59,10 +59,13 @@ completed protocol. `s_client -quic` against `PqQuicConn.server`
 `tool/interop/openssl/run.sh`. Not `curl --http3`. Not HTTP/3.
 BoringSSL 0.20261020.0 is the TLS client, server, and reverse in
 `tool/interop/boringssl/run.sh`. That `bssl` has no QUIC transport.
-quiche 0.30.0 (`fa0e480`), linked to that BoringSSL, is the QUIC
-handshake in both directions (`tool/interop/quiche/run.sh`).
-X25519MLKEM768, `TLS_AES_256_GCM_SHA384`, ALPN `h3`, ML-DSA-65 checked.
-Not `curl --http3`. Not HTTP/3.
+quiche 0.30.0 (`fa0e480`), linked to that BoringSSL, completes the
+QUIC handshake both ways and one HTTP/3 GET both ways
+(`tool/interop/quiche/run.sh`). X25519MLKEM768,
+`TLS_AES_256_GCM_SHA384`, ALPN `h3`, ML-DSA-65 checked. The quiche
+client checks the peer certificate. quiche 0.30 encodes static and
+literal QPACK only, so that flight leaves the table capacity at 0.
+Not `curl --http3`. Not a complete RFC 9114 stack.
 
 ## 2. HTTP/2 (RFC 9113, RFC 7541)
 
@@ -91,18 +94,25 @@ Starts after section 1. The session speaks the QUIC from that section.
 - [x] H3-3. Trailers are one HEADERS block after DATA.
 - [x] H3-4. A request can be cancelled with RESET_STREAM and STOP_SENDING.
 - [x] H3-5. One control, one encoder, one decoder stream. A second is an
-  error. Unknown stream types and unknown request frames are ignored.
+  error. Unknown stream types, unknown control frames, and unknown
+  request frames are ignored.
 - [x] H3-6. Tests: SETTINGS, GOAWAY, dynamic table, trailer, cancel.
 
 ## 4. HTTP/1.1 (RFC 9110, RFC 9112)
 
-- [ ] H1-1. Decode and send chunked transfer coding, including trailers.
-- [ ] H1-2. decodeHttp1Request. Reason phrases match the status.
+- [x] H1-1. Decode and send chunked transfer coding, including trailers.
+  curl 8 linked to OpenSSL 3.5.9 `--http1.1` reads the chunked body
+  `pq-h1` from `PqHttpServer`.
+- [x] H1-2. decodeHttp1Request. Reason phrases match the status.
 - [ ] H1-3. A response split across TLS records is one message.
-- [ ] H1-4. Content-Length must match. Both Content-Length and chunked
+  The client buffers records. There is no split-record test.
+- [x] H1-4. Content-Length must match. Both Content-Length and chunked
   is a failure. Obsolete line folding is a failure.
 - [ ] H1-5. Honor Connection: close. Kept-alive responses are sequential.
+  Close is parsed and the server stops. Two requests on one
+  connection are not tested.
 - [ ] H1-6. Tests for chunked, split records, length mismatch, close.
+  Chunked, length mismatch, and close are tested. Split records are not.
 
 100-continue, upgrade, and HTTP/1.0 are out of this list.
 

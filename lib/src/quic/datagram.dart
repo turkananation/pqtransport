@@ -53,6 +53,19 @@ Result<List<Uint8List>, PqTransportError> splitQuicDatagram(
   var offset = 0;
   var sawShort = false;
   while (offset < datagram.length) {
+    final first = datagram[offset];
+    // RFC 9000 §17.2 and §17.3. The fixed bit is 0x40. A packet with
+    // that bit clear is not a QUIC v1 packet and is discarded. quiche
+    // pads a datagram that carries an Initial up to 1200 bytes with
+    // trailing zeros (RFC 9000 §14.1). Those zeros are not a packet.
+    // Version Negotiation keeps the fixed bit clear and version 0.
+    if ((first & 0x40) == 0) {
+      final versionNegotiation =
+          (first & 0x80) != 0 &&
+          datagram.length >= offset + 5 &&
+          readUint32(datagram, offset + 1) == 0;
+      if (!versionNegotiation) break;
+    }
     if (sawShort) {
       return Result.failure(
         PqTransportError.decodeFailure('coalesced after short header'),

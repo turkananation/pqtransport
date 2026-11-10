@@ -82,6 +82,12 @@ void main() {
       expect(split.valueOrNull!, hasLength(3));
       expect(split.valueOrNull!.last[0] & 0x80, 0);
 
+      final padded = splitQuicDatagram(
+        Uint8List.fromList([...initial, ...List<int>.filled(800, 0)]),
+      );
+      expect(padded.isSuccess, isTrue, reason: '${padded.errorOrNull}');
+      expect(padded.valueOrNull, [initial]);
+
       final retry = Uint8List.fromList([
         0xf0,
         0x00,

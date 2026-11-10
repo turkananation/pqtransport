@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# quiche QUIC peer, both directions. BoringSSL's bssl CLI has no QUIC
-# transport, so this is the QUIC stack linked to that pin.
-# Handshake only. Not HTTP/3. Not curl --http3.
+# quiche QUIC and HTTP/3, both directions. BoringSSL's bssl CLI has
+# no QUIC transport, so this is the QUIC stack linked to that pin.
+# Not curl --http3.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$root/../../.." && pwd)"
@@ -18,3 +18,7 @@ echo "== quiche QUIC: client against PqQuicConn.server =="
 dart run tool/interop/quiche/quic_flight.dart "$quiche"
 echo "== quiche QUIC reverse: PqQuicConn.client against quiche =="
 dart run tool/interop/quiche/quic_client_flight.dart "$peer_tls" "$quiche"
+echo "== quiche HTTP/3: client against PqHttp3Session =="
+dart run tool/interop/quiche/h3_flight.dart "$quiche"
+echo "== quiche HTTP/3 reverse: PqHttp3Session against quiche =="
+dart run tool/interop/quiche/h3_client_flight.dart "$peer_tls" "$quiche"

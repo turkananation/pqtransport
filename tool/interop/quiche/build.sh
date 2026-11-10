@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the quiche handshake peer against the pinned BoringSSL.
-# The last line is the executable. bssl itself has no QUIC transport;
-# this binary is the QUIC stack. Not HTTP/3.
+# Build the quiche peer against the pinned BoringSSL.
+# The last line is the executable. bssl itself has no QUIC transport.
+# This binary is the QUIC stack and the HTTP/3 GET peer. Not curl --http3.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$root/../../.." && pwd)"

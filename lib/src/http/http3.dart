@@ -737,9 +737,9 @@ final class PqHttp3Session {
     if (frame.type == http3FrameCancelPush) {
       return _takeCancelPush(frame.payload);
     }
-    // RFC 9114 §7.1. Unknown types are ignored on request streams only.
-    _fail(http3ErrorFrameUnexpected, 'h3 control ${frame.type}');
-    return false;
+    // RFC 9114 §9. Unknown frame types are ignored. HTTP/2 frame
+    // types reserved by §7.2.8 were already rejected above.
+    return true;
   }
 
   bool _takeGoaway(Uint8List payload) {

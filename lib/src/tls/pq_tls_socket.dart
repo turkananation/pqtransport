@@ -82,7 +82,9 @@ final class PqTlsSocket {
   final PqTransportSocket _inner;
   final PqTlsClient? _client;
   final PqTlsServer? _server;
-  final StreamController<Uint8List> _app = StreamController.broadcast();
+  final List<Uint8List> _pendingApp = [];
+  late final StreamController<Uint8List> _app =
+      StreamController<Uint8List>.broadcast(sync: true, onListen: _flushApp);
   StreamSubscription<Uint8List>? _sub;
   Future<void> _inbox = Future<void>.value();
   Completer<Result<void, PqTransportError>>? _handshake;
@@ -91,6 +93,27 @@ final class PqTlsSocket {
   var _closeNotifySent = false;
 
   Stream<Uint8List> get applicationData => _app.stream;
+
+  /// Broadcast streams drop events with no listener. Bytes that arrive
+  /// before the first subscriber are kept and emitted from [onListen].
+  /// [close] still completes when nobody is listening.
+  void _flushApp() {
+    if (_pendingApp.isEmpty) return;
+    final pending = List<Uint8List>.of(_pendingApp);
+    _pendingApp.clear();
+    for (final chunk in pending) {
+      if (!_app.isClosed) _app.add(chunk);
+    }
+  }
+
+  void _emitApp(Uint8List payload) {
+    if (_app.isClosed) return;
+    if (!_app.hasListener) {
+      _pendingApp.add(payload);
+      return;
+    }
+    _app.add(payload);
+  }
 
   TlsState get state =>
       _client?.state ?? _server?.state ?? TlsState.uninitialized;
@@ -116,9 +139,19 @@ final class PqTlsSocket {
   }) async {
     final done = Completer<Result<void, PqTransportError>>();
     _handshake = done;
-    _sub ??= _inner.incoming.listen((bytes) {
-      _inbox = _inbox.then((_) => _onBytes(bytes));
-    });
+    _sub ??= _inner.incoming.listen(
+      (bytes) {
+        _inbox = _inbox.then((_) => _onBytes(bytes));
+      },
+      onDone: () {
+        if (!isComplete) {
+          _finishHandshake(Result.failure(PqTransportError.closed('tcp')));
+        }
+        _inbox = _inbox.then((_) async {
+          if (!_app.isClosed) await _app.close();
+        });
+      },
+    );
     final c = _client;
     if (c != null) {
       final ch = await c.startHandshake();
@@ -240,7 +273,7 @@ final class PqTlsSocket {
     );
     if (inner.isFailure) return;
     if (inner.valueOrNull!.type == tlsContentApplicationData) {
-      _app.add(inner.valueOrNull!.payload);
+      _emitApp(inner.valueOrNull!.payload);
     }
   }
 

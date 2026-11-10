@@ -117,21 +117,33 @@ EncryptedExtensions. CRYPTO frames carry a live TLS handshake (RFC 9001,
 no TLS records). OpenSSL 3.5.9 `s_client -quic` completes a QUICv1
 handshake and verifies an ML-DSA-65 localhost certificate.
 `PqQuicConn.client` completes against OpenSSL `demos/quic/server`
-(Retry, ALPN `ossltest`, that certificate checked). It is not
-`curl --http3`. HTTP/1.1, HTTP/2, and HTTP/3 remain self-interop slices.
-The gap list is `TODO.md`.
+(Retry, ALPN `ossltest`, that certificate checked). quiche 0.30.0
+(`fa0e480`), linked to BoringSSL 0.20261020.0, completes one HTTP/3
+GET both ways: the quiche client checks the ML-DSA-65 certificate
+and reads body `pq-h3`; the Dart client reads body `quiche-h3`.
+QPACK capacity stays 0 because that quiche build rejects dynamic
+references. It is not `curl --http3` and not a complete RFC 9114
+stack. The gap list is `TODO.md`.
 
-HTTP/1.1 is one request and one response. HTTP/2 enforces connection and
+HTTP/1.1 decodes chunked bodies and trailers, writes the registered
+reason phrase, and rejects obs-fold plus Content-Length conflicts.
+curl linked to OpenSSL 3.5.9 `--http1.1` reads chunked `pq-h1` from
+`PqHttpServer`. A split TLS record and two keep-alive requests are
+not in that flight. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,
 RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is
 ignored. It is not a complete RFC 9113 stack. HTTP/3 on `PqQuicConn`
-is one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID, and
-CANCEL_PUSH), QPACK limits, trailers, and request cancel. Push is off.
-It is not a complete RFC 9114 stack and not `curl --http3`. Silent
+is the quiche GET above, plus one control stream (SETTINGS, then
+GOAWAY, MAX_PUSH_ID, and CANCEL_PUSH), QPACK limits, trailers, and
+request cancel. Unknown control-stream frames are ignored. Push is
+off. It is not a complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
 
 HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
 `applicationData`. HTTP/2 is `PqHttp2Session.server` plus
-`roundTripH2`. HTTP/3 is `PqQuicConn.pair` plus `roundTripH3`. The
-three calls are in the [Cookbook](cookbook#http11). The programs are
+`roundTripH2`. HTTP/3 is `PqQuicConn` plus `roundTripH3`. Shelf
+replaces `shelf_io.serve` and `SecurityContext` with `serveShelf`.
+Relic's web server takes `PqRelicAdapter` instead of `IOAdapter`.
+Serverpod's API and insights servers still build a `SecurityContext`
+inside Serverpod. The three calls are in the [Cookbook](cookbook#http11). The programs are
 `example/http1.dart`, `example/http2.dart`, and `example/http3.dart`.

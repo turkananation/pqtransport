@@ -20,6 +20,7 @@ export 'src/dns/dnssec.dart';
 export 'src/dns/validate.dart';
 export 'src/dns/resolve.dart';
 export 'src/http/pq_http_client.dart';
+export 'src/http/http1.dart';
 export 'src/http/hpack.dart';
 export 'src/http/http2.dart';
 export 'src/http/http3.dart';

@@ -1,13 +1,14 @@
-//! Handshake-only quiche peer. Not HTTP/3.
-//!
-//! `client <host:port> <ca.pem>` verifies the server with that CA.
-//! `server <port> <cert.pem> <key.pem>` presents that chain.
+//! quiche peer. Handshake modes are `client` and `server`.
+//! HTTP/3 modes are `h3-client` and `h3-server`.
 //!
 //! The only group is X25519MLKEM768. The only signature scheme is
 //! ML-DSA-65. The only TLS 1.3 suite requested is
-//! TLS_AES_256_GCM_SHA384. ALPN is `h3` because that is the
-//! application token on the QUIC handshake, not because this process
-//! speaks HTTP/3.
+//! TLS_AES_256_GCM_SHA384. ALPN is `h3`.
+//!
+//! `h3-client <host:port> <ca.pem>` verifies the server certificate
+//! and prints `h3 status=200 body=pq-h3 peer_cert=N`.
+//! `h3-server <port> <cert.pem> <key.pem>` answers GET /pq with
+//! body `quiche-h3`.
 
 use std::io::{self, Write};
 use std::net::{SocketAddr, UdpSocket};
@@ -15,6 +16,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use boring::ssl::{SslContextBuilder, SslMethod, SslSignatureAlgorithm, SslVersion};
+use quiche::h3::NameValue;
 
 const ALPN: &[u8] = b"h3";
 const GROUP: &str = "X25519MLKEM768";
@@ -30,10 +32,14 @@ fn main() -> ExitCode {
     match mode.as_str() {
         "client" => client(args),
         "server" => server(args),
+        "h3-client" => h3_client(args),
+        "h3-server" => h3_server(args),
         _ => {
             eprintln!(
                 "usage: quiche_peer client <host:port> <ca.pem>\n       \
-                 quiche_peer server <port> <cert.pem> <key.pem>"
+                 quiche_peer server <port> <cert.pem> <key.pem>\n       \
+                 quiche_peer h3-client <host:port> <ca.pem>\n       \
+                 quiche_peer h3-server <port> <cert.pem> <key.pem>"
             );
             ExitCode::from(64)
         }
@@ -340,6 +346,295 @@ fn explain(conn: &quiche::Connection) {
         conn.is_closed(),
         conn.is_established()
     );
+}
+
+fn h3_config() -> quiche::h3::Config {
+    // quiche 0.30 decodes static and literal QPACK only. It rejects a
+    // dynamic-table reference. Capacity stays at the RFC default of 0
+    // so both sides use that encoding. Grease stays on.
+    quiche::h3::Config::new().unwrap_or_else(|err| die(&format!("h3 config: {err:?}")))
+}
+
+fn header_value<'a>(list: &'a [quiche::h3::Header], name: &[u8]) -> Option<&'a [u8]> {
+    list.iter().find(|header| header.name() == name).map(|header| header.value())
+}
+
+fn h3_client(mut args: impl Iterator<Item = String>) -> ExitCode {
+    let peer_text = args.next().unwrap_or_default();
+    let ca = args.next().unwrap_or_default();
+    if peer_text.is_empty() || ca.is_empty() || args.next().is_some() {
+        eprintln!("usage: quiche_peer h3-client <host:port> <ca.pem>");
+        return ExitCode::from(64);
+    }
+    let peer: SocketAddr = peer_text.parse().unwrap_or_else(|_| {
+        die(&format!("not a socket address: {peer_text}"));
+    });
+    let mut config = config();
+    config
+        .load_verify_locations_from_file(&ca)
+        .unwrap_or_else(|err| die(&format!("ca: {err:?}")));
+    config.verify_peer(true);
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap_or_else(|err| die(&format!("bind: {err}")));
+    let local = socket.local_addr().unwrap();
+    let scid = random_cid();
+    let mut conn = quiche::connect(Some("localhost"), &scid, local, peer, &mut config)
+        .unwrap_or_else(|err| die(&format!("connect: {err:?}")));
+    let mut out = [0u8; 65535];
+    flush(&socket, &mut conn, &mut out);
+    if !drive(&socket, &mut conn, &mut out) {
+        explain(&conn);
+        return ExitCode::from(1);
+    }
+    let cert_len = conn.peer_cert().map(|cert| cert.len()).unwrap_or(0);
+    if cert_len == 0 {
+        eprintln!("established with no peer certificate");
+        return ExitCode::from(1);
+    }
+    let h3_config = h3_config();
+    let mut h3 = match quiche::h3::Connection::with_transport(&mut conn, &h3_config) {
+        Ok(http) => http,
+        Err(err) => {
+            eprintln!("h3: {err:?}");
+            explain(&conn);
+            return ExitCode::from(1);
+        }
+    };
+    let request = [
+        quiche::h3::Header::new(b":method", b"GET"),
+        quiche::h3::Header::new(b":scheme", b"https"),
+        quiche::h3::Header::new(b":authority", b"localhost"),
+        quiche::h3::Header::new(b":path", b"/pq"),
+        quiche::h3::Header::new(b"x-pq", b"interop"),
+    ];
+    let mut sent = false;
+    let mut stream_id = 0u64;
+    let mut status = String::new();
+    let mut body = Vec::new();
+    let mut finished = false;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline && !conn.is_closed() {
+        if !sent {
+            match h3.send_request(&mut conn, &request, true) {
+                Ok(id) => {
+                    stream_id = id;
+                    sent = true;
+                }
+                Err(quiche::h3::Error::StreamBlocked) | Err(quiche::h3::Error::Done) => {}
+                Err(err) => {
+                    eprintln!("h3 send: {err:?}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        loop {
+            match h3.poll(&mut conn) {
+                Ok((id, quiche::h3::Event::Headers { list, .. })) if id == stream_id => {
+                    if let Some(value) = header_value(&list, b":status") {
+                        status = String::from_utf8_lossy(value).into_owned();
+                    }
+                }
+                Ok((id, quiche::h3::Event::Data)) if id == stream_id => {
+                    let mut buf = [0u8; 4096];
+                    loop {
+                        match h3.recv_body(&mut conn, id, &mut buf) {
+                            Ok(n) => body.extend_from_slice(&buf[..n]),
+                            Err(quiche::h3::Error::Done) => break,
+                            Err(err) => {
+                                eprintln!("h3 body: {err:?}");
+                                explain(&conn);
+                                return ExitCode::from(1);
+                            }
+                        }
+                    }
+                }
+                Ok((id, quiche::h3::Event::Finished)) if id == stream_id => finished = true,
+                Ok((_, quiche::h3::Event::Reset(code))) => {
+                    eprintln!("h3 reset {code}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+                Ok(_) => {}
+                Err(quiche::h3::Error::Done) => break,
+                Err(err) => {
+                    eprintln!("h3 poll: {err:?}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        flush(&socket, &mut conn, &mut out);
+        if finished && status == "200" && body == b"pq-h3" {
+            println!("h3 status=200 body=pq-h3 peer_cert={cert_len}");
+            let _ = io::stdout().flush();
+            let grace = Instant::now() + Duration::from_secs(1);
+            while Instant::now() < grace && !conn.is_closed() {
+                pump_once(&socket, &mut conn, &mut out, Duration::from_millis(50));
+            }
+            return ExitCode::SUCCESS;
+        }
+        let wait = conn
+            .timeout()
+            .unwrap_or(Duration::from_millis(50))
+            .min(Duration::from_millis(50));
+        pump_once(&socket, &mut conn, &mut out, wait);
+    }
+    eprintln!("h3 client timed out status={status} body={}", String::from_utf8_lossy(&body));
+    explain(&conn);
+    ExitCode::from(1)
+}
+
+fn h3_server(mut args: impl Iterator<Item = String>) -> ExitCode {
+    let port_text = args.next().unwrap_or_default();
+    let cert = args.next().unwrap_or_default();
+    let key = args.next().unwrap_or_default();
+    if port_text.is_empty() || cert.is_empty() || key.is_empty() || args.next().is_some() {
+        eprintln!("usage: quiche_peer h3-server <port> <cert.pem> <key.pem>");
+        return ExitCode::from(64);
+    }
+    let port: u16 = port_text.parse().unwrap_or_else(|_| die(&format!("not a port: {port_text}")));
+    let mut config = config();
+    config
+        .load_cert_chain_from_pem_file(&cert)
+        .unwrap_or_else(|err| die(&format!("cert: {err:?}")));
+    config
+        .load_priv_key_from_pem_file(&key)
+        .unwrap_or_else(|err| die(&format!("key: {err:?}")));
+    config.verify_peer(false);
+    let socket = UdpSocket::bind(("127.0.0.1", port))
+        .unwrap_or_else(|err| die(&format!("bind {port}: {err}")));
+    let local = socket.local_addr().unwrap();
+    println!("listening {local}");
+    let _ = io::stdout().flush();
+    let h3_config = h3_config();
+    let mut buf = [0u8; 65535];
+    let mut out = [0u8; 65535];
+    let deadline = Instant::now() + Duration::from_secs(25);
+    let mut conn: Option<quiche::Connection> = None;
+    let mut http: Option<quiche::h3::Connection> = None;
+    let mut served = false;
+    while Instant::now() < deadline {
+        let wait = Duration::from_millis(50);
+        socket
+            .set_read_timeout(Some(wait))
+            .unwrap_or_else(|err| die(&format!("timeout: {err}")));
+        match socket.recv_from(&mut buf) {
+            Ok((len, from)) => {
+                if conn.is_none() {
+                    let hdr = match quiche::Header::from_slice(&mut buf[..len], 8) {
+                        Ok(hdr) => hdr,
+                        Err(err) => {
+                            eprintln!("header: {err:?}");
+                            continue;
+                        }
+                    };
+                    if hdr.ty != quiche::Type::Initial {
+                        eprintln!("ignored {:?}", hdr.ty);
+                        continue;
+                    }
+                    let scid = random_cid();
+                    match quiche::accept(&scid, None, local, from, &mut config) {
+                        Ok(accepted) => conn = Some(accepted),
+                        Err(err) => {
+                            eprintln!("accept: {err:?}");
+                            continue;
+                        }
+                    }
+                }
+                let current = conn.as_mut().unwrap();
+                let info = quiche::RecvInfo { to: local, from };
+                match current.recv(&mut buf[..len], info) {
+                    Ok(_) => {}
+                    Err(quiche::Error::Done) => {}
+                    Err(err) => eprintln!("recv failed: {err:?}"),
+                }
+            }
+            Err(err)
+                if err.kind() == io::ErrorKind::WouldBlock
+                    || err.kind() == io::ErrorKind::TimedOut =>
+            {
+                if let Some(current) = conn.as_mut() {
+                    current.on_timeout();
+                }
+            }
+            Err(err) => die(&format!("udp: {err}")),
+        }
+        let Some(current) = conn.as_mut() else {
+            continue;
+        };
+        if current.is_established() && http.is_none() {
+            match quiche::h3::Connection::with_transport(current, &h3_config) {
+                Ok(created) => http = Some(created),
+                Err(err) => {
+                    eprintln!("h3: {err:?}");
+                    explain(current);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        if let Some(session) = http.as_mut() {
+            loop {
+                match session.poll(current) {
+                    Ok((stream, quiche::h3::Event::Headers { list, .. })) => {
+                        let method = header_value(&list, b":method").unwrap_or(b"");
+                        let path = header_value(&list, b":path").unwrap_or(b"");
+                        println!(
+                            "h3 request method={} path={}",
+                            String::from_utf8_lossy(method),
+                            String::from_utf8_lossy(path)
+                        );
+                        let _ = io::stdout().flush();
+                        if method != b"GET" || path != b"/pq" {
+                            eprintln!("unexpected request");
+                            return ExitCode::from(1);
+                        }
+                        let response = [
+                            quiche::h3::Header::new(b":status", b"200"),
+                            quiche::h3::Header::new(b"content-type", b"text/plain"),
+                        ];
+                        if let Err(err) = session.send_response(current, stream, &response, false) {
+                            eprintln!("h3 response: {err:?}");
+                            explain(current);
+                            return ExitCode::from(1);
+                        }
+                        match session.send_body(current, stream, b"quiche-h3", true) {
+                            Ok(_) => served = true,
+                            Err(err) => {
+                                eprintln!("h3 body: {err:?}");
+                                explain(current);
+                                return ExitCode::from(1);
+                            }
+                        }
+                    }
+                    Ok((stream, quiche::h3::Event::Data)) => {
+                        let mut discard = [0u8; 4096];
+                        while session.recv_body(current, stream, &mut discard).is_ok() {}
+                    }
+                    Ok(_) => {}
+                    Err(quiche::h3::Error::Done) => break,
+                    Err(err) => {
+                        eprintln!("h3 poll: {err:?}");
+                        explain(current);
+                        return ExitCode::from(1);
+                    }
+                }
+            }
+        }
+        flush(&socket, current, &mut out);
+        if served {
+            let grace = Instant::now() + Duration::from_secs(2);
+            while Instant::now() < grace && !current.is_closed() {
+                pump_once(&socket, current, &mut out, Duration::from_millis(50));
+            }
+            return ExitCode::SUCCESS;
+        }
+        if current.is_closed() {
+            explain(current);
+            return ExitCode::from(1);
+        }
+    }
+    eprintln!("h3 server timed out");
+    ExitCode::from(1)
 }
 
 fn die(message: &str) -> ! {
