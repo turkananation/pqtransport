@@ -462,5 +462,6 @@ OpenSSL is the HTTP/1.1 client against `PqHttpServer` (chunked body,
 one connection for two responses, a new connection after
 `Connection: close`). quiche 0.30.0 is the HTTP/3 peer for one GET
 both ways. That is not `curl --http3` and not a complete RFC 9114
-stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams have
-no foreign peer. The Capsule Protocol is not implemented.
+stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are
+the quiche flights. The Capsule Protocol, CONNECT-UDP, and
+CONNECT-IP are implemented and have no foreign peer.

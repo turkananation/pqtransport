@@ -140,14 +140,18 @@ complete (RFC 8446 §5.1). A 32-byte in-memory split remains a unit
 test. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,
 RST_STREAM, trailers, and CONTINUATION. Extended CONNECT and
-PRIORITY_UPDATE are in-memory. The server does not send
+PRIORITY_UPDATE on HTTP/3 are the quiche flights. HTTP/2 extended
+CONNECT is in-memory. The server does not send
 ENABLE_PUSH. The old PRIORITY frame is ignored. It is not a
 complete RFC 9113 stack. HTTP/3 on `PqQuicConn` is the quiche GET
 above, plus one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID,
 and CANCEL_PUSH), QPACK limits, trailers, and request cancel.
 SETTINGS_H3_DATAGRAM=1 is sent only when the peer advertised
 `max_datagram_frame_size`. HTTP datagrams and PRIORITY_UPDATE are
-in-memory. The Capsule Protocol is not implemented. Unknown
+the same quiche flights. The Capsule Protocol parses a DATAGRAM
+capsule and skips an unknown type. CONNECT-UDP and CONNECT-IP use
+that codec. None of those three has a foreign peer, so none is
+claimed. Unknown
 control-stream frames are ignored. Push is off. It is not a
 complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).

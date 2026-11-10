@@ -158,7 +158,11 @@ Starts after section 1. The session speaks the QUIC from that section.
   receive it. The frame is ack-eliciting. The Capsule Protocol
   parses a DATAGRAM capsule and skips an unknown type. A capsule
   cut off by FIN is H3_DATAGRAM_ERROR. quiche does not parse
-  capsules, so that protocol is not claimed.
+  capsules, so that protocol is not claimed. CONNECT-UDP (RFC 9298)
+  and CONNECT-IP (RFC 9484) are implemented on top of it. Context
+  ID 0 only. No foreign MASQUE peer has completed, so neither is
+  claimed. Draft DNS/PREF64 capsules and CONNECT-ETHERNET are not
+  implemented.
 - [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
   HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
   reserved bit, or a payload shorter than 4 octets is an error.
@@ -177,13 +181,21 @@ Starts after section 1. The session speaks the QUIC from that section.
   ENABLE_PUSH 0 and then 1 is a connection error.
 - [x] E5. Multipath is RFC 10069, not RFC 9369. `initial_max_path_id`
   (0x3e) is stored when the value is at most 2^32-1. A larger value
-  is a transport parameter error. This stack never sends 0x3e, so
-  multipath is not negotiated and is not claimed. No peer in this
-  tree sends it. RFC 10069 was published 2026-11-07. A peer has to
-  send 0x3e and the path frames (PATH_ACK 0x3e–0x3f, PATH_ABANDON
-  0x3e75, and the rest of section 4) before this can be claimed.
-  Single-path migration stays in section 1. Unknown multipath
-  frames stay connection errors while the extension is off.
+  is a transport parameter error. The endpoint sends 0x3e only when
+  `PqQuicConn` is constructed with `initialMaxPathId`. The default
+  is null, so existing quiche and OpenSSL flights do not advertise
+  it. When both sides send it, PATH_ACK (0x3e–0x3f), PATH_ABANDON
+  (0x3e75), PATH_STATUS (0x3e76–0x3e77), PATH_NEW_CONNECTION_ID
+  (0x3e78), PATH_RETIRE_CONNECTION_ID (0x3e79), MAX_PATH_ID (0x3e7a),
+  PATHS_BLOCKED (0x3e7b), and PATH_CIDS_BLOCKED (0x3e7c) are parsed.
+  The same frames before negotiation, or outside 1-RTT, are
+  PROTOCOL_VIOLATION. The 1-RTT nonce is the RFC 10069
+  path-and-packet-number. Path 0 matches RFC 9001. A zero-length
+  connection ID while both sides advertise the parameter is
+  PROTOCOL_VIOLATION. Extra paths have their own packet numbers.
+  They do not have a separate PTO. No picoquic flight has completed,
+  so multipath is not claimed. Single-path migration stays in
+  section 1.
 
 ## Order
 

@@ -13,6 +13,7 @@ import '../tls/pq_tls_server.dart';
 import '../tls/resumption.dart';
 import 'datagram.dart';
 import 'initial.dart';
+import 'multipath.dart';
 import 'packet.dart';
 import 'recovery.dart';
 import 'stream.dart';
@@ -60,6 +61,7 @@ final class PqQuicConn {
     this.idleTimeout,
     this._resumption,
     this._statelessResetToken,
+    this.advertiseMaxPathId,
   }) : lossRecovery = QuicLossRecovery(
          clock: clock ?? const QuicSystemClock(),
          isServer: !isClient,
@@ -116,6 +118,7 @@ final class PqQuicConn {
     List<Uint8List> trustAnchors = const [],
     String? serverName,
     List<int>? signatureSchemes,
+    int? initialMaxPathId,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final local = localCid ?? c.randomBytes(quicShortDcidBytes);
@@ -136,6 +139,7 @@ final class PqQuicConn {
           maxData: recvMaxData ?? maxData,
           maxStreamData: recvMaxStreamData ?? maxStreamData,
           maxIdleTimeoutMs: idleTimeout?.inMilliseconds ?? 0,
+          initialMaxPathId: initialMaxPathId,
         ),
         certificateTypes: certificateTypes,
         trustAnchors: trustAnchors,
@@ -154,6 +158,7 @@ final class PqQuicConn {
       flowWindow: flowWindow,
       idleTimeout: idleTimeout,
       resumption: ticket,
+      advertiseMaxPathId: initialMaxPathId,
     );
   }
 
@@ -176,6 +181,7 @@ final class PqQuicConn {
     int flowWindow = 0,
     Duration? idleTimeout,
     QuicEarlyDataStore? earlyData,
+    int? initialMaxPathId,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final local = localCid ?? c.randomBytes(quicShortDcidBytes);
@@ -199,6 +205,7 @@ final class PqQuicConn {
           maxStreamData: recvMaxStreamData ?? maxStreamData,
           statelessResetToken: reset,
           maxIdleTimeoutMs: idleTimeout?.inMilliseconds ?? 0,
+          initialMaxPathId: initialMaxPathId,
         ),
       ),
       deliver: deliver,
@@ -213,6 +220,7 @@ final class PqQuicConn {
       flowWindow: flowWindow,
       idleTimeout: idleTimeout,
       statelessResetToken: reset,
+      advertiseMaxPathId: initialMaxPathId,
     );
   }
 
@@ -314,6 +322,9 @@ final class PqQuicConn {
   QuicResumptionTicket? receivedTicket;
   final QuicResumptionTicket? _resumption;
   final Uint8List? _statelessResetToken;
+
+  /// RFC 10069. Null does not advertise `initial_max_path_id`.
+  final int? advertiseMaxPathId;
   Uint8List? _peerResetToken;
   Uint8List? _appSendSecret;
   Uint8List? _appRecvSecret;
@@ -339,6 +350,9 @@ final class PqQuicConn {
   var _peerMaxBidi = 0;
   var _peerMaxUni = 0;
   var _peerMaxDatagramFrameSize = 0;
+  int? _peerInitialMaxPathId;
+  QuicMultipath? _multipath;
+  final Map<int, int> _pathNextPn = {};
   final List<Uint8List> _datagramOut = [];
   final List<Uint8List> _datagramIn = [];
   final int _localMaxBidi = quicInitialMaxStreams;
@@ -686,6 +700,16 @@ final class PqQuicConn {
   }
 
   int get peerMaxDatagramFrameSize => _peerMaxDatagramFrameSize;
+
+  /// RFC 10069. True only after both endpoints sent `initial_max_path_id`.
+  bool get multipathNegotiated => _multipath != null;
+
+  bool get _multipathNegotiated => _multipath != null;
+
+  /// Null until multipath is negotiated.
+  QuicMultipath? get multipath => _multipath;
+
+  int? get peerInitialMaxPathId => _peerInitialMaxPathId;
 
   /// RFC 9000 §4.6. True when [id] is past the local stream limit.
   bool streamBeyondLocalLimit(int id) => _streamIdPastLimit(id);
@@ -1349,6 +1373,7 @@ final class PqQuicConn {
         activeConnectionIdLimit: 4,
         initialSourceConnectionId: localCid,
         maxDatagramFrameSize: quicLocalMaxDatagramFrameSize,
+        initialMaxPathId: advertiseMaxPathId,
       ).encode(),
     );
   }
@@ -1379,7 +1404,11 @@ final class PqQuicConn {
     if (codec == null) {
       return Result.failure(PqTransportError.decodeFailure('no 1-rtt keys'));
     }
-    var opened = codec.open(wire);
+    var opened = codec.open(
+      wire,
+      multipath: _multipathNegotiated,
+      pathId: _pathIdOf(wire),
+    );
     if (opened.isFailure) {
       final rotated = _openWithNextKeys(wire);
       if (rotated == null) return Result.failure(opened.errorOrNull!);
@@ -1483,10 +1512,13 @@ final class PqQuicConn {
         }
         final params = _applyPeerParams();
         if (params != null) {
+          final why = '${params.errorOrNull}';
           await _close(
-            errorCode: quicErrorTransportParameter,
+            errorCode: why.contains('multipath')
+                ? quicErrorProtocolViolation
+                : quicErrorTransportParameter,
             application: false,
-            reason: '${params.errorOrNull}',
+            reason: why,
           );
           return params;
         }
@@ -1568,6 +1600,10 @@ final class PqQuicConn {
         if (challenge != null && _sameBytes(challenge, frame.data)) {
           pathResponseMatched = true;
         }
+      }
+      if (body.multipath.isNotEmpty) {
+        final accepted = await _acceptMultipath(space, body.multipath);
+        if (accepted.isFailure) return accepted;
       }
       if (body.handshakeDone) {
         if (!isClient) {
@@ -1835,7 +1871,12 @@ final class PqQuicConn {
       if (codec == null) {
         return Result.failure(PqTransportError.decodeFailure('no 1-rtt keys'));
       }
-      sealed = codec.protect(dcid: _dcid, packetNumber: pn, payload: body);
+      sealed = codec.protect(
+        dcid: _dcid,
+        packetNumber: pn,
+        payload: body,
+        multipath: _multipathNegotiated,
+      );
     }
     if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
     final packet = sealed.valueOrNull!;
@@ -2208,10 +2249,161 @@ final class PqQuicConn {
     _peerMaxBidi = params.initialMaxStreamsBidi;
     _peerMaxUni = params.initialMaxStreamsUni;
     _peerMaxDatagramFrameSize = params.maxDatagramFrameSize;
+    _peerInitialMaxPathId = params.initialMaxPathId;
     _peerActiveCidLimit = params.activeConnectionIdLimit;
     _peerResetToken = params.statelessResetToken;
+    final offered = advertiseMaxPathId;
+    final peerPath = params.initialMaxPathId;
+    if (offered != null && peerPath != null) {
+      if (localCid.isEmpty || _peerInitialSource.isEmpty) {
+        return Result.failure(
+          PqTransportError.decodeFailure('multipath zero-length connection id'),
+        );
+      }
+      _multipath = QuicMultipath(
+        localInitialMax: offered,
+        peerInitialMax: peerPath,
+      );
+      _multipath!.rememberIssued(0, localCid);
+    }
     _paramsApplied = true;
     return null;
+  }
+
+  int _pathIdOf(Uint8List wire) {
+    final paths = _multipath;
+    if (paths == null || wire.isEmpty || (wire[0] & 0x80) != 0) return 0;
+    final n = _appOpen?.dcidLength ?? localCid.length;
+    if (wire.length < 1 + n) return 0;
+    return paths.pathForCid(slice(wire, 1, 1 + n)) ?? 0;
+  }
+
+  /// PATH_* frames are 1-RTT only, and only after the extension is
+  /// negotiated. A path-0 PATH_ACK retires packets in the existing
+  /// loss recovery. Other paths keep their own packet numbers.
+  Future<Result<void, PqTransportError>> _acceptMultipath(
+    QuicPacketNumberSpace space,
+    List<QuicMultipathFrame> frames,
+  ) async {
+    if (space != QuicPacketNumberSpace.application || _multipath == null) {
+      await _close(
+        errorCode: quicErrorProtocolViolation,
+        application: false,
+        reason: 'multipath',
+      );
+      return Result.failure(PqTransportError.decodeFailure('multipath'));
+    }
+    for (final frame in frames) {
+      final applied = _multipath!.apply(frame);
+      if (applied.isFailure) {
+        await _close(
+          errorCode: quicErrorProtocolViolation,
+          application: false,
+          reason: 'multipath',
+        );
+        return applied;
+      }
+      if (frame is QuicPathAckFrame && frame.pathId == 0) {
+        final event = lossRecovery.onAck(
+          space,
+          QuicAckFrame(
+            largest: frame.largest,
+            delay: frame.delay,
+            firstRange: frame.firstRange,
+            additional: frame.additional,
+            ecn: frame.ecn,
+            ect0: frame.ect0,
+            ect1: frame.ect1,
+            ce: frame.ce,
+          ),
+        );
+        if (event.isFailure) return Result.failure(event.errorOrNull!);
+        final done = await _apply(event.valueOrNull!);
+        if (done.isFailure) return done;
+      }
+    }
+    return const Result.success(null);
+  }
+
+  /// Sends one RFC 10069 frame on path 0. Refused when multipath is off.
+  Future<Result<void, PqTransportError>> writeMultipathFrame(
+    QuicMultipathFrame frame,
+  ) {
+    if (_multipath == null) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('multipath')),
+      );
+    }
+    final wire = frame.encode();
+    _queueControl('mp:${frame.type}:${wire.length}', wire);
+    return _flush();
+  }
+
+  /// Records a connection ID this endpoint will accept on [pathId].
+  /// The caller sends the returned frame. Path 0 still uses
+  /// NEW_CONNECTION_ID; this is for a non-zero path.
+  Result<QuicPathNewConnectionIdFrame, PqTransportError> issuePathConnectionId({
+    required int pathId,
+    required int sequence,
+    required Uint8List connectionId,
+    required Uint8List statelessResetToken,
+    int retirePriorTo = 0,
+  }) {
+    final paths = _multipath;
+    if (paths == null || pathId <= 0 || !paths.pathAllowed(pathId)) {
+      return Result.failure(PqTransportError.decodeFailure('multipath path'));
+    }
+    if (connectionId.isEmpty ||
+        connectionId.length > quicMaxConnectionIdBytes ||
+        statelessResetToken.length != quicStatelessResetTokenBytes ||
+        sequence < retirePriorTo) {
+      return Result.failure(
+        PqTransportError.decodeFailure('PATH_NEW_CONNECTION_ID'),
+      );
+    }
+    paths.rememberIssued(pathId, connectionId);
+    return Result.success(
+      QuicPathNewConnectionIdFrame(
+        pathId: pathId,
+        sequence: sequence,
+        retirePriorTo: retirePriorTo,
+        connectionId: connectionId,
+        statelessResetToken: statelessResetToken,
+      ),
+    );
+  }
+
+  /// 1-RTT packet on a non-zero path. Uses that path's packet number
+  /// space and the peer connection ID from PATH_NEW_CONNECTION_ID.
+  /// Path 0 stays on [lossRecovery]. This does not run a separate PTO.
+  Future<Result<void, PqTransportError>> sendOnPath(
+    int pathId,
+    Uint8List payload,
+  ) async {
+    final paths = _multipath;
+    if (paths == null || pathId <= 0 || !paths.pathAllowed(pathId)) {
+      return Result.failure(PqTransportError.decodeFailure('multipath path'));
+    }
+    final dcid = paths.peerCidByPath[pathId];
+    if (dcid == null) {
+      return Result.failure(PqTransportError.decodeFailure('multipath cid'));
+    }
+    _ensureAppKeys();
+    final codec = _appSeal;
+    if (codec == null) {
+      return Result.failure(PqTransportError.decodeFailure('no 1-rtt keys'));
+    }
+    final pn = _pathNextPn[pathId] ?? 0;
+    final sealed = codec.protect(
+      dcid: dcid,
+      packetNumber: pn,
+      payload: payload,
+      multipath: true,
+      pathId: pathId,
+    );
+    if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
+    _pathNextPn[pathId] = pn + 1;
+    return _deliverDatagram(sealed.valueOrNull!);
   }
 
   bool _streamIdPastLimit(int id) {
@@ -2259,7 +2451,11 @@ final class PqQuicConn {
       keyPhase: !_recvKeyPhase,
       dcidLength: localCid.length,
     );
-    final opened = codec.open(wire);
+    final opened = codec.open(
+      wire,
+      multipath: _multipathNegotiated,
+      pathId: _pathIdOf(wire),
+    );
     if (opened.isFailure) return null;
     final packet = opened.valueOrNull!;
     if (packet.keyPhase == _recvKeyPhase) return null;
@@ -2355,6 +2551,7 @@ final class PqQuicConn {
           final token = crypto.randomBytes(quicStatelessResetTokenBytes);
           final sequence = _nextLocalCid++;
           _localCids[sequence] = cid;
+          _multipath?.rememberIssued(0, cid);
           _queueControl(
             'ncid:$sequence',
             QuicNewConnectionIdFrame(

@@ -38,7 +38,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 - "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
 - "DNSSEC verifies algorithms 5, 7, 8, 10, 13, 14, 15, and 16 via pqforge. RSA moduli are 1024, 2048, 3072, and 4096 bits. Ed448 is pure, empty context. The iterative resolver returns secure, insecure, or bogus from a caller-supplied root anchor. NSEC and NSEC3 prove denial. SHA-1 is the NSEC3 hash, DS digest type 1, and the hash inside algorithms 5 and 7. The AD bit is not validation."
 - "ECH is one BoringSSL 0.20261020.0 flight (RFC 9849, pqforge 0.4.10 HPKE). Not OpenSSL. Not a browser."
-- "quiche 0.30.0 completes one HTTP/3 GET both ways (bodies `pq-h3` and `quiche-h3`). curl linked to OpenSSL 3.5.9 completes HTTP/1.1 keep-alive and `Connection: close` against `PqHttpServer`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are in-memory. Not `curl --http3`. Not a complete RFC 9114 stack. Multipath (RFC 10069) is not negotiated."
+- "quiche 0.30.0 completes one HTTP/3 GET both ways (bodies `pq-h3` and `quiche-h3`), plus extended CONNECT, PRIORITY_UPDATE, and one HTTP datagram both ways. curl linked to OpenSSL 3.5.9 completes HTTP/1.1 keep-alive and `Connection: close` against `PqHttpServer`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not `curl --http3`. Not a complete RFC 9114 stack. Capsules, CONNECT-UDP, CONNECT-IP, and multipath (RFC 10069) are implemented and not claimed."
 
 ## Forbidden → use instead
 

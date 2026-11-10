@@ -620,8 +620,82 @@ final class PqHttp2Session {
     return http2ParseResponse(responseHeaders, body, trailers: trailers);
   }
 
+  /// RFC 8441. [fin] false leaves the stream open for a tunnel.
+  /// Capsules are later DATA frames, not a second HEADERS block.
+  Future<Result<int, PqTransportError>> beginRequest(
+    PqHttpRequest req, {
+    bool fin = false,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!isClient) {
+      return Result.failure(
+        PqTransportError.internalError('server cannot request'),
+      );
+    }
+    final started = await ensureStarted(timeout: timeout);
+    if (started.isFailure) return Result.failure(started.errorOrNull!);
+    if (_error != null) return Result.failure(_error!);
+    if (req.protocol != null && _peerConnectProtocol != 1) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 connect protocol'),
+      );
+    }
+    if (_localActive() >= _peerMaxConcurrent) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 max streams'),
+      );
+    }
+    final headers = http2RequestHeaders(req);
+    final limited = _headerListTooLarge(headers, peer: true);
+    if (limited != null) return Result.failure(limited);
+    final streamId = _nextStreamId;
+    _nextStreamId += 2;
+    final endStream = fin && req.body.isEmpty;
+    _onLocalHeaders(streamId, endStream: endStream);
+    final sent = await _sendHeaderBlock(
+      streamId,
+      _encode.encode(headers),
+      endStream: endStream,
+    );
+    if (sent.isFailure) return Result.failure(sent.errorOrNull!);
+    if (req.body.isNotEmpty) {
+      final data = await _sendBody(
+        streamId,
+        req.body,
+        endStream: fin,
+        timeout: timeout,
+      );
+      if (data.isFailure) return Result.failure(data.errorOrNull!);
+    }
+    return Result.success(streamId);
+  }
+
+  /// DATA on an open stream. Used for the Capsule Protocol on HTTP/2.
+  Future<Result<void, PqTransportError>> writeData(
+    int streamId,
+    Uint8List data, {
+    bool endStream = false,
+    Duration timeout = const Duration(seconds: 10),
+  }) {
+    return _sendBody(streamId, data, endStream: endStream, timeout: timeout);
+  }
+
+  /// [untilFin] false returns after the response headers. A CONNECT
+  /// tunnel has no message body before the capsules.
+  Future<Result<PqHttpResponse, PqTransportError>> readResponse(
+    int streamId, {
+    bool untilFin = true,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final assembled = await _collect(streamId, timeout, untilFin: untilFin);
+    if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
+    final (responseHeaders, body, _, trailers) = assembled.valueOrNull!;
+    return http2ParseResponse(responseHeaders, body, trailers: trailers);
+  }
+
   Future<Result<(int, PqHttpRequest), PqTransportError>> accept({
     Duration timeout = const Duration(seconds: 10),
+    bool untilFin = true,
   }) async {
     if (isClient) {
       return Result.failure(
@@ -630,7 +704,7 @@ final class PqHttp2Session {
     }
     final started = await ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
-    final assembled = await _collect(0, timeout);
+    final assembled = await _collect(0, timeout, untilFin: untilFin);
     if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
     final (headers, body, streamId, _) = assembled.valueOrNull!;
     final sized = _headerListTooLarge(headers, peer: false);
@@ -757,7 +831,7 @@ final class PqHttp2Session {
       PqTransportError
     >
   >
-  _collect(int wantStream, Duration timeout) async {
+  _collect(int wantStream, Duration timeout, {bool untilFin = true}) async {
     final headerParts = BytesBuilder(copy: false);
     final trailerParts = BytesBuilder(copy: false);
     final dataParts = BytesBuilder(copy: false);
@@ -851,6 +925,9 @@ final class PqHttp2Session {
         if (body.isFailure) return Result.failure(body.errorOrNull!);
         dataParts.add(body.valueOrNull!);
         ended = frame.endStream;
+      }
+      if (!untilFin && headersDone && !headersOpen && !headerPartsAreTrailers) {
+        ended = true;
       }
     }
     final decoded = _decode.decode(headerParts.takeBytes());

@@ -6,6 +6,7 @@ import '../core/bytes.dart';
 import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
+import 'multipath.dart';
 
 enum QuicConnectionState {
   idle,
@@ -513,6 +514,7 @@ final class QuicPayload {
     this.pathChallenges = const [],
     this.pathResponses = const [],
     this.datagrams = const [],
+    this.multipath = const [],
     this.handshakeDone = false,
     this.ackEliciting = false,
   });
@@ -535,6 +537,7 @@ final class QuicPayload {
   final List<QuicPathChallengeFrame> pathChallenges;
   final List<QuicPathResponseFrame> pathResponses;
   final List<QuicDatagramFrame> datagrams;
+  final List<QuicMultipathFrame> multipath;
   final bool handshakeDone;
   final bool ackEliciting;
 }
@@ -559,6 +562,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final pathChallenges = <QuicPathChallengeFrame>[];
   final pathResponses = <QuicPathResponseFrame>[];
   final datagrams = <QuicDatagramFrame>[];
+  final multipath = <QuicMultipathFrame>[];
   var handshakeDone = false;
   var ackEliciting = false;
   while (r.remaining > 0) {
@@ -725,6 +729,14 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       ackEliciting = true;
       continue;
     }
+    final multi = readQuicMultipathFrame(r);
+    if (multi != null) {
+      if (multi.isFailure) return Result.failure(multi.errorOrNull!);
+      final frame = multi.valueOrNull!;
+      multipath.add(frame);
+      if (frame.ackEliciting) ackEliciting = true;
+      continue;
+    }
     return Result.failure(
       PqTransportError.decodeFailure(
         'unsupported quic frame 0x${type.toRadixString(16)}',
@@ -751,6 +763,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       pathChallenges: pathChallenges,
       pathResponses: pathResponses,
       datagrams: datagrams,
+      multipath: multipath,
       handshakeDone: handshakeDone,
       ackEliciting: ackEliciting,
     ),
@@ -921,6 +934,8 @@ final class QuicPacketCodec {
     required int packetNumber,
     required Uint8List payload,
     int packetNumberLength = pnLength,
+    int pathId = 0,
+    bool multipath = false,
   }) {
     if (packetNumberLength < 1 ||
         packetNumberLength > quicPacketNumberMaxBytes) {
@@ -929,7 +944,9 @@ final class QuicPacketCodec {
     if (dcid.length > quicMaxConnectionIdBytes) {
       return Result.failure(PqTransportError.decodeFailure('dcid'));
     }
-    final nonce = quicAeadNonce(iv, packetNumber);
+    final nonce = multipath
+        ? quicMultipathNonce(iv, pathId, packetNumber)
+        : quicAeadNonce(iv, packetNumber);
     final header = BytesBuilder(copy: false);
     header.addByte((keyPhase ? 0x44 : 0x40) | (packetNumberLength - 1));
     header.add(dcid);
@@ -968,7 +985,7 @@ final class QuicPacketCodec {
     ({int packetNumber, Uint8List payload, bool keyPhase}),
     PqTransportError
   >
-  open(Uint8List wire) {
+  open(Uint8List wire, {int pathId = 0, bool multipath = false}) {
     const minTail = quicPacketNumberMaxBytes + quicHeaderProtectionSampleBytes;
     if (wire.length < 1 + dcidLength + minTail) {
       return Result.failure(PqTransportError.decodeFailure('short quic'));
@@ -1001,7 +1018,9 @@ final class QuicPacketCodec {
     try {
       final payload = crypto.aeadOpen(
         key: key,
-        nonce: quicAeadNonce(iv, pn),
+        nonce: multipath
+            ? quicMultipathNonce(iv, pathId, pn)
+            : quicAeadNonce(iv, pn),
         ciphertextWithTag: slice(packet, pnOff + pnLen, packet.length),
         aad: hdr,
         aead: aead,

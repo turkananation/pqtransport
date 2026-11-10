@@ -922,6 +922,45 @@ final class PqHttp3Session {
     return out;
   }
 
+  /// Datagrams for one request stream. Others stay queued.
+  List<Uint8List> takeStreamDatagrams(int streamId) {
+    _takeQuicDatagrams();
+    final keep = <(int, Uint8List)>[];
+    final out = <Uint8List>[];
+    for (final item in _httpDatagrams) {
+      if (item.$1 == streamId) {
+        out.add(item.$2);
+      } else {
+        keep.add(item);
+      }
+    }
+    _httpDatagrams
+      ..clear()
+      ..addAll(keep);
+    return out;
+  }
+
+  bool get quicHttpDatagrams =>
+      _advertisedHttpDatagrams &&
+      _peerHttpDatagrams &&
+      conn.peerMaxDatagramFrameSize > 0;
+
+  /// RFC 9297 §3.2. One capsule as a DATA frame on the request stream.
+  Future<Result<void, PqTransportError>> sendCapsule(
+    int streamId,
+    HttpCapsule capsule,
+  ) {
+    if (streamId < 0 || streamId % 4 != 0) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('h3 capsule')),
+      );
+    }
+    return conn.writeStream(
+      streamId,
+      Http3Frame(type: http3FrameData, payload: capsule.encode()).encode(),
+    );
+  }
+
   /// RFC 9297 §3.5. One DATAGRAM capsule on the request stream.
   /// Legal when HTTP datagrams were negotiated, including when the
   /// QUIC DATAGRAM transport parameter is zero.

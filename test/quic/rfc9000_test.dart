@@ -51,7 +51,7 @@ void main() {
     ).encode();
     final round = QuicTransportParameters.decode(encoded);
     expect(round.valueOrNull!.maxDatagramFrameSize, 1200);
-    expect(round.valueOrNull!.initialMaxPathId, isNull);
+    expect(round.valueOrNull!.initialMaxPathId, 4);
   });
 
   test('DATAGRAM 0x30 and 0x31 round-trip and an oversized frame fails', () {

@@ -41,9 +41,11 @@ QUIC flights are not HTTP/3. QUIC 0-RTT is sent to this stack only:
 a long header beside the Initial and the 1-RTT short header. A
 third-party HTTP/3 client has not completed that path. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
-are in-memory. The Capsule Protocol is not implemented. Multipath
-(RFC 10069) is not negotiated: this stack does not send
-`initial_max_path_id`.
+are the quiche 0.30.0 flights, both ways. The Capsule Protocol is
+implemented and not claimed: quiche does not parse capsules.
+CONNECT-UDP (RFC 9298) and CONNECT-IP (RFC 9484) are implemented
+for context ID 0 and are not claimed. Multipath (RFC 10069) is
+off unless `initialMaxPathId` is set, and it is not claimed.
 
 ## Groups the TLS peers selected
 

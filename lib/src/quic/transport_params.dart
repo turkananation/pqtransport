@@ -51,8 +51,8 @@ final class QuicTransportParameters {
   /// RFC 9221. Zero means datagrams are not offered.
   final int maxDatagramFrameSize;
 
-  /// RFC 10069. Null means the peer did not send it. This stack never
-  /// sends it, so multipath is not negotiated.
+  /// RFC 10069. Null means this endpoint does not offer multipath.
+  /// A value of 0 offers the extension and no extra path yet.
   final int? initialMaxPathId;
 
   int get streamDataLimit {
@@ -119,6 +119,10 @@ final class QuicTransportParameters {
     }
     if (maxDatagramFrameSize > 0) {
       _varint(b, quicTpMaxDatagramFrameSize, maxDatagramFrameSize);
+    }
+    final pathId = initialMaxPathId;
+    if (pathId != null) {
+      _varint(b, quicTpInitialMaxPathId, pathId);
     }
     return b.takeBytes();
   }
@@ -345,6 +349,7 @@ Uint8List quicEndpointParameters({
   required int maxStreamData,
   Uint8List? statelessResetToken,
   int maxIdleTimeoutMs = 0,
+  int? initialMaxPathId,
 }) {
   return QuicTransportParameters(
     originalDestinationConnectionId: server ? localCid : null,
@@ -359,5 +364,6 @@ Uint8List quicEndpointParameters({
     activeConnectionIdLimit: 4,
     initialSourceConnectionId: localCid,
     maxDatagramFrameSize: quicLocalMaxDatagramFrameSize,
+    initialMaxPathId: initialMaxPathId,
   ).encode();
 }

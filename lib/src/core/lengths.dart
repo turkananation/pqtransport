@@ -476,8 +476,31 @@ const int quicTpInitialSourceConnectionId = 0x0f;
 const int quicTpRetrySourceConnectionId = 0x10;
 const int quicTpMaxDatagramFrameSize = 0x20;
 
-/// RFC 10069. This stack does not send it. A value above 2^32-1 is an error.
+/// RFC 10069. Sent only when the endpoint enables multipath. A value
+/// above 2^32-1 is a transport parameter error.
 const int quicTpInitialMaxPathId = 0x3e;
+
+/// RFC 10069 frame types. Legal only in 1-RTT, and only after both
+/// endpoints have sent [quicTpInitialMaxPathId].
+const int quicFramePathAck = 0x3e;
+const int quicFramePathAckEcn = 0x3f;
+const int quicFramePathAbandon = 0x3e75;
+const int quicFramePathStatusBackup = 0x3e76;
+const int quicFramePathStatusAvailable = 0x3e77;
+const int quicFramePathNewConnectionId = 0x3e78;
+const int quicFramePathRetireConnectionId = 0x3e79;
+const int quicFrameMaxPathId = 0x3e7a;
+const int quicFramePathsBlocked = 0x3e7b;
+const int quicFramePathCidsBlocked = 0x3e7c;
+
+/// RFC 10069 error codes carried in PATH_ABANDON. These are not frame types.
+const int quicErrorApplicationAbandonPath = 0x3e;
+const int quicErrorPathResourceLimit = 0x3e75;
+const int quicErrorPathUnstable = 0x3e76;
+const int quicErrorNoCidForPath = 0x3e77;
+
+/// Largest path identifier the nonce calculation allows (RFC 10069 §2.4).
+const int quicMaxPathId = 0xffffffff;
 
 /// Largest DATAGRAM frame, type and length included, this stack will accept.
 const int quicLocalMaxDatagramFrameSize = 65535;
