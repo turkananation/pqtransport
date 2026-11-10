@@ -412,3 +412,55 @@ final r = await PqTlsClient(
 ```
 
 `r` is a failure. Maximum is ML-KEM-1024. X25519MLKEM768 needs 768.
+
+## Servers
+
+Shelf and Relic do not take a `dart:io` `SecurityContext` on this
+path. The handshake is pqtransport. Serverpod's API server and
+insights server still build that context inside Serverpod. This
+package does not pretend a `SecurityContext` can hold an ML-DSA
+certificate. Serverpod's web server is Relic. If you construct that
+web server yourself, pass `PqRelicAdapter` instead of `IOAdapter`.
+
+```dart
+import 'package:pqtransport/shelf.dart';
+import 'package:shelf/shelf.dart';
+
+final shelf = await serveShelf(
+  (request) => Response.ok('shelf-ok ${request.requestedUri.path}'),
+  InternetAddress.loopbackIPv4,
+  0,
+  identity: identity,
+);
+```
+
+```dart
+import 'package:pqtransport/relic.dart';
+import 'package:relic_core/relic_core.dart';
+
+final adapter = await PqRelicAdapter.bind(
+  InternetAddress.loopbackIPv4,
+  0,
+  identity: identity,
+);
+final relic = RelicServer(() => adapter);
+await relic.mountAndStart(
+  (request) =>
+      Response.ok(body: Body.fromString('relic-ok ${request.url.path}')),
+);
+```
+
+`identity` is a `PqTlsServerIdentity`. ALPN offers `h2` and
+`http/1.1`. Pass `quic: true` to also accept HTTP/3 on the same
+port. Neither adapter detaches the TLS stream, and neither speaks
+WebSocket. The tests are `test/io/framework_test.dart`.
+
+Foreign servers are the [Peers](peers) page. OpenSSL 3.5.9 is the
+TLS peer, including `s_server -max_send_frag 512`, which splits both
+ServerHello and a 2048-octet HTTP/1.1 body. curl linked to that
+OpenSSL is the HTTP/1.1 client against `PqHttpServer` (chunked body,
+one connection for two responses, a new connection after
+`Connection: close`). quiche 0.30.0 is the HTTP/3 peer for one GET
+both ways. That is not `curl --http3` and not a complete RFC 9114
+stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams have
+no foreign peer. The Capsule Protocol is not implemented.

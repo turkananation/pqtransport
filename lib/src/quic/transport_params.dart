@@ -27,6 +27,8 @@ final class QuicTransportParameters {
     this.activeConnectionIdLimit = quicActiveConnectionIdLimitDefault,
     this.initialSourceConnectionId,
     this.retrySourceConnectionId,
+    this.maxDatagramFrameSize = 0,
+    this.initialMaxPathId,
   });
 
   final Uint8List? originalDestinationConnectionId;
@@ -45,6 +47,13 @@ final class QuicTransportParameters {
   final int activeConnectionIdLimit;
   final Uint8List? initialSourceConnectionId;
   final Uint8List? retrySourceConnectionId;
+
+  /// RFC 9221. Zero means datagrams are not offered.
+  final int maxDatagramFrameSize;
+
+  /// RFC 10069. Null means the peer did not send it. This stack never
+  /// sends it, so multipath is not negotiated.
+  final int? initialMaxPathId;
 
   int get streamDataLimit {
     final values = [
@@ -108,6 +117,9 @@ final class QuicTransportParameters {
     if (rcid != null) {
       _bytes(b, quicTpRetrySourceConnectionId, rcid);
     }
+    if (maxDatagramFrameSize > 0) {
+      _varint(b, quicTpMaxDatagramFrameSize, maxDatagramFrameSize);
+    }
     return b.takeBytes();
   }
 
@@ -132,6 +144,8 @@ final class QuicTransportParameters {
     var active = quicActiveConnectionIdLimitDefault;
     Uint8List? scid;
     Uint8List? rcid;
+    var datagram = 0;
+    int? pathId;
     while (r.remaining > 0) {
       final id = readVarint(r);
       final len = readVarint(r);
@@ -196,6 +210,15 @@ final class QuicTransportParameters {
           scid = bytes;
         case quicTpRetrySourceConnectionId:
           rcid = bytes;
+        case quicTpMaxDatagramFrameSize:
+          datagram = _readVarintBytes(bytes);
+        case quicTpInitialMaxPathId:
+          pathId = _readVarintBytes(bytes);
+          if (pathId < 0 || pathId > 0xffffffff) {
+            return Result.failure(
+              PqTransportError.decodeFailure('initial_max_path_id'),
+            );
+          }
         default:
           break;
       }
@@ -208,7 +231,8 @@ final class QuicTransportParameters {
           streamsBidi < 0 ||
           streamsUni < 0 ||
           ackExp < 0 ||
-          ackDelay < 0) {
+          ackDelay < 0 ||
+          datagram < 0) {
         return Result.failure(
           PqTransportError.decodeFailure('transport parameter varint'),
         );
@@ -232,6 +256,8 @@ final class QuicTransportParameters {
         activeConnectionIdLimit: active,
         initialSourceConnectionId: scid,
         retrySourceConnectionId: rcid,
+        maxDatagramFrameSize: datagram,
+        initialMaxPathId: pathId,
       ),
     );
   }
@@ -332,5 +358,6 @@ Uint8List quicEndpointParameters({
     initialMaxStreamsUni: quicInitialMaxStreams,
     activeConnectionIdLimit: 4,
     initialSourceConnectionId: localCid,
+    maxDatagramFrameSize: quicLocalMaxDatagramFrameSize,
   ).encode();
 }

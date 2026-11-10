@@ -183,6 +183,9 @@ Result<Map<String, String>, PqTransportError> _fields(List<String> lines) {
     if (name == 'content-length') {
       lengths.putIfAbsent(name, () => []).add(value);
     }
+    if (name == 'host' && headers.containsKey(name)) {
+      return Result.failure(PqTransportError.decodeFailure('http1 host'));
+    }
     final previous = headers[name];
     headers[name] = previous == null ? value : '$previous, $value';
   }
@@ -334,6 +337,14 @@ int? _crlf(Uint8List buf, int offset) {
   return null;
 }
 
+bool _hostField(String host) {
+  if (host.isEmpty) return false;
+  for (final unit in host.codeUnits) {
+    if (unit < 0x21 || unit > 0x7e) return false;
+  }
+  return true;
+}
+
 bool _connectionClose(Map<String, String> headers) {
   final raw = headers['connection'];
   if (raw == null) return false;
@@ -359,6 +370,12 @@ Result<PqHttpRequest, PqTransportError> _request(
     return Result.failure(PqTransportError.decodeFailure('http1 request'));
   }
   final host = headers['host'];
+  if (host != null && !_hostField(host)) {
+    return Result.failure(PqTransportError.decodeFailure('http1 host'));
+  }
+  if (parts[2] == 'HTTP/1.1' && host == null) {
+    return Result.failure(PqTransportError.decodeFailure('http1 host'));
+  }
   final Uri uri;
   try {
     if (target.startsWith('/')) {

@@ -31,7 +31,7 @@ Future<void> main(List<String> args) async {
       crypto: crypto,
     );
     server.mount((request) async {
-      if (request.method != 'GET' || request.uri.path != '/pq') {
+      if (request.method != 'GET') {
         return PqHttpResponse(
           status: 404,
           headers: const {'connection': 'close'},
@@ -39,40 +39,110 @@ Future<void> main(List<String> args) async {
           version: HttpVersion.h1,
         );
       }
-      return PqHttpResponse(
-        status: 200,
-        headers: const {'transfer-encoding': 'chunked'},
-        body: Uint8List.fromList('pq-h1'.codeUnits),
-        version: HttpVersion.h1,
-        trailers: const {'x-trail': 'yes'},
-      );
+      switch (request.uri.path) {
+        case '/pq':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {'transfer-encoding': 'chunked'},
+            body: Uint8List.fromList('pq-h1'.codeUnits),
+            version: HttpVersion.h1,
+            trailers: const {'x-trail': 'yes'},
+          );
+        case '/next':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {},
+            body: Uint8List.fromList('pq-h1b'.codeUnits),
+            version: HttpVersion.h1,
+          );
+        case '/bye':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {'connection': 'close'},
+            body: Uint8List.fromList('pq-bye'.codeUnits),
+            version: HttpVersion.h1,
+          );
+        default:
+          return PqHttpResponse(
+            status: 404,
+            headers: const {'connection': 'close'},
+            body: Uint8List(0),
+            version: HttpVersion.h1,
+          );
+      }
     });
     final port = server.port;
-    final result = await Process.run(curl, [
-      '--http1.1',
-      '--cacert',
-      caPath,
-      '--curves',
-      'X25519MLKEM768',
-      '--tlsv1.3',
-      '--tls-max',
-      '1.3',
-      '--tls13-ciphers',
-      'TLS_AES_256_GCM_SHA384',
-      '--resolve',
-      'localhost:$port:127.0.0.1',
-      '--max-time',
-      '20',
-      'https://localhost:$port/pq',
-    ], environment: Platform.environment);
-    stdout.writeln(result.stdout);
-    if (result.exitCode != 0 || result.stdout.toString() != 'pq-h1') {
-      stderr.writeln(result.stderr);
-      stderr.writeln('curl exit ${result.exitCode}');
+    Future<ProcessResult> runCurl(List<String> urls, {bool verbose = false}) {
+      return Process.run(curl, [
+        '--http1.1',
+        if (verbose) '-v',
+        '--cacert',
+        caPath,
+        '--curves',
+        'X25519MLKEM768',
+        '--tlsv1.3',
+        '--tls-max',
+        '1.3',
+        '--tls13-ciphers',
+        'TLS_AES_256_GCM_SHA384',
+        '--resolve',
+        'localhost:$port:127.0.0.1',
+        '--max-time',
+        '20',
+        ...urls,
+      ], environment: Platform.environment);
+    }
+
+    final once = await runCurl(['https://localhost:$port/pq']);
+    stdout.writeln(once.stdout);
+    if (once.exitCode != 0 || once.stdout.toString() != 'pq-h1') {
+      stderr.writeln(once.stderr);
+      stderr.writeln('curl exit ${once.exitCode}');
       exitCode = 1;
       return;
     }
     stdout.writeln('curl --http1.1 decoded a chunked body from PqHttpServer');
+    final kept = await runCurl([
+      'https://localhost:$port/pq',
+      'https://localhost:$port/next',
+    ], verbose: true);
+    if (kept.exitCode != 0 || kept.stdout.toString() != 'pq-h1pq-h1b') {
+      stderr.writeln(kept.stderr);
+      stderr.writeln('curl keep-alive exit ${kept.exitCode}');
+      exitCode = 1;
+      return;
+    }
+    if (!kept.stderr.toString().contains(
+      'Reusing existing https: connection',
+    )) {
+      stderr.writeln(kept.stderr);
+      stderr.writeln('curl did not reuse the HTTP/1.1 connection');
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln('curl --http1.1 reused one connection for two responses');
+    final closed = await runCurl([
+      'https://localhost:$port/bye',
+      'https://localhost:$port/next',
+    ], verbose: true);
+    final closedErr = closed.stderr.toString();
+    if (closed.exitCode != 0 || closed.stdout.toString() != 'pq-byepq-h1b') {
+      stderr.writeln(closedErr);
+      stderr.writeln('curl close exit ${closed.exitCode}');
+      exitCode = 1;
+      return;
+    }
+    if (closedErr.contains('Reusing existing https: connection') ||
+        'Established connection to localhost'.allMatches(closedErr).length <
+            2) {
+      stderr.writeln(closedErr);
+      stderr.writeln('curl reused a connection after Connection: close');
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln(
+      'curl --http1.1 opened a new connection after Connection: close',
+    );
   } finally {
     await server?.close();
     await dir.delete(recursive: true);

@@ -467,6 +467,27 @@ final class QuicAckProcessor {
   }
 }
 
+/// RFC 9221 DATAGRAM. Not retransmitted. [lengthPrefixed] is type 0x31.
+final class QuicDatagramFrame {
+  const QuicDatagramFrame(this.payload, {required this.lengthPrefixed});
+
+  final Uint8List payload;
+  final bool lengthPrefixed;
+
+  int get encodedLength =>
+      1 +
+      (lengthPrefixed ? quicVarintLength(payload.length) : 0) +
+      payload.length;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(lengthPrefixed ? quicFrameDatagramLen : quicFrameDatagram);
+    if (lengthPrefixed) writeQuicVarint(b, payload.length);
+    b.add(payload);
+    return b.takeBytes();
+  }
+}
+
 /// CRYPTO + ACK + STREAM + flow-control and path frames.
 /// PADDING and PING are skipped. [ackEliciting] is set when any frame
 /// other than ACK, PADDING, or CONNECTION_CLOSE was present (RFC 9002
@@ -491,6 +512,7 @@ final class QuicPayload {
     this.newTokens = const [],
     this.pathChallenges = const [],
     this.pathResponses = const [],
+    this.datagrams = const [],
     this.handshakeDone = false,
     this.ackEliciting = false,
   });
@@ -512,6 +534,7 @@ final class QuicPayload {
   final List<QuicNewTokenFrame> newTokens;
   final List<QuicPathChallengeFrame> pathChallenges;
   final List<QuicPathResponseFrame> pathResponses;
+  final List<QuicDatagramFrame> datagrams;
   final bool handshakeDone;
   final bool ackEliciting;
 }
@@ -535,6 +558,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final newTokens = <QuicNewTokenFrame>[];
   final pathChallenges = <QuicPathChallengeFrame>[];
   final pathResponses = <QuicPathResponseFrame>[];
+  final datagrams = <QuicDatagramFrame>[];
   var handshakeDone = false;
   var ackEliciting = false;
   while (r.remaining > 0) {
@@ -674,6 +698,33 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       ackEliciting = true;
       continue;
     }
+    if (type == quicFrameDatagram || type == quicFrameDatagramLen) {
+      r.offset++;
+      final prefixed = type == quicFrameDatagramLen;
+      Uint8List payload;
+      if (prefixed) {
+        final len = readVarint(r);
+        if (len < 0 || r.remaining < len) {
+          return Result.failure(PqTransportError.decodeFailure('datagram'));
+        }
+        final taken = r.take(len, PqLengthLabel.datagram);
+        if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+        payload = taken.valueOrNull!;
+      } else {
+        final taken = r.take(r.remaining, PqLengthLabel.datagram);
+        if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+        payload = taken.valueOrNull!;
+      }
+      final frame = QuicDatagramFrame(payload, lengthPrefixed: prefixed);
+      if (frame.encodedLength > quicLocalMaxDatagramFrameSize) {
+        return Result.failure(
+          PqTransportError.decodeFailure('datagram too large'),
+        );
+      }
+      datagrams.add(frame);
+      ackEliciting = true;
+      continue;
+    }
     return Result.failure(
       PqTransportError.decodeFailure(
         'unsupported quic frame 0x${type.toRadixString(16)}',
@@ -699,6 +750,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       newTokens: newTokens,
       pathChallenges: pathChallenges,
       pathResponses: pathResponses,
+      datagrams: datagrams,
       handshakeDone: handshakeDone,
       ackEliciting: ackEliciting,
     ),

@@ -284,4 +284,66 @@ void main() {
     await client.close();
     await server.close();
   }, timeout: const Timeout(Duration(seconds: 40)));
+
+  test('extended CONNECT and PRIORITY_UPDATE', () async {
+    final (client, server, clientH2, serverH2) = await pair();
+    final serving = () async {
+      final accepted = await serverH2.accept(
+        timeout: const Duration(seconds: 10),
+      );
+      expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+      final (id, request) = accepted.valueOrNull!;
+      expect(request.method, 'CONNECT');
+      expect(request.protocol, 'websocket');
+      expect(request.uri.path, '/pq');
+      await serverH2.respond(
+        id,
+        PqHttpResponse(
+          status: 200,
+          headers: const {},
+          body: Uint8List(0),
+          version: HttpVersion.h2,
+        ),
+      );
+    }();
+    await Future.wait([clientH2.ensureStarted(), serverH2.ensureStarted()]);
+    expect(clientH2.peerExtendedConnect, isTrue);
+    expect(serverH2.peerEnablePush, 0);
+    final priority = await clientH2.updatePriority(
+      1,
+      urgency: 1,
+      incremental: true,
+    );
+    expect(priority.isSuccess, isTrue, reason: '${priority.errorOrNull}');
+    final resp = await clientH2.request(
+      PqHttpRequest(
+        method: 'CONNECT',
+        uri: Uri.parse('https://localhost/pq'),
+        protocol: 'websocket',
+      ),
+    );
+    await serving;
+    expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+    expect(resp.valueOrNull!.status, 200);
+    expect(serverH2.priorities[1]?.urgency, 1);
+    expect(serverH2.priorities[1]?.incremental, isTrue);
+    await clientH2.close();
+    await serverH2.close();
+    await client.close();
+    await server.close();
+  }, timeout: const Timeout(Duration(seconds: 40)));
+
+  test('PRIORITY_UPDATE for stream 0 is a connection error', () async {
+    final (client, server, clientH2, serverH2) = await pair();
+    await Future.wait([clientH2.ensureStarted(), serverH2.ensureStarted()]);
+    final sent = await client.send(encodeHttp2PriorityUpdate(0, 'u=1'));
+    expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+    final accepted = await serverH2.accept(timeout: const Duration(seconds: 5));
+    expect(accepted.isFailure, isTrue);
+    expect('${accepted.errorOrNull}', contains('priority'));
+    await clientH2.close();
+    await serverH2.close();
+    await client.close();
+    await server.close();
+  }, timeout: const Timeout(Duration(seconds: 40)));
 }

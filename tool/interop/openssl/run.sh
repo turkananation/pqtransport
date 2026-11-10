@@ -39,3 +39,5 @@ dart run tool/interop/openssl/quic_client_flight.dart "$bin" "$demo"
 echo "== curl HTTP/1.1 against PqHttpServer =="
 dart run tool/interop/openssl/http1_server_flight.dart \
   "$root/.build/curl/bin/curl"
+echo "== OpenSSL s_server -max_send_frag against PqHttpClient =="
+dart run tool/interop/openssl/http1_frag_flight.dart "$bin"

@@ -151,9 +151,12 @@ final class PqTlsClient {
   int? _certificateType;
   List<Uint8List>? _certificateEntries;
 
-  /// Handshake bytes that did not finish a message. RFC 8446 permits a
-  /// handshake message to span records. OpenSSL sends one message per record.
+  /// Handshake bytes that did not finish a message. RFC 8446 §5.1
+  /// permits one handshake message to span records, and several
+  /// messages to share a record. The encrypted flight uses this buffer.
+  /// ServerHello is still cleartext, so it uses [_pendingCleartext].
   Uint8List _pendingHandshake = Uint8List(0);
+  Uint8List _pendingCleartext = Uint8List(0);
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -275,7 +278,25 @@ final class PqTlsClient {
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
     var shBytes = rec.valueOrNull!;
     var leftover = Uint8List(0);
-    if (quic) {
+    if (!quic) {
+      // OpenSSL -max_send_frag splits ServerHello. The ML-KEM share
+      // does not fit in 512 octets, so the first record is a prefix.
+      _pendingCleartext = _pendingCleartext.isEmpty
+          ? shBytes
+          : concatBytes([_pendingCleartext, shBytes]);
+      if (_pendingCleartext.length > tlsHandshakeReassemblyMaxBytes) {
+        return _fail('handshake too large');
+      }
+      final n = handshakeWireLength(_pendingCleartext);
+      if (n < 0 || _pendingCleartext.length < n) {
+        return const Result.success([]);
+      }
+      if (_pendingCleartext.length != n) {
+        return _fail('trailing server hello');
+      }
+      shBytes = _pendingCleartext;
+      _pendingCleartext = Uint8List(0);
+    } else {
       final n = handshakeWireLength(shBytes);
       if (n < 0 || n > shBytes.length) return _fail('truncated sh');
       leftover = n < shBytes.length
@@ -693,6 +714,7 @@ final class PqTlsClient {
     _peerAuthenticated = false;
     _peerPublicKey = null;
     _pendingHandshake = Uint8List(0);
+    _pendingCleartext = Uint8List(0);
     if (onWire) _certificateFailure = error;
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(error);
@@ -724,6 +746,7 @@ final class PqTlsClient {
     _peerAuthenticated = false;
     _peerPublicKey = null;
     _pendingHandshake = Uint8List(0);
+    _pendingCleartext = Uint8List(0);
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
   }

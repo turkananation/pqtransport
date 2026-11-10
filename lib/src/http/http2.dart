@@ -138,12 +138,30 @@ List<HpackHeader> http2RequestHeaders(PqHttpRequest req) {
   if (req.uri.hasPort) {
     authority = '$authority:${req.uri.port}';
   }
-  final out = <HpackHeader>[
-    HpackHeader(':method', req.method),
-    HpackHeader(':scheme', scheme),
-    HpackHeader(':authority', authority),
-    HpackHeader(':path', path),
-  ];
+  final connect = req.method.toUpperCase() == 'CONNECT';
+  final protocol = req.protocol;
+  final List<HpackHeader> out;
+  if (connect && protocol == null) {
+    out = [
+      const HpackHeader(':method', 'CONNECT'),
+      HpackHeader(':authority', authority),
+    ];
+  } else if (connect && protocol != null) {
+    out = [
+      const HpackHeader(':method', 'CONNECT'),
+      HpackHeader(':protocol', protocol),
+      HpackHeader(':scheme', scheme),
+      HpackHeader(':authority', authority),
+      HpackHeader(':path', path),
+    ];
+  } else {
+    out = [
+      HpackHeader(':method', req.method),
+      HpackHeader(':scheme', scheme),
+      HpackHeader(':authority', authority),
+      HpackHeader(':path', path),
+    ];
+  }
   req.headers.forEach((k, v) {
     final name = k.toLowerCase();
     if (name == 'host' ||
@@ -151,7 +169,8 @@ List<HpackHeader> http2RequestHeaders(PqHttpRequest req) {
         name == 'keep-alive' ||
         name == 'proxy-connection' ||
         name == 'transfer-encoding' ||
-        name == 'upgrade') {
+        name == 'upgrade' ||
+        name.startsWith(':')) {
       return;
     }
     out.add(HpackHeader(name, v));
@@ -175,18 +194,46 @@ Result<PqHttpRequest, PqTransportError> http2ParseRequest(
   String? scheme;
   String? authority;
   String? path;
+  String? protocol;
   final regular = <String, String>{};
   for (final h in headers) {
     if (h.name.startsWith(':')) {
       switch (h.name) {
         case ':method':
+          if (method != null) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 pseudo dup'),
+            );
+          }
           method = h.value;
         case ':scheme':
+          if (scheme != null) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 pseudo dup'),
+            );
+          }
           scheme = h.value;
         case ':authority':
+          if (authority != null) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 pseudo dup'),
+            );
+          }
           authority = h.value;
         case ':path':
+          if (path != null) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 pseudo dup'),
+            );
+          }
           path = h.value;
+        case ':protocol':
+          if (protocol != null) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 pseudo dup'),
+            );
+          }
+          protocol = h.value;
         default:
           return Result.failure(
             PqTransportError.decodeFailure('http2 pseudo ${h.name}'),
@@ -196,7 +243,42 @@ Result<PqHttpRequest, PqTransportError> http2ParseRequest(
       regular[h.name] = h.value;
     }
   }
-  if (method == null || path == null || scheme == null) {
+  if (method == null) {
+    return Result.failure(
+      PqTransportError.decodeFailure('http2 missing pseudo'),
+    );
+  }
+  final connect = method.toUpperCase() == 'CONNECT';
+  if (protocol != null && !connect) {
+    return Result.failure(PqTransportError.decodeFailure('http2 protocol'));
+  }
+  if (connect && protocol == null) {
+    if (scheme != null ||
+        path != null ||
+        authority == null ||
+        authority.isEmpty) {
+      return Result.failure(PqTransportError.decodeFailure('http2 connect'));
+    }
+    return Result.success(
+      PqHttpRequest(
+        method: method,
+        uri: Uri.parse('https://$authority/'),
+        headers: regular,
+        body: body,
+      ),
+    );
+  }
+  if (connect && protocol != null) {
+    if (!_httpProtocolToken(protocol) ||
+        scheme == null ||
+        path == null ||
+        authority == null ||
+        authority.isEmpty) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 extended connect'),
+      );
+    }
+  } else if (path == null || scheme == null) {
     return Result.failure(
       PqTransportError.decodeFailure('http2 missing pseudo'),
     );
@@ -208,6 +290,7 @@ Result<PqHttpRequest, PqTransportError> http2ParseRequest(
       uri: Uri.parse('$scheme://$host$path'),
       headers: regular,
       body: body,
+      protocol: protocol,
     ),
   );
 }
@@ -263,11 +346,81 @@ const Map<int, int> http2ClientSettings = {
 };
 
 const Map<int, int> http2ServerSettings = {
+  http2SettingsEnableConnectProtocol: 1,
+  http2SettingsNoRfc7540Priorities: 1,
   http2SettingsMaxConcurrentStreams: http2DefaultMaxConcurrentStreams,
   http2SettingsInitialWindowSize: http2DefaultInitialWindowSize,
   http2SettingsMaxFrameSize: http2DefaultMaxFrameSize,
   http2SettingsMaxHeaderListSize: http2DefaultMaxHeaderListSize,
 };
+
+bool _httpProtocolToken(String value) {
+  if (value.isEmpty) return false;
+  for (final unit in value.codeUnits) {
+    final digit = unit >= 0x30 && unit <= 0x39;
+    final upper = unit >= 0x41 && unit <= 0x5a;
+    final lower = unit >= 0x61 && unit <= 0x7a;
+    const extra = '!#\$%&\'*+-.^_`|~';
+    if (!digit &&
+        !upper &&
+        !lower &&
+        !extra.contains(String.fromCharCode(unit))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// RFC 9218. Unknown parameters are ignored. Urgency outside 0..7 is ignored.
+final class HttpPriority {
+  const HttpPriority({this.urgency = 3, this.incremental = false});
+
+  final int urgency;
+  final bool incremental;
+}
+
+HttpPriority parseHttpPriority(String field) {
+  var urgency = 3;
+  var incremental = false;
+  for (final part in field.split(',')) {
+    final token = part.trim();
+    if (token.length == 3 && token.startsWith('u=')) {
+      final n = token.codeUnitAt(2) - 0x30;
+      if (n >= 0 && n <= 7) urgency = n;
+    } else if (token == 'i' || token == 'i=?1') {
+      incremental = true;
+    } else if (token == 'i=?0') {
+      incremental = false;
+    }
+  }
+  return HttpPriority(urgency: urgency, incremental: incremental);
+}
+
+/// RFC 9218 / RFC 8941. The priority field is ASCII. A tab or a space is
+/// legal. Anything else is not a structured field.
+bool httpPriorityText(Uint8List bytes) {
+  for (final unit in bytes) {
+    if (unit != 0x09 && (unit < 0x20 || unit > 0x7e)) return false;
+  }
+  return true;
+}
+
+String encodeHttpPriorityField({int urgency = 3, bool incremental = false}) {
+  final u = urgency < 0 ? 0 : (urgency > 7 ? 7 : urgency);
+  return incremental ? 'u=$u, i' : 'u=$u, i=?0';
+}
+
+Uint8List encodeHttp2PriorityUpdate(int streamId, String field) {
+  final b = BytesBuilder(copy: false);
+  writeUint32(b, streamId & http2StreamIdMask);
+  b.add(utf8.encode(field));
+  return Http2Frame(
+    type: http2FramePriorityUpdate,
+    flags: 0,
+    streamId: 0,
+    payload: b.takeBytes(),
+  ).encode();
+}
 
 enum Http2StreamState { idle, open, halfClosedLocal, halfClosedRemote, closed }
 
@@ -343,7 +496,7 @@ final class PqHttp2Session {
   final BytesBuilder _buf = BytesBuilder(copy: false);
   final List<Http2Frame> _frames = [];
   StreamSubscription<Uint8List>? _sub;
-  Completer<void>? _waiter;
+  final List<Completer<void>> _waiters = [];
   PqTransportError? _error;
   var _prefaceDone = false;
   var _sawPeerSettings = false;
@@ -364,11 +517,19 @@ final class PqHttp2Session {
   var _continuationStream = 0;
   var _highestPeerStream = 0;
   var _goawaySent = false;
+  var _peerConnectProtocol = 0;
+  var _peerEnablePush = 1;
+  int? _peerNoRfc7540Priorities;
+  final Map<int, HttpPriority> priorities = {};
   final Map<int, _H2Stream> _streams = {};
   Completer<void>? _windowWaiter;
   Future<void> _outbox = Future<void>.value();
 
   bool get isStarted => _started;
+
+  bool get peerExtendedConnect => _peerConnectProtocol == 1;
+
+  int get peerEnablePush => _peerEnablePush;
 
   PqTransportError? get error => _error;
 
@@ -414,6 +575,11 @@ final class PqHttp2Session {
     final started = await ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
     if (_error != null) return Result.failure(_error!);
+    if (req.protocol != null && _peerConnectProtocol != 1) {
+      return Result.failure(
+        PqTransportError.decodeFailure('http2 connect protocol'),
+      );
+    }
     if (_localActive() >= _peerMaxConcurrent) {
       return Result.failure(
         PqTransportError.decodeFailure('http2 max streams'),
@@ -806,9 +972,13 @@ final class PqHttp2Session {
       case http2FrameWindowUpdate:
         _applyWindowUpdate(frame);
       case http2FramePriority:
+        // RFC 7540 PRIORITY. Deprecated. SETTINGS_NO_RFC7540_PRIORITIES
+        // tells the peer these signals are ignored, so this is not an error.
         return;
       case http2FramePushPromise:
         _failConnection(http2ErrorProtocol, 'http2 push');
+      case http2FramePriorityUpdate:
+        _takePriorityUpdate(frame);
       case http2FrameGoaway:
         _frames.add(frame);
         _wake();
@@ -840,7 +1010,120 @@ final class PqHttp2Session {
     }
   }
 
+  void _takePriorityUpdate(Http2Frame frame) {
+    if (isClient || frame.streamId != 0) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    if (frame.payload.length < 4) {
+      _failConnection(http2ErrorFrameSize, 'http2 priority update');
+      return;
+    }
+    final raw = readUint32(frame.payload, 0);
+    if ((raw & 0x80000000) != 0) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    final prioritized = raw & http2StreamIdMask;
+    if (prioritized == 0) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    final fieldBytes = Uint8List.sublistView(frame.payload, 4);
+    if (!httpPriorityText(fieldBytes)) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    final field = utf8.decode(fieldBytes);
+    final state = streamState(prioritized);
+    // Push streams are server-initiated (even). An idle one was never
+    // promised. RFC 9218 §7.1.
+    if (prioritized.isEven && state == Http2StreamState.idle) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    if (state == Http2StreamState.halfClosedLocal ||
+        state == Http2StreamState.closed) {
+      return;
+    }
+    if (state == Http2StreamState.idle &&
+        !priorities.containsKey(prioritized) &&
+        _priorityLoad() >= _localMaxConcurrent) {
+      _failConnection(http2ErrorProtocol, 'http2 priority update');
+      return;
+    }
+    priorities[prioritized] = parseHttpPriority(field);
+  }
+
+  /// RFC 9218 §7.1. Clients only. The server records it and does not
+  /// reorder streams from it.
+  Future<Result<void, PqTransportError>> updatePriority(
+    int streamId, {
+    int urgency = 3,
+    bool incremental = false,
+  }) {
+    if (!isClient || streamId <= 0) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('http2 priority update')),
+      );
+    }
+    // RFC 9218 §2.1. A server that omits the setting, or sends 0, is not
+    // using this frame. Sending it anyway is wasted and often ignored.
+    if (_sawPeerSettings && _peerNoRfc7540Priorities != 1) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('http2 priority update')),
+      );
+    }
+    return _send(
+      encodeHttp2PriorityUpdate(
+        streamId,
+        encodeHttpPriorityField(urgency: urgency, incremental: incremental),
+      ),
+    );
+  }
+
   void _applySettings(Map<int, int> map) {
+    final push = map[http2SettingsEnablePush];
+    if (push != null) {
+      if (isClient || (push != 0 && push != 1)) {
+        _failConnection(http2ErrorProtocol, 'http2 enable_push');
+        return;
+      }
+      if (_peerEnablePush == 0 && push == 1) {
+        _failConnection(http2ErrorProtocol, 'http2 enable_push');
+        return;
+      }
+      _peerEnablePush = push;
+    }
+    final connect = map[http2SettingsEnableConnectProtocol];
+    if (connect != null) {
+      if (connect != 0 && connect != 1) {
+        _failConnection(http2ErrorProtocol, 'http2 connect protocol');
+        return;
+      }
+      if (!isClient) {
+        _failConnection(http2ErrorProtocol, 'http2 connect protocol');
+        return;
+      }
+      if (_peerConnectProtocol == 1 && connect == 0) {
+        _failConnection(http2ErrorProtocol, 'http2 connect protocol');
+        return;
+      }
+      _peerConnectProtocol = connect;
+    }
+    final oldPriorities = map[http2SettingsNoRfc7540Priorities];
+    if (oldPriorities != null) {
+      if (oldPriorities != 0 && oldPriorities != 1) {
+        _failConnection(http2ErrorProtocol, 'http2 priorities');
+        return;
+      }
+      if (_peerNoRfc7540Priorities != null &&
+          _peerNoRfc7540Priorities != oldPriorities) {
+        _failConnection(http2ErrorProtocol, 'http2 priorities');
+        return;
+      }
+      _peerNoRfc7540Priorities = oldPriorities;
+    }
     final maxFrame = map[http2SettingsMaxFrameSize];
     if (maxFrame != null) {
       if (maxFrame < http2MinMaxFrameSize || maxFrame > http2MaxMaxFrameSize) {
@@ -1103,6 +1386,17 @@ final class PqHttp2Session {
     return n;
   }
 
+  int _priorityLoad() {
+    var n = 0;
+    for (final entry in _streams.entries) {
+      if (_active(entry.value.state)) n++;
+    }
+    for (final id in priorities.keys) {
+      if (streamState(id) == Http2StreamState.idle) n++;
+    }
+    return n;
+  }
+
   int _remoteActive() {
     var n = 0;
     for (final entry in _streams.entries) {
@@ -1188,7 +1482,7 @@ final class PqHttp2Session {
     if (_error != null) return Result.failure(_error!);
     if (pred()) return const Result.success(null);
     final done = Completer<void>();
-    _waiter = done;
+    _waiters.add(done);
     if (pred() || _error != null) {
       if (!done.isCompleted) done.complete();
     }
@@ -1197,7 +1491,7 @@ final class PqHttp2Session {
     } on TimeoutException {
       return Result.failure(PqTransportError.decodeFailure('http2 timeout'));
     } finally {
-      if (identical(_waiter, done)) _waiter = null;
+      _waiters.remove(done);
     }
     if (_error != null) return Result.failure(_error!);
     if (!pred()) {
@@ -1207,8 +1501,9 @@ final class PqHttp2Session {
   }
 
   void _wake() {
-    final w = _waiter;
-    if (w != null && !w.isCompleted) w.complete();
+    for (final w in List<Completer<void>>.of(_waiters)) {
+      if (!w.isCompleted) w.complete();
+    }
   }
 
   void _fail(PqTransportError e) {

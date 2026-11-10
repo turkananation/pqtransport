@@ -726,6 +726,102 @@ void main() {
       expect(accepted.isFailure, isTrue);
       expect(accepted.errorOrNull!.message, contains('cancelled'));
     }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('HTTP/3 datagram, priority, and extended CONNECT', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      expect(h3c.peerExtendedConnect, isTrue);
+      expect(h3c.peerHttpDatagrams, isTrue);
+      final id = client.openBidi();
+      final sent = await h3c.sendHttpDatagram(
+        id,
+        Uint8List.fromList([9, 8, 7]),
+      );
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      final datagrams = h3s.takeHttpDatagrams();
+      expect(datagrams, hasLength(1));
+      expect(datagrams.single.$1, id);
+      expect(datagrams.single.$2, [9, 8, 7]);
+      final priority = await h3c.updatePriority(id, urgency: 2);
+      expect(priority.isSuccess, isTrue, reason: '${priority.errorOrNull}');
+      await h3s.accept(timeout: const Duration(milliseconds: 200));
+      expect(h3s.priorities[id]?.urgency, 2);
+      final serving = () async {
+        final accepted = await h3s.accept(timeout: const Duration(seconds: 10));
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (stream, request) = accepted.valueOrNull!;
+        expect(request.protocol, 'websocket');
+        await h3s.respond(
+          stream,
+          PqHttpResponse(
+            status: 200,
+            headers: const {},
+            body: Uint8List(0),
+            version: HttpVersion.h3,
+          ),
+        );
+      }();
+      final response = await h3c.request(
+        PqHttpRequest(
+          method: 'CONNECT',
+          uri: Uri.parse('https://localhost/pq'),
+          protocol: 'websocket',
+        ),
+      );
+      await serving;
+      expect(response.isSuccess, isTrue, reason: '${response.errorOrNull}');
+      expect(response.valueOrNull!.status, 200);
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('PRIORITY_UPDATE on a request stream is unexpected', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      expect(h3c.localEncoderStreamId, quicStreamIdClientUni + 4);
+      final id = client.openBidi();
+      final payload = BytesBuilder(copy: false);
+      writeQuicVarint(payload, id);
+      payload.add(Uint8List.fromList('u=1'.codeUnits));
+      final wrote = await client.writeStream(
+        id,
+        Http3Frame(
+          type: http3FramePriorityUpdate,
+          payload: payload.takeBytes(),
+        ).encode(),
+        fin: true,
+      );
+      expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
+      final accepted = await h3s.accept();
+      expect(accepted.isFailure, isTrue);
+      expect(accepted.errorOrNull!.message, contains('h3 frame'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('push PRIORITY_UPDATE is H3_ID_ERROR while push is off', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      final push = BytesBuilder(copy: false);
+      writeQuicVarint(push, 0);
+      push.add(Uint8List.fromList('u=1'.codeUnits));
+      final control = await client.writeStream(
+        quicStreamIdClientUni,
+        Http3Frame(
+          type: http3FramePriorityUpdatePush,
+          payload: push.takeBytes(),
+        ).encode(),
+      );
+      expect(control.isSuccess, isTrue, reason: '${control.errorOrNull}');
+      final after = await h3s.accept(timeout: const Duration(seconds: 5));
+      expect(after.isFailure, isTrue);
+      expect(after.errorOrNull!.message, contains('priority'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
   });
 }
 

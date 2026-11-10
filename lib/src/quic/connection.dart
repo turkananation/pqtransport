@@ -338,6 +338,9 @@ final class PqQuicConn {
   var _streamsConfirmed = false;
   var _peerMaxBidi = 0;
   var _peerMaxUni = 0;
+  var _peerMaxDatagramFrameSize = 0;
+  final List<Uint8List> _datagramOut = [];
+  final List<Uint8List> _datagramIn = [];
   final int _localMaxBidi = quicInitialMaxStreams;
   final int _localMaxUni = quicInitialMaxStreams;
   var _peerActiveCidLimit = quicActiveConnectionIdLimitDefault;
@@ -680,6 +683,58 @@ final class PqQuicConn {
       }
     });
     return done.future;
+  }
+
+  int get peerMaxDatagramFrameSize => _peerMaxDatagramFrameSize;
+
+  /// RFC 9000 §4.6. True when [id] is past the local stream limit.
+  bool streamBeyondLocalLimit(int id) => _streamIdPastLimit(id);
+
+  /// RFC 9221. The frame is ack-eliciting and is not retransmitted.
+  /// A peer that did not advertise [max_datagram_frame_size] cannot
+  /// receive one.
+  Future<Result<void, PqTransportError>> sendDatagram(Uint8List payload) {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        if (_peerMaxDatagramFrameSize <= 0) {
+          done.complete(
+            Result.failure(PqTransportError.unsupported('quic datagram')),
+          );
+          return;
+        }
+        final frame = QuicDatagramFrame(payload, lengthPrefixed: true);
+        final budget =
+            lossRecovery.maxDatagramSize -
+            _headerOverhead(QuicPacketNumberSpace.application);
+        if (frame.encodedLength > _peerMaxDatagramFrameSize ||
+            frame.encodedLength > quicLocalMaxDatagramFrameSize ||
+            frame.encodedLength > budget) {
+          done.complete(
+            Result.failure(
+              PqTransportError.decodeFailure('datagram too large'),
+            ),
+          );
+          return;
+        }
+        _datagramOut.add(frame.encode());
+        final flushed = await _flush();
+        done.complete(flushed);
+        _wake();
+      } on Object catch (e) {
+        final err = PqTransportError.internalError('quic datagram $e');
+        _error = err;
+        done.complete(Result.failure(err));
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  List<Uint8List> takeDatagrams() {
+    final out = List<Uint8List>.of(_datagramIn);
+    _datagramIn.clear();
+    return out;
   }
 
   Future<Result<void, PqTransportError>> writeStream(
@@ -1293,6 +1348,7 @@ final class PqQuicConn {
         initialMaxStreamsUni: _localMaxUni,
         activeConnectionIdLimit: 4,
         initialSourceConnectionId: localCid,
+        maxDatagramFrameSize: quicLocalMaxDatagramFrameSize,
       ).encode(),
     );
   }
@@ -1347,8 +1403,26 @@ final class PqQuicConn {
       _sawServerInitial = true;
     }
     final parsed = decodeQuicPayload(payload);
-    if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
+    if (parsed.isFailure) {
+      if ('${parsed.errorOrNull}'.contains('datagram')) {
+        await _close(
+          errorCode: quicErrorProtocolViolation,
+          application: false,
+          reason: 'datagram',
+        );
+      }
+      return Result.failure(parsed.errorOrNull!);
+    }
     final body = parsed.valueOrNull!;
+    if (body.datagrams.isNotEmpty &&
+        space != QuicPacketNumberSpace.application) {
+      await _close(
+        errorCode: quicErrorProtocolViolation,
+        application: false,
+        reason: 'datagram',
+      );
+      return Result.failure(PqTransportError.decodeFailure('datagram'));
+    }
     final recv = _received[space]!;
     final duplicate = recv.received.contains(packetNumber);
     recv.onReceived(packetNumber);
@@ -1507,6 +1581,18 @@ final class PqQuicConn {
         }
         _sawHandshakeDone = true;
       }
+      for (final frame in body.datagrams) {
+        if (!_paramsApplied ||
+            frame.encodedLength > quicLocalMaxDatagramFrameSize) {
+          await _close(
+            errorCode: quicErrorProtocolViolation,
+            application: false,
+            reason: 'datagram',
+          );
+          return Result.failure(PqTransportError.decodeFailure('datagram'));
+        }
+        _datagramIn.add(frame.payload);
+      }
       _releaseStalled();
       for (final ack in body.acks) {
         if (_keyUpdateAt != null &&
@@ -1596,6 +1682,21 @@ final class PqQuicConn {
         if (bypassLeft > 0) bypassLeft--;
       }
       if (failed != null) break;
+      if (_datagramOut.isNotEmpty && failed == null) {
+        final queued = _datagramOut.length;
+        final sent = await _sendPacket(
+          space: QuicPacketNumberSpace.application,
+          frames: const [],
+          ignoreWindow: bypassLeft > 0,
+        );
+        if (sent.isFailure) {
+          failed = Result.failure(sent.errorOrNull!);
+          break;
+        }
+        if (sent.valueOrNull == true && _datagramOut.length < queued) {
+          again = true;
+        }
+      }
       for (final space in QuicPacketNumberSpace.values) {
         if (_wantAck[space] != true) continue;
         final sent = await _sendPacket(
@@ -1651,15 +1752,15 @@ final class PqQuicConn {
     required bool ignoreWindow,
   }) async {
     if (frames.isEmpty && _wantAck[space] != true) {
-      return const Result.success(true);
+      if (space != QuicPacketNumberSpace.application || _datagramOut.isEmpty) {
+        return const Result.success(true);
+      }
     }
     if (space == QuicPacketNumberSpace.handshake) {
       _installHandshakeKeys();
       if (_hsSeal == null) return const Result.success(false);
     }
     final pad = space == QuicPacketNumberSpace.initial && isClient;
-    final eliciting = frames.isNotEmpty;
-    final inFlight = eliciting || pad;
     final builder = BytesBuilder(copy: false);
     final includeAck = _wantAck[space] == true;
     if (includeAck) {
@@ -1670,8 +1771,27 @@ final class PqQuicConn {
       builder.add(frame.encode());
     }
     var body = builder.takeBytes();
+    final datagrams = <Uint8List>[];
+    if (space == QuicPacketNumberSpace.application) {
+      var left =
+          lossRecovery.maxDatagramSize - _headerOverhead(space) - body.length;
+      for (final frame in _datagramOut) {
+        if (left < frame.length) break;
+        datagrams.add(frame);
+        left -= frame.length;
+      }
+      if (datagrams.isNotEmpty) {
+        body = concatBytes([body, ...datagrams]);
+      }
+    }
+    final eliciting = frames.isNotEmpty || datagrams.isNotEmpty;
+    final inFlight = eliciting || pad;
     if (body.isEmpty) {
       _wantAck[space] = false;
+      if (space == QuicPacketNumberSpace.application &&
+          _datagramOut.isNotEmpty) {
+        return const Result.success(false);
+      }
       return const Result.success(true);
     }
     if (pad) {
@@ -1764,6 +1884,9 @@ final class PqQuicConn {
       return Result.failure(recorded.errorOrNull!);
     }
     if (includeAck) _wantAck[space] = false;
+    if (datagrams.isNotEmpty) {
+      _datagramOut.removeRange(0, datagrams.length);
+    }
     if (space == QuicPacketNumberSpace.application &&
         _keyUpdateUnconfirmed &&
         _keyUpdateAt == null) {
@@ -2084,6 +2207,7 @@ final class PqQuicConn {
     );
     _peerMaxBidi = params.initialMaxStreamsBidi;
     _peerMaxUni = params.initialMaxStreamsUni;
+    _peerMaxDatagramFrameSize = params.maxDatagramFrameSize;
     _peerActiveCidLimit = params.activeConnectionIdLimit;
     _peerResetToken = params.statelessResetToken;
     _paramsApplied = true;

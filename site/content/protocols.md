@@ -47,7 +47,8 @@ the three RFC 10024 groups (raw-pk and X.509, both directions) and
 X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is
 a TLS peer on X25519MLKEM768 and those four fallback groups, not on
 SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl linked to this OpenSSL
-does two HTTP/1.1 GETs with `--cacert`. Not `curl --http3`.
+does HTTP/1.1 GETs with `--cacert`, including a reused connection and
+`Connection: close` against `PqHttpServer`. Not `curl --http3`.
 
 ECH (RFC 9849) is self-interop and one BoringSSL flight. The suite is
 DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
@@ -127,16 +128,28 @@ stack. The gap list is `TODO.md`.
 
 HTTP/1.1 decodes chunked bodies and trailers, writes the registered
 reason phrase, and rejects obs-fold plus Content-Length conflicts.
-curl linked to OpenSSL 3.5.9 `--http1.1` reads chunked `pq-h1` from
-`PqHttpServer`. A split TLS record and two keep-alive requests are
-not in that flight. HTTP/2 enforces connection and
+A missing, empty, or duplicate Host on HTTP/1.1 fails. curl linked
+to OpenSSL 3.5.9 `--http1.1` reads chunked `pq-h1` from
+`PqHttpServer`, reuses one connection for a second response, and
+opens a new connection after `Connection: close`. OpenSSL
+`s_server -max_send_frag 512` serves a 2048-octet body. Every TLS
+record ciphertext on that flight is at most 529 octets, and
+`PqHttpClient` reassembles the body. The same limit fragments
+ServerHello; the client buffers it until the handshake message is
+complete (RFC 8446 §5.1). A 32-byte in-memory split remains a unit
+test. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,
-RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is
-ignored. It is not a complete RFC 9113 stack. HTTP/3 on `PqQuicConn`
-is the quiche GET above, plus one control stream (SETTINGS, then
-GOAWAY, MAX_PUSH_ID, and CANCEL_PUSH), QPACK limits, trailers, and
-request cancel. Unknown control-stream frames are ignored. Push is
-off. It is not a complete RFC 9114 stack and not `curl --http3`. Silent
+RST_STREAM, trailers, and CONTINUATION. Extended CONNECT and
+PRIORITY_UPDATE are in-memory. The server does not send
+ENABLE_PUSH. The old PRIORITY frame is ignored. It is not a
+complete RFC 9113 stack. HTTP/3 on `PqQuicConn` is the quiche GET
+above, plus one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID,
+and CANCEL_PUSH), QPACK limits, trailers, and request cancel.
+SETTINGS_H3_DATAGRAM=1 is sent only when the peer advertised
+`max_datagram_frame_size`. HTTP datagrams and PRIORITY_UPDATE are
+in-memory. The Capsule Protocol is not implemented. Unknown
+control-stream frames are ignored. Push is off. It is not a
+complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
 
 HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
@@ -145,5 +158,6 @@ HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
 replaces `shelf_io.serve` and `SecurityContext` with `serveShelf`.
 Relic's web server takes `PqRelicAdapter` instead of `IOAdapter`.
 Serverpod's API and insights servers still build a `SecurityContext`
-inside Serverpod. The three calls are in the [Cookbook](cookbook#http11). The programs are
+inside Serverpod. Shelf, Relic, and that Serverpod limit are in
+the [Cookbook](cookbook#servers). The HTTP programs are
 `example/http1.dart`, `example/http2.dart`, and `example/http3.dart`.

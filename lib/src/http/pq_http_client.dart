@@ -22,6 +22,7 @@ final class PqHttpRequest {
     this.headers = const {},
     this.body = const [],
     this.trailers = const {},
+    this.protocol,
   });
 
   final String method;
@@ -29,6 +30,10 @@ final class PqHttpRequest {
   final Map<String, String> headers;
   final List<int> body;
   final Map<String, String> trailers;
+
+  /// RFC 8441 / RFC 9220 `:protocol` on an extended CONNECT.
+  /// Null is an ordinary request, or a classic CONNECT tunnel.
+  final String? protocol;
 }
 
 final class PqHttpResponse {

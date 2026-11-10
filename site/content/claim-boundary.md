@@ -38,6 +38,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 - "RFC 10024-aligned hybrid share encoding with unit-tested concatenation."
 - "DNSSEC verifies algorithms 5, 7, 8, 10, 13, 14, 15, and 16 via pqforge. RSA moduli are 1024, 2048, 3072, and 4096 bits. Ed448 is pure, empty context. The iterative resolver returns secure, insecure, or bogus from a caller-supplied root anchor. NSEC and NSEC3 prove denial. SHA-1 is the NSEC3 hash, DS digest type 1, and the hash inside algorithms 5 and 7. The AD bit is not validation."
 - "ECH is one BoringSSL 0.20261020.0 flight (RFC 9849, pqforge 0.4.10 HPKE). Not OpenSSL. Not a browser."
+- "quiche 0.30.0 completes one HTTP/3 GET both ways (bodies `pq-h3` and `quiche-h3`). curl linked to OpenSSL 3.5.9 completes HTTP/1.1 keep-alive and `Connection: close` against `PqHttpServer`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are in-memory. Not `curl --http3`. Not a complete RFC 9114 stack. Multipath (RFC 10069) is not negotiated."
 
 ## Forbidden → use instead
 
@@ -47,7 +48,7 @@ SDK: **`>=3.12.0 <4.0.0`**. Do not lower the floor.
 | A CMVP listing | "no CMVP listing; not claimed" |
 | Hard constant-time execution | "best-effort side-channel posture in Dart" |
 | Hard memory erasure | "best-effort zeroization" |
-| Interoperable with OpenSSL | The sentence in [CLAIM_BOUNDARY.md](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md): OpenSSL 3.5.9, three hybrid groups plus X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is X25519MLKEM768 and those four fallback groups, not the two NIST hybrids. curl is two GETs. Not a browser. |
+| Interoperable with OpenSSL | The sentence in [CLAIM_BOUNDARY.md](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md): OpenSSL 3.5.9, three hybrid groups plus X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is X25519MLKEM768 and those four fallback groups, not the two NIST hybrids. curl is HTTP/1.1 against `s_server`, `PqTlsSocket`, and `PqHttpServer` (chunked, keep-alive, `Connection: close`). `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not a browser. Not `curl --http3`. |
 
 Canonical file:
 [`doc/CLAIM_BOUNDARY.md`](https://github.com/turkananation/pqtransport/blob/main/doc/CLAIM_BOUNDARY.md).

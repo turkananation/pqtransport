@@ -27,7 +27,7 @@ pure-Dart via pqforge (no `dart:ffi` in this package). Which
 | Encrypted UDP (real NIC) | Yes | Yes | **No** |
 | mDNS on a real LAN | Yes (`joinMulticast`) | Yes | **No** |
 | DNSSEC validate / iterative resolve | Yes | Yes | Yes. The network send is the caller's |
-| QUIC / HTTP/3 | OpenSSL 3.5.9 QUIC both ways (ML-DSA-65). Client peer is `demos/quic/server`, ALPN `ossltest`. HTTP/3 is still self-interop. QPACK field sections also round-trip with nghttp3 1.11.0 | Same handshake on the VM | No raw UDP |
+| QUIC / HTTP/3 | OpenSSL 3.5.9 QUIC both ways is a handshake (ML-DSA-65). Client peer is `demos/quic/server`, ALPN `ossltest`. quiche 0.30.0 completes one HTTP/3 GET both ways (bodies `pq-h3` and `quiche-h3`). Not a complete RFC 9114 stack. Not `curl --http3`. QPACK field sections also round-trip with nghttp3 1.11.0 | Same handshake on the VM | No raw UDP |
 | OpenSSL 3.5.9 / BoringSSL 0.20261020.0 | The [Peers](peers) job | Same code | Not a browser |
 | `SecureSocket` on PQ path | Not used | Not used | Not used |
 

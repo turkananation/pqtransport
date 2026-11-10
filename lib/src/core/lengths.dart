@@ -474,6 +474,13 @@ const int quicTpDisableActiveMigration = 0x0c;
 const int quicTpActiveConnectionIdLimit = 0x0e;
 const int quicTpInitialSourceConnectionId = 0x0f;
 const int quicTpRetrySourceConnectionId = 0x10;
+const int quicTpMaxDatagramFrameSize = 0x20;
+
+/// RFC 10069. This stack does not send it. A value above 2^32-1 is an error.
+const int quicTpInitialMaxPathId = 0x3e;
+
+/// Largest DATAGRAM frame, type and length included, this stack will accept.
+const int quicLocalMaxDatagramFrameSize = 65535;
 
 /// RFC 9001 §5.2 Initial salt for QUIC version 1.
 const List<int> quicInitialSaltV1 = [
@@ -534,6 +541,8 @@ const int quicFramePathResponse = 0x1b;
 const int quicFrameConnectionClose = 0x1c;
 const int quicFrameConnectionCloseApp = 0x1d;
 const int quicFrameHandshakeDone = 0x1e;
+const int quicFrameDatagram = 0x30;
+const int quicFrameDatagramLen = 0x31;
 
 /// RFC 9000 §20. A STREAM past MAX_DATA or MAX_STREAM_DATA.
 const int quicErrorFlowControl = 0x03;
@@ -748,6 +757,10 @@ const int http3StreamTypeQpackDecoder = 0x03;
 const int http3SettingsQpackMaxTableCapacity = 0x01;
 const int http3SettingsMaxFieldSectionSize = 0x06;
 const int http3SettingsQpackBlockedStreams = 0x07;
+const int http3SettingsEnableConnectProtocol = 0x08;
+const int http3SettingsH3Datagram = 0x33;
+const int http3FramePriorityUpdate = 0xf0700;
+const int http3FramePriorityUpdatePush = 0xf0701;
 const int http3DefaultQpackMaxTableCapacity = 4096;
 const int http3DefaultQpackBlockedStreams = 16;
 
@@ -826,6 +839,7 @@ const int http2FramePing = 0x06;
 const int http2FrameGoaway = 0x07;
 const int http2FrameWindowUpdate = 0x08;
 const int http2FrameContinuation = 0x09;
+const int http2FramePriorityUpdate = 0x10;
 
 const int http2FlagEndStream = 0x01;
 const int http2FlagAck = 0x01;
@@ -839,6 +853,8 @@ const int http2SettingsMaxConcurrentStreams = 0x03;
 const int http2SettingsInitialWindowSize = 0x04;
 const int http2SettingsMaxFrameSize = 0x05;
 const int http2SettingsMaxHeaderListSize = 0x06;
+const int http2SettingsEnableConnectProtocol = 0x08;
+const int http2SettingsNoRfc7540Priorities = 0x09;
 const int http2DefaultMaxHeaderListSize = 65536;
 
 const int http2ErrorNoError = 0x0;

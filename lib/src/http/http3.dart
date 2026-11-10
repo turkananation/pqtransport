@@ -92,7 +92,12 @@ const Map<int, int> http3ClientSettings = {
   http3SettingsQpackBlockedStreams: http3DefaultQpackBlockedStreams,
 };
 
-const Map<int, int> http3ServerSettings = http3ClientSettings;
+const Map<int, int> http3ServerSettings = {
+  http3SettingsQpackMaxTableCapacity: http3DefaultQpackMaxTableCapacity,
+  http3SettingsMaxFieldSectionSize: httpMaxHeaderBytes,
+  http3SettingsQpackBlockedStreams: http3DefaultQpackBlockedStreams,
+  http3SettingsEnableConnectProtocol: 1,
+};
 
 List<HpackHeader> http3RequestHeaders(PqHttpRequest req) =>
     http2RequestHeaders(req);
@@ -124,6 +129,7 @@ Result<PqHttpRequest, PqTransportError> http3ParseRequest(
       headers: req.headers,
       body: req.body,
       trailers: trailerMap,
+      protocol: req.protocol,
     ),
   );
 }
@@ -181,6 +187,11 @@ final class PqHttp3Session {
   int? _maxFieldSection;
   var _peerTableCapacity = 0;
   var _peerBlockedStreams = 0;
+  var _peerConnectProtocol = 0;
+  var _peerHttpDatagrams = false;
+  var _advertisedHttpDatagrams = false;
+  final Map<int, HttpPriority> priorities = {};
+  final List<(int, Uint8List)> _httpDatagrams = [];
   var _dynamicStreams = 0;
   final Set<int> _cancelledPush = {};
   final Map<int, int> _uniTypes = {};
@@ -198,6 +209,10 @@ final class PqHttp3Session {
   int get localQpackInserts => _qpack.insertCount;
   int get remoteQpackInserts => _qpack.remoteInsertCount;
 
+  bool get peerExtendedConnect => _peerConnectProtocol == 1;
+
+  bool get peerHttpDatagrams => _peerHttpDatagrams;
+
   Future<Result<void, PqTransportError>> start({
     Duration timeout = const Duration(seconds: 10),
   }) async {
@@ -205,9 +220,18 @@ final class PqHttp3Session {
     _controlId = conn.openUni();
     _encoderId = conn.openUni();
     _decoderId = conn.openUni();
+    final settings = Map<int, int>.of(
+      isClient ? http3ClientSettings : http3ServerSettings,
+    );
+    // RFC 9297. Value 1 is legal only after a non-zero QUIC
+    // max_datagram_frame_size from the peer. Omitting it means off.
+    if (conn.peerMaxDatagramFrameSize > 0) {
+      settings[http3SettingsH3Datagram] = 1;
+      _advertisedHttpDatagrams = true;
+    }
     final typeAndSettings = concatBytes([
       _varintBytes(http3StreamTypeControl),
-      encodeHttp3Settings(http3ClientSettings),
+      encodeHttp3Settings(settings),
     ]);
     final c = await conn.writeStream(_controlId, typeAndSettings);
     if (c.isFailure) return c;
@@ -282,6 +306,11 @@ final class PqHttp3Session {
     }
     final started = await ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
+    if (req.protocol != null && _peerConnectProtocol != 1) {
+      return Result.failure(
+        PqTransportError.decodeFailure('h3 connect protocol'),
+      );
+    }
     await _poll();
     if (_error != null) return Result.failure(_error!);
     final streamId = conn.openBidi();
@@ -527,6 +556,8 @@ final class PqHttp3Session {
         type == http3FrameCancelPush ||
         type == http3FrameMaxPushId ||
         type == http3FramePushPromise ||
+        type == http3FramePriorityUpdate ||
+        type == http3FramePriorityUpdatePush ||
         type == 0x02 ||
         type == 0x06 ||
         type == 0x08 ||
@@ -567,6 +598,7 @@ final class PqHttp3Session {
   }
 
   Future<void> _poll() async {
+    _takeQuicDatagrams();
     for (final id in conn.streams.streams.keys.toList()) {
       if (!quicStreamIsUnidirectional(id)) continue;
       if (id == _controlId || id == _encoderId || id == _decoderId) continue;
@@ -710,6 +742,34 @@ final class PqHttp3Session {
     }
     _peerTableCapacity = settings[http3SettingsQpackMaxTableCapacity] ?? 0;
     _peerBlockedStreams = settings[http3SettingsQpackBlockedStreams] ?? 0;
+    final connect = settings[http3SettingsEnableConnectProtocol];
+    if (connect != null) {
+      if (connect != 0 && connect != 1) {
+        _fail(http3ErrorSettings, 'h3 connect protocol');
+        return false;
+      }
+      if (!isClient) {
+        _fail(http3ErrorSettings, 'h3 connect protocol');
+        return false;
+      }
+      if (_peerConnectProtocol == 1 && connect == 0) {
+        _fail(http3ErrorSettings, 'h3 connect protocol');
+        return false;
+      }
+      _peerConnectProtocol = connect;
+    }
+    final datagrams = settings[http3SettingsH3Datagram];
+    if (datagrams != null) {
+      if (datagrams != 0 && datagrams != 1) {
+        _fail(http3ErrorSettings, 'h3 datagram');
+        return false;
+      }
+      if (datagrams == 1 && conn.peerMaxDatagramFrameSize <= 0) {
+        _fail(http3ErrorSettings, 'h3 datagram');
+        return false;
+      }
+      _peerHttpDatagrams = datagrams == 1;
+    }
     _maxFieldSection = settings[http3SettingsMaxFieldSectionSize];
     _qpack.applyPeerLimits(
       maxTableCapacity: _peerTableCapacity,
@@ -718,6 +778,100 @@ final class PqHttp3Session {
     _sawPeerSettings = true;
     _wake();
     return true;
+  }
+
+  /// RFC 9297. The quarter stream id is the client-initiated bidirectional
+  /// stream id divided by four.
+  Future<Result<void, PqTransportError>> sendHttpDatagram(
+    int streamId,
+    Uint8List payload,
+  ) {
+    if (!_advertisedHttpDatagrams ||
+        !_peerHttpDatagrams ||
+        streamId < 0 ||
+        streamId % 4 != 0 ||
+        conn.streams.streams[streamId] == null) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('h3 datagram')),
+      );
+    }
+    final body = BytesBuilder(copy: false);
+    writeQuicVarint(body, streamId >> 2);
+    body.add(payload);
+    return conn.sendDatagram(body.takeBytes());
+  }
+
+  List<(int streamId, Uint8List payload)> takeHttpDatagrams() {
+    _takeQuicDatagrams();
+    final out = List<(int, Uint8List)>.of(_httpDatagrams);
+    _httpDatagrams.clear();
+    return out;
+  }
+
+  /// RFC 9218 §7.2. Clients only. Sent on the control stream.
+  Future<Result<void, PqTransportError>> updatePriority(
+    int streamId, {
+    int urgency = 3,
+    bool incremental = false,
+  }) {
+    if (!isClient || streamId < 0 || streamId % 4 != 0) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('h3 priority update')),
+      );
+    }
+    final field = encodeHttpPriorityField(
+      urgency: urgency,
+      incremental: incremental,
+    );
+    final payload = BytesBuilder(copy: false);
+    writeQuicVarint(payload, streamId);
+    payload.add(Uint8List.fromList(field.codeUnits));
+    return _writeControl(
+      Http3Frame(
+        type: http3FramePriorityUpdate,
+        payload: payload.takeBytes(),
+      ).encode(),
+    );
+  }
+
+  bool _takePriority(Uint8List payload, {required bool push}) {
+    if (isClient) {
+      _fail(http3ErrorFrameUnexpected, 'h3 priority update');
+      return false;
+    }
+    final reader = ByteReader(payload);
+    final id = readVarint(reader);
+    if (id < 0) {
+      _fail(http3ErrorFrame, 'h3 priority update');
+      return false;
+    }
+    // Push is off. A push id has not been promised.
+    if (push || id % 4 != 0 || conn.streamBeyondLocalLimit(id)) {
+      _fail(http3ErrorId, 'h3 priority update');
+      return false;
+    }
+    final raw = slice(payload, reader.offset, payload.length);
+    if (!httpPriorityText(raw)) {
+      _fail(http3ErrorGeneralProtocol, 'h3 priority update');
+      return false;
+    }
+    priorities[id] = parseHttpPriority(String.fromCharCodes(raw));
+    return true;
+  }
+
+  void _takeQuicDatagrams() {
+    for (final payload in conn.takeDatagrams()) {
+      final reader = ByteReader(payload);
+      final quarter = readVarint(reader);
+      if (quarter < 0) continue;
+      final id = quarter * 4;
+      if (conn.streamBeyondLocalLimit(id)) {
+        _fail(http3ErrorId, 'h3 datagram');
+        return;
+      }
+      if (conn.streamFin(id) || conn.streamResetCode(id) != null) continue;
+      _httpDatagrams.add((id, slice(payload, reader.offset, payload.length)));
+    }
   }
 
   bool _controlFrame(Http3Frame frame) {
@@ -736,6 +890,12 @@ final class PqHttp3Session {
     if (frame.type == http3FrameMaxPushId) return _takeMaxPushId(frame.payload);
     if (frame.type == http3FrameCancelPush) {
       return _takeCancelPush(frame.payload);
+    }
+    if (frame.type == http3FramePriorityUpdate) {
+      return _takePriority(frame.payload, push: false);
+    }
+    if (frame.type == http3FramePriorityUpdatePush) {
+      return _takePriority(frame.payload, push: true);
     }
     // RFC 9114 §9. Unknown frame types are ignored. HTTP/2 frame
     // types reserved by §7.2.8 were already rejected above.

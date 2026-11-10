@@ -104,27 +104,72 @@ Starts after section 1. The session speaks the QUIC from that section.
   curl 8 linked to OpenSSL 3.5.9 `--http1.1` reads the chunked body
   `pq-h1` from `PqHttpServer`.
 - [x] H1-2. decodeHttp1Request. Reason phrases match the status.
-- [ ] H1-3. A response split across TLS records is one message.
-  The client buffers records. There is no split-record test.
-- [x] H1-4. Content-Length must match. Both Content-Length and chunked
-  is a failure. Obsolete line folding is a failure.
-- [ ] H1-5. Honor Connection: close. Kept-alive responses are sequential.
-  Close is parsed and the server stops. Two requests on one
-  connection are not tested.
-- [ ] H1-6. Tests for chunked, split records, length mismatch, close.
-  Chunked, length mismatch, and close are tested. Split records are not.
+- [x] H1-3. A response split across TLS records is one message.
+  `PqTlsSocket.maxRecordPlaintext` splits a send. The in-memory
+  client reassembles a 180-byte body sent as 32-byte records
+  (`test/tls/socket_http_test.dart`). OpenSSL 3.5.9
+  `s_server -max_send_frag 512` (the floor that binary accepts)
+  serves a 2048-octet body. Every record ciphertext is at most 529
+  octets. `PqHttpClient` reassembles it
+  (`tool/interop/openssl/http1_frag_flight.dart`). That flight also
+  fragments ServerHello: the ML-KEM share does not fit in 512
+  octets. The client buffers a cleartext handshake message until
+  it is complete (RFC 8446 §5.1).
+- [x] H1-4. Content-Length must match. Two different values fail.
+  The same value twice is one length. Both Content-Length and
+  chunked is a failure. Obsolete line folding is a failure. A
+  chunk extension is ignored (RFC 9112 §7.1.1). A response with
+  neither length nor chunked ends when the connection closes.
+- [x] H1-5. Honor Connection: close. Kept-alive responses are sequential.
+  curl 8.16 linked to OpenSSL 3.5.9, one process and two URLs, reuses
+  the connection. A `Connection: close` response is followed by a new
+  connection for the next URL. An HTTP/1.1 request with a missing,
+  empty, or duplicate Host fails. HTTP/1.0 may omit Host.
+- [x] H1-6. Tests for chunked, split records, length mismatch, close.
+  Chunked and close are the curl flight. Length mismatch is a unit
+  test. Split records are the OpenSSL `-max_send_frag` flight and
+  the in-memory test in H1-3.
 
 100-continue, upgrade, and HTTP/1.0 are out of this list.
 
 ## 5. Extensions
 
-- [ ] E1. Extended CONNECT (RFC 8441): `:protocol` on HTTP/2 and HTTP/3.
-- [ ] E2. QUIC DATAGRAM (RFC 9221) and HTTP/3 datagrams (RFC 9297).
-- [ ] E3. PRIORITY_UPDATE (RFC 9218). Not the old PRIORITY frame.
-- [ ] E4. Server push stays off. ENABLE_PUSH=0. An unsolicited push is
-  a protocol error.
-- [ ] E5. Multipath (RFC 9369) is not implemented. `initial_max_path_id`
-  is rejected. Single-path migration stays in section 1.
+- [x] E1. Extended CONNECT (RFC 8441, RFC 9220). `:protocol` is a
+  token (RFC 9110 tchar) and only on CONNECT. Extended CONNECT also
+  sends `:scheme`, `:path`, and `:authority`. Classic CONNECT stays
+  `:method` and `:authority`. The server sends
+  SETTINGS_ENABLE_CONNECT_PROTOCOL=1 and rejects a later 0. The
+  client does not send that setting. In-memory only. Not a foreign
+  peer.
+- [x] E2. QUIC DATAGRAM (RFC 9221) types 0x30 and 0x31. This stack
+  advertises `max_datagram_frame_size` 65535. A frame larger than
+  that, or a DATAGRAM outside 0-RTT/1-RTT, is PROTOCOL_VIOLATION.
+  Frames are ack-eliciting and are not retransmitted. HTTP/3
+  datagrams (RFC 9297) carry the quarter stream id.
+  SETTINGS_H3_DATAGRAM=1 is sent only after the peer's transport
+  parameter is non-zero. A datagram for a stream past the local
+  limit is H3_ID_ERROR. A datagram after FIN or RESET is dropped.
+  The Capsule Protocol is not implemented. In-memory only. The
+  quiche GET does not send a datagram.
+- [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
+  HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
+  reserved bit, or a payload shorter than 4 octets is an error.
+  HTTP/3 types 0xF0700 (request stream id) and 0xF0701 (push id)
+  are legal only on the client control stream. On a request stream
+  they are H3_FRAME_UNEXPECTED. Push ids are H3_ID_ERROR because
+  push is off. The server sends SETTINGS_NO_RFC7540_PRIORITIES=1.
+  The old PRIORITY frame is ignored. In-memory only. Not a foreign
+  peer.
+- [x] E4. Server push stays off. The client sends ENABLE_PUSH=0.
+  The server does not send that setting (RFC 9113); a client that
+  receives it is a connection error. PUSH_PROMISE is a connection
+  error. HTTP/3 rejects a push stream. A client that sends
+  ENABLE_PUSH 0 and then 1 is a connection error.
+- [x] E5. Multipath is RFC 10069, not RFC 9369. `initial_max_path_id`
+  (0x3e) is stored when the value is at most 2^32-1. A larger value
+  is a transport parameter error. This stack never sends 0x3e, so
+  multipath is not negotiated. Single-path migration stays in
+  section 1. Unknown multipath frames stay connection errors.
 
 ## Order
 

@@ -29,8 +29,52 @@ void main() {
           .isSuccess,
       isTrue,
     );
+    expect(params.maxDatagramFrameSize, quicLocalMaxDatagramFrameSize);
+    expect(params.initialMaxPathId, isNull);
     final dup = Uint8List.fromList([...raw, ...raw]);
     expect(QuicTransportParameters.decode(dup).isFailure, isTrue);
+  });
+
+  test('initial_max_path_id is stored and a value past 2^32-1 fails', () {
+    final ok = QuicTransportParameters.decode(
+      _transportParameter(quicTpInitialMaxPathId, 4),
+    );
+    expect(ok.isSuccess, isTrue, reason: '${ok.errorOrNull}');
+    expect(ok.valueOrNull!.initialMaxPathId, 4);
+    final huge = QuicTransportParameters.decode(
+      _transportParameter(quicTpInitialMaxPathId, 0x100000000),
+    );
+    expect(huge.isFailure, isTrue);
+    final encoded = QuicTransportParameters(
+      maxDatagramFrameSize: 1200,
+      initialMaxPathId: 4,
+    ).encode();
+    final round = QuicTransportParameters.decode(encoded);
+    expect(round.valueOrNull!.maxDatagramFrameSize, 1200);
+    expect(round.valueOrNull!.initialMaxPathId, isNull);
+  });
+
+  test('DATAGRAM 0x30 and 0x31 round-trip and an oversized frame fails', () {
+    final prefixed = QuicDatagramFrame(
+      Uint8List.fromList([1, 2, 3]),
+      lengthPrefixed: true,
+    );
+    final parsed = decodeQuicPayload(prefixed.encode());
+    expect(parsed.isSuccess, isTrue, reason: '${parsed.errorOrNull}');
+    expect(parsed.valueOrNull!.ackEliciting, isTrue);
+    expect(parsed.valueOrNull!.datagrams.single.payload, [1, 2, 3]);
+    expect(parsed.valueOrNull!.datagrams.single.lengthPrefixed, isTrue);
+    final rest = decodeQuicPayload(Uint8List.fromList([quicFrameDatagram, 9]));
+    expect(rest.valueOrNull!.datagrams.single.payload, [9]);
+    expect(rest.valueOrNull!.datagrams.single.lengthPrefixed, isFalse);
+    final empty = decodeQuicPayload(
+      QuicDatagramFrame(Uint8List(0), lengthPrefixed: true).encode(),
+    );
+    expect(empty.valueOrNull!.datagrams.single.payload, isEmpty);
+    final big = decodeQuicPayload(
+      QuicDatagramFrame(Uint8List(65536), lengthPrefixed: true).encode(),
+    );
+    expect(big.isFailure, isTrue);
   });
 
   test(
@@ -370,4 +414,15 @@ void main() {
     final payload = decodeQuicPayload(Uint8List.fromList([0x21]));
     expect(payload.isFailure, isTrue);
   });
+}
+
+Uint8List _transportParameter(int id, int value) {
+  final valueBytes = BytesBuilder(copy: false);
+  writeQuicVarint(valueBytes, value);
+  final raw = valueBytes.takeBytes();
+  final out = BytesBuilder(copy: false);
+  writeQuicVarint(out, id);
+  writeQuicVarint(out, raw.length);
+  out.add(raw);
+  return out.takeBytes();
 }

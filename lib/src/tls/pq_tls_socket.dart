@@ -284,7 +284,33 @@ final class PqTlsSocket {
     }
   }
 
+  /// RFC 8446 §5.1. Plaintext is split so one message can span records.
+  int maxRecordPlaintext = tlsMaxPlaintextBytes;
+
   Future<Result<void, PqTransportError>> send(Uint8List plaintext) async {
+    if (maxRecordPlaintext < 1 || maxRecordPlaintext > tlsMaxPlaintextBytes) {
+      return Result.failure(PqTransportError.decodeFailure('record size'));
+    }
+    if (plaintext.length <= maxRecordPlaintext) {
+      return _sendRecord(plaintext);
+    }
+    var offset = 0;
+    while (offset < plaintext.length) {
+      final end = offset + maxRecordPlaintext > plaintext.length
+          ? plaintext.length
+          : offset + maxRecordPlaintext;
+      final sent = await _sendRecord(
+        Uint8List.sublistView(plaintext, offset, end),
+      );
+      if (sent.isFailure) return sent;
+      offset = end;
+    }
+    return const Result.success(null);
+  }
+
+  Future<Result<void, PqTransportError>> _sendRecord(
+    Uint8List plaintext,
+  ) async {
     final c = _client;
     final s = _server;
     final schedule = c?.schedule ?? s?.schedule;
