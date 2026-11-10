@@ -43,11 +43,16 @@ third-party HTTP/3 client has not completed that path. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
 are the quiche 0.30.0 flights, both ways. masque-go v0.6.0
 completed CONNECT-UDP, and connect-ip-go v0.6.0 completed
-CONNECT-IP, both as their client against this server, with the
-ML-DSA-65 leaf checked. The payloads are QUIC DATAGRAMs. The
-address and route capsules were parsed by connect-ip-go. Not the
-reverse direction. Multipath (RFC 10069) is off unless
-`initialMaxPathId` is set, and it is not claimed.
+CONNECT-IP, in both directions, with the ML-DSA-65 leaf checked
+by the side that did not mint it. The payloads are QUIC DATAGRAMs.
+The address and route capsules were parsed in both directions.
+The masque-go reverse response did not include `capsule-protocol`.
+curl 8.23.0 with nghttp2 1.66.0 completed one HTTP/2 GET. Its
+`wss://` request is HTTP/1.1 Upgrade, not extended CONNECT.
+libnghttp2 1.66.0 did complete extended CONNECT. Multipath
+(RFC 10069) is off unless `initialMaxPathId` is set. picoquic
+1.1.54.0 was run and refused the ML-DSA-65 certificate. It is
+not claimed.
 
 ## Groups the TLS peers selected
 

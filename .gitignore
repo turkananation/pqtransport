@@ -16,3 +16,4 @@ tool/interop/openssl/.build/
 tool/interop/boringssl/.build/
 tool/interop/quiche/.build/
 tool/interop/masque/.build/
+tool/interop/nghttp2-curl/.build/

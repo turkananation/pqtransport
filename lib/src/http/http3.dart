@@ -193,6 +193,7 @@ final class PqHttp3Session {
   var _advertisedHttpDatagrams = false;
   final Map<int, HttpPriority> priorities = {};
   final List<(int, Uint8List)> _httpDatagrams = [];
+  final List<(int, HttpCapsule)> _capsules = [];
   final Map<int, BytesBuilder> _capsuleBuf = {};
   final Map<int, BytesBuilder> _capsuleFrames = {};
   final Set<int> _capsuleStreams = {};
@@ -922,6 +923,23 @@ final class PqHttp3Session {
     return out;
   }
 
+  /// Capsules other than DATAGRAM on one request stream.
+  List<HttpCapsule> takeCapsules(int streamId) {
+    final keep = <(int, HttpCapsule)>[];
+    final out = <HttpCapsule>[];
+    for (final item in _capsules) {
+      if (item.$1 == streamId) {
+        out.add(item.$2);
+      } else {
+        keep.add(item);
+      }
+    }
+    _capsules
+      ..clear()
+      ..addAll(keep);
+    return out;
+  }
+
   /// Datagrams for one request stream. Others stay queued.
   List<Uint8List> takeStreamDatagrams(int streamId) {
     _takeQuicDatagrams();
@@ -1001,13 +1019,16 @@ final class PqHttp3Session {
       final one = tryDecodeHttpCapsule(slice(wire, off, wire.length));
       if (one == null) break;
       off += one.consumed;
-      // RFC 9297 §3.3. An unknown type is skipped.
+      // RFC 9297 §3.3. An unknown type is skipped by the datagram
+      // mapping and kept for the application. CONNECT-IP uses that.
       if (one.capsule.type == HttpCapsule.datagram) {
         if (!_peerHttpDatagrams || !_advertisedHttpDatagrams) {
           _fail(http3ErrorDatagram, 'h3 capsule');
           return false;
         }
         _httpDatagrams.add((streamId, one.capsule.value));
+      } else {
+        _capsules.add((streamId, one.capsule));
       }
     }
     if (off < wire.length) {

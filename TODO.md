@@ -142,8 +142,13 @@ Starts after section 1. The session speaks the QUIC from that section.
   client does not send that setting. RFC 9220 is quiche 0.30.0
   both ways: CONNECT with `:protocol websocket`, `:scheme https`,
   `:path /pq`, `:authority localhost`, and a 200. The ML-DSA-65
-  certificate is checked. RFC 8441 is still in-memory. The curl
-  in this tree has no nghttp2.
+  certificate is checked. RFC 8441 against libnghttp2 1.66.0
+  (`h2connect.c`) is CONNECT `:protocol websocket`, status 200,
+  END_STREAM clear, ALPN `h2`, X25519MLKEM768, `id-ml-dsa-65`.
+  curl 8.23.0 linked to that same nghttp2 and to OpenSSL 3.5.9
+  completed one HTTP/2 GET (body `pq-h2`). Its `wss:// --http2`
+  sent `GET /tunnel HTTP/1.1` and `Upgrade: websocket`. That is
+  not RFC 8441. HTTP/2 PRIORITY_UPDATE is still in-memory.
 - [x] E2. QUIC DATAGRAM (RFC 9221) types 0x30 and 0x31. This stack
   advertises `max_datagram_frame_size` 65535. A frame larger than
   that, or a DATAGRAM outside 0-RTT/1-RTT, is PROTOCOL_VIOLATION.
@@ -162,9 +167,14 @@ Starts after section 1. The session speaks the QUIC from that section.
   parsed ADDRESS_ASSIGN and ROUTE_ADVERTISEMENT from this stack.
   masque-go v0.6.0 completed CONNECT-UDP: one context-ID-0 payload
   forwarded to a local UDP echo and returned. Both peers checked
-  the ML-DSA-65 leaf. Both are their client against our server.
-  The UDP and IP payloads are QUIC DATAGRAMs, not DATAGRAM
-  capsules. The reverse direction has not been run. Draft DNS
+  the ML-DSA-65 leaf. The reverse was run. A masque-go v0.6.0
+  proxy echoed `ping-reverse` (`reverse-udp leaf=mlDsa65
+  group=x25519MlKem768 echoed=true quicDatagrams=true`). Its
+  response did not include `capsule-protocol`. A connect-ip-go
+  v0.6.0 proxy logged `ip-got n=20 src=192.0.2.11
+  dst=198.51.100.1 proto=17` and `ip-echo n=20`
+  (`reverse-ip` with the same leaf and group). The UDP and IP
+  payloads are QUIC DATAGRAMs, not DATAGRAM capsules. Draft DNS
   and PREF64 capsules are not implemented.
 - [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
   HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
@@ -196,8 +206,10 @@ Starts after section 1. The session speaks the QUIC from that section.
   path-and-packet-number. Path 0 matches RFC 9001. A zero-length
   connection ID while both sides advertise the parameter is
   PROTOCOL_VIOLATION. Extra paths have their own packet numbers.
-  They do not have a separate PTO. No picoquic flight has completed,
-  so multipath is not claimed. Single-path migration stays in
+  They do not have a separate PTO. picoquic 1.1.54.0 was run.
+  It did not offer ML-DSA-65, this server refused scheme 0x0905,
+  and `-M` printed `Enable multipath: Refused` on one path.
+  Multipath is not claimed. Single-path migration stays in
   section 1.
 
 ## Order

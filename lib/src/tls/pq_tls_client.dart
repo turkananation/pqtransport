@@ -147,6 +147,7 @@ final class PqTlsClient {
   /// Group in the peer's ServerHello. Null until that message is accepted.
   TlsNamedGroup? negotiatedGroup;
   var _peerAuthenticated = false;
+  String? _peerLeafAlgorithm;
   Uint8List? _peerPublicKey;
   int? _certificateType;
   List<Uint8List>? _certificateEntries;
@@ -168,6 +169,10 @@ final class PqTlsClient {
   /// False before completion, false after a fatal alert, and false when
   /// [allowUnauthenticated] skipped the check. Finished is not this bit.
   bool get peerAuthenticated => _peerAuthenticated && isComplete;
+
+  /// X.509 leaf algorithm name after CertificateVerify succeeded.
+  /// Null for a raw public key, and null until that check passes.
+  String? get peerLeafAlgorithm => isComplete ? _peerLeafAlgorithm : null;
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
     final shares = _sharesToMint();
@@ -496,6 +501,7 @@ final class PqTlsClient {
               mlDsaVerify: crypto.mlDsaVerify,
             );
             if (checked.isFailure) return _fatal(checked.errorOrNull!);
+            _peerLeafAlgorithm = leaf.valueOrNull!.algorithm.name;
             final key = leaf.valueOrNull!.publicKey;
             if (key is PqX509MlDsaKey) _peerPublicKey = key.raw;
           }

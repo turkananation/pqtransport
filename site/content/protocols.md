@@ -140,8 +140,10 @@ complete (RFC 8446 §5.1). A 32-byte in-memory split remains a unit
 test. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,
 RST_STREAM, trailers, and CONTINUATION. Extended CONNECT and
-PRIORITY_UPDATE on HTTP/3 are the quiche flights. HTTP/2 extended
-CONNECT is in-memory. The server does not send
+PRIORITY_UPDATE on HTTP/3 are the quiche flights. HTTP/2
+PRIORITY_UPDATE is still in-memory. curl 8.23.0 with nghttp2 1.66.0 completed
+one HTTP/2 GET. libnghttp2 1.66.0 completed extended CONNECT.
+curl `wss://` did not. The server does not send
 ENABLE_PUSH. The old PRIORITY frame is ignored. It is not a
 complete RFC 9113 stack. HTTP/3 on `PqQuicConn` is the quiche GET
 above, plus one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID,
@@ -150,9 +152,11 @@ SETTINGS_H3_DATAGRAM=1 is sent only when the peer advertised
 `max_datagram_frame_size`. HTTP datagrams and PRIORITY_UPDATE are
 the same quiche flights. connect-ip-go v0.6.0 parsed
 ADDRESS_ASSIGN and ROUTE_ADVERTISEMENT. masque-go v0.6.0
-completed one CONNECT-UDP echo. Both are their client, and both
-checked ML-DSA-65. The payloads are QUIC DATAGRAMs. Not the
-reverse. Unknown
+completed one CONNECT-UDP echo, and the reverse echoed
+`ping-reverse`. connect-ip-go did the same in both directions,
+including one 20-byte IPv4 packet to `198.51.100.1`. Both
+checked ML-DSA-65. The payloads are QUIC DATAGRAMs. The
+masque-go reverse response omitted `capsule-protocol`. Unknown
 control-stream frames are ignored. Push is off. It is not a
 complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).

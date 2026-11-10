@@ -144,6 +144,15 @@ final class QuicTlsHandshake {
       (_client?.earlyDataAccepted ?? false) ||
       (_server?.earlyDataAccepted ?? false);
 
+  bool get peerAuthenticated => _client?.peerAuthenticated ?? false;
+
+  /// X.509 leaf the client checked. Null on a server, or before
+  /// CertificateVerify.
+  String? get peerLeafAlgorithm => _client?.peerLeafAlgorithm;
+
+  String? get negotiatedGroupName =>
+      (_client?.negotiatedGroup ?? _server?.negotiatedGroup)?.name;
+
   bool get handshakeSecretsReady => schedule.handshakeSecretsReady;
 
   Uint8List? get peerTransportParameters =>

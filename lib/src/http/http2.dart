@@ -722,6 +722,7 @@ final class PqHttp2Session {
     PqHttpResponse resp, {
     Map<String, String> trailers = const {},
     Duration timeout = const Duration(seconds: 10),
+    bool fin = true,
   }) async {
     final trailerHeaders = [
       for (final entry in trailers.entries)
@@ -730,16 +731,20 @@ final class PqHttp2Session {
     final headers = http2ResponseHeaders(resp);
     final limited = _headerListTooLarge(headers, peer: true);
     if (limited != null) return Result.failure(limited);
-    final endStream = resp.body.isEmpty && trailerHeaders.isEmpty;
-    _onLocalHeaders(streamId, endStream: endStream);
+    final headersEnd = fin && resp.body.isEmpty && trailerHeaders.isEmpty;
+    _onLocalHeaders(streamId, endStream: headersEnd);
     final block = _encode.encode(headers);
-    final sent = await _sendHeaderBlock(streamId, block, endStream: endStream);
+    final sent = await _sendHeaderBlock(
+      streamId,
+      block,
+      endStream: headersEnd,
+    );
     if (sent.isFailure) return sent;
     if (resp.body.isNotEmpty) {
       final data = await _sendBody(
         streamId,
         resp.body,
-        endStream: trailerHeaders.isEmpty,
+        endStream: fin && trailerHeaders.isEmpty,
         timeout: timeout,
       );
       if (data.isFailure) return data;
@@ -1083,7 +1088,8 @@ final class PqHttp2Session {
         _frames.add(frame);
         _wake();
       default:
-        _failConnection(http2ErrorProtocol, 'http2 frame');
+        // RFC 9113 §5.5. An unknown type is ignored, not a connection error.
+        return;
     }
   }
 

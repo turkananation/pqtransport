@@ -386,6 +386,15 @@ final class PqQuicConn {
   bool get isComplete => _tls.isComplete;
   bool get earlyDataAccepted => _tls.earlyDataAccepted;
   String? get alpn => _tls.alpn;
+
+  /// True when this client checked CertificateVerify.
+  bool get peerAuthenticated => _tls.peerAuthenticated;
+
+  /// `mlDsa65` after an X.509 CertificateVerify. Null otherwise.
+  String? get peerLeafAlgorithm => _tls.peerLeafAlgorithm;
+
+  /// TLS group selected in ServerHello, or null before that.
+  String? get negotiatedGroupName => _tls.negotiatedGroupName;
   QuicStreamMap get streams => _streams;
   QuicConnectionState get connectionState => _connMachine.currentState;
   bool get isDraining => connectionState == QuicConnectionState.draining;
