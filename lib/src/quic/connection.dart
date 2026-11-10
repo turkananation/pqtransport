@@ -939,6 +939,45 @@ final class PqQuicConn {
     return _flush();
   }
 
+  /// RFC 9000 §19.5. Asks the peer to stop sending on [id].
+  Future<Result<void, PqTransportError>> stopSending(int id, int errorCode) {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        final sent = await _stopSending(id, errorCode);
+        done.complete(sent);
+        _wake();
+      } on Object catch (e) {
+        final err = PqTransportError.internalError('quic stop $e');
+        _error = err;
+        done.complete(Result.failure(err));
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  Future<Result<void, PqTransportError>> _stopSending(
+    int id,
+    int errorCode,
+  ) async {
+    if (!isComplete) {
+      return Result.failure(
+        PqTransportError.handshakeFailure('quic not complete'),
+      );
+    }
+    if (_terminal) {
+      return Result.failure(PqTransportError.closed('quic closed'));
+    }
+    _stopped[id] = errorCode;
+    _stalled.removeWhere((item) => item.id == id);
+    _queueControl(
+      'ss:$id:$errorCode',
+      QuicStopSendingFrame(id, errorCode).encode(),
+    );
+    return _flush();
+  }
+
   /// RFC 9000 §10.2. Sends CONNECTION_CLOSE, then discards inbound
   /// packets until three times the current PTO have passed.
   Future<Result<void, PqTransportError>> close({

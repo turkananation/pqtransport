@@ -19,12 +19,14 @@ final class PqHttpRequest {
     required this.uri,
     this.headers = const {},
     this.body = const [],
+    this.trailers = const {},
   });
 
   final String method;
   final Uri uri;
   final Map<String, String> headers;
   final List<int> body;
+  final Map<String, String> trailers;
 }
 
 final class PqHttpResponse {

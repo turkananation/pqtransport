@@ -124,9 +124,11 @@ The gap list is `TODO.md`.
 HTTP/1.1 is one request and one response. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,
 RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is
-ignored. It is not a complete RFC 9113 stack. HTTP/3 is
-SETTINGS, HEADERS, and DATA on `PqQuicConn`. Silent h2/h3→h1 downgrade
-is refused (`allowDowngrade: false`).
+ignored. It is not a complete RFC 9113 stack. HTTP/3 on `PqQuicConn`
+is one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID, and
+CANCEL_PUSH), QPACK limits, trailers, and request cancel. Push is off.
+It is not a complete RFC 9114 stack and not `curl --http3`. Silent
+h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
 
 HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
 `applicationData`. HTTP/2 is `PqHttp2Session.server` plus

@@ -751,6 +751,30 @@ const int http3SettingsQpackBlockedStreams = 0x07;
 const int http3DefaultQpackMaxTableCapacity = 4096;
 const int http3DefaultQpackBlockedStreams = 16;
 
+/// RFC 9114 §8.1.
+const int http3ErrorNoError = 0x0100;
+const int http3ErrorGeneralProtocol = 0x0101;
+const int http3ErrorInternal = 0x0102;
+const int http3ErrorStreamCreation = 0x0103;
+const int http3ErrorClosedCriticalStream = 0x0104;
+const int http3ErrorFrameUnexpected = 0x0105;
+const int http3ErrorFrame = 0x0106;
+const int http3ErrorExcessiveLoad = 0x0107;
+const int http3ErrorId = 0x0108;
+const int http3ErrorSettings = 0x0109;
+const int http3ErrorMissingSettings = 0x010a;
+const int http3ErrorRequestRejected = 0x010b;
+const int http3ErrorRequestCancelled = 0x010c;
+const int http3ErrorRequestIncomplete = 0x010d;
+const int http3ErrorMessage = 0x010e;
+const int http3ErrorConnect = 0x010f;
+const int http3ErrorVersionFallback = 0x0110;
+
+/// RFC 9204 §6.
+const int qpackErrorDecompressionFailed = 0x0200;
+const int qpackErrorEncoderStream = 0x0201;
+const int qpackErrorDecoderStream = 0x0202;
+
 const String httpAlpnH1 = 'http/1.1';
 const String httpAlpnH2 = 'h2';
 const String httpAlpnH3 = 'h3';

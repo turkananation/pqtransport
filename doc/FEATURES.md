@@ -99,7 +99,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | HTTP/1.1 request/response | Slice | One request and one response. Not chunked. Not a complete RFC 9112 recipient. |
 | HTTP/1.1 GET over `PqTlsSocket` | Slice | One application-data event. |
 | HTTP/2 | Slice | Self-interop. Connection and stream windows, SETTINGS limits, idle/open/half-closed/closed, GOAWAY, RST_STREAM, trailers, and CONTINUATION. Push is off. PRIORITY is ignored. Not a complete RFC 9113 stack. |
-| HTTP/3 + QPACK | Slice | Self-interop on `PqQuicConn`. Not a complete RFC 9114 stack. Not nghttp3. |
+| HTTP/3 + QPACK | Slice | Self-interop on `PqQuicConn`. Control stream, QPACK limits, trailers, and request cancel. Not a complete RFC 9114 stack. Not nghttp3. Not `curl --http3`. |
 | Silent h2/h3→h1 downgrade | Refused | `allowDowngrade: false` default |
 
 ## Platform

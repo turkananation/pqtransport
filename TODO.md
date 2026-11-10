@@ -83,16 +83,16 @@ Not `curl --http3`. Not HTTP/3.
 
 Starts after section 1. The session speaks the QUIC from that section.
 
-- [ ] H3-1. Control stream: SETTINGS first. GOAWAY, MAX_PUSH_ID, and
+- [x] H3-1. Control stream: SETTINGS first. GOAWAY, MAX_PUSH_ID, and
   CANCEL_PUSH are legal afterwards and are acted on. They are errors
   on a request stream.
-- [ ] H3-2. QPACK encoder and decoder streams carry the codec bytes.
+- [x] H3-2. QPACK encoder and decoder streams carry the codec bytes.
   Dynamic table follows the peer limits. A blocked section waits.
-- [ ] H3-3. Trailers are one HEADERS block after DATA.
-- [ ] H3-4. A request can be cancelled with RESET_STREAM and STOP_SENDING.
-- [ ] H3-5. One control, one encoder, one decoder stream. A second is an
+- [x] H3-3. Trailers are one HEADERS block after DATA.
+- [x] H3-4. A request can be cancelled with RESET_STREAM and STOP_SENDING.
+- [x] H3-5. One control, one encoder, one decoder stream. A second is an
   error. Unknown stream types and unknown request frames are ignored.
-- [ ] H3-6. Tests: SETTINGS, GOAWAY, dynamic table, trailer, cancel.
+- [x] H3-6. Tests: SETTINGS, GOAWAY, dynamic table, trailer, cancel.
 
 ## 4. HTTP/1.1 (RFC 9110, RFC 9112)
 

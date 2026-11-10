@@ -167,13 +167,16 @@ final class _DynTable {
 /// [maxTableCapacity] > 0. Huffman is the RFC 7541 table.
 final class QpackCodec {
   QpackCodec({int maxTableCapacity = qpackDefaultMaxTableCapacity})
-    : _maxCapacity = maxTableCapacity {
+    : _maxCapacity = maxTableCapacity,
+      _peerCapacity = maxTableCapacity {
     if (maxTableCapacity > 0) {
       _local.setCapacity(maxTableCapacity);
     }
   }
 
   final int _maxCapacity;
+  int _peerCapacity;
+  var _peerBlockedStreams = 0;
   final _DynTable _local = _DynTable();
   final _DynTable _remote = _DynTable();
   final BytesBuilder _encoderOut = BytesBuilder(copy: false);
@@ -183,11 +186,26 @@ final class QpackCodec {
   int get insertCount => _local.inserts;
   int get remoteInsertCount => _remote.inserts;
   int get maxTableCapacity => _maxCapacity;
+  int get peerTableCapacity => _peerCapacity;
+  int get peerBlockedStreams => _peerBlockedStreams;
+
+  /// RFC 9204 §3.2.3 and §5. The peer's SETTINGS bound the encoder.
+  void applyPeerLimits({
+    required int maxTableCapacity,
+    required int blockedStreams,
+  }) {
+    _peerCapacity = maxTableCapacity;
+    _peerBlockedStreams = blockedStreams;
+    if (_local.capacity > maxTableCapacity) {
+      _local.setCapacity(maxTableCapacity);
+      _capacitySent = false;
+    }
+  }
 
   Uint8List takeEncoderStream() {
-    if (_maxCapacity > 0 && !_capacitySent) {
+    if (_peerCapacity > 0 && !_capacitySent) {
       final prefix = BytesBuilder(copy: false);
-      _writeInt(prefix, _maxCapacity, 5, qpackEncoderCapacity);
+      _writeInt(prefix, _peerCapacity, 5, qpackEncoderCapacity);
       final rest = _encoderOut.takeBytes();
       _capacitySent = true;
       return concatBytes([prefix.takeBytes(), rest]);
@@ -197,6 +215,24 @@ final class QpackCodec {
 
   Uint8List takeDecoderStream() => _decoderOut.takeBytes();
 
+  /// Required Insert Count is ahead of the dynamic table, or the table
+  /// capacity this section needs has not arrived yet.
+  bool sectionBlocked(Uint8List wire) {
+    if (wire.isEmpty) return false;
+    final parsed = _readInt(wire, 0, 8);
+    if (parsed.isFailure) return _needsMore(parsed.errorOrNull!);
+    final ric = _decodeRic(parsed.valueOrNull!.$1);
+    if (ric < 0) return _remote.capacity == 0;
+    return ric > _remote.inserts;
+  }
+
+  bool sectionUsesDynamic(Uint8List wire) {
+    final parsed = _readInt(wire, 0, 8);
+    if (parsed.isFailure) return false;
+    final ric = _decodeRic(parsed.valueOrNull!.$1);
+    return ric > 0;
+  }
+
   /// Encode a field section. Uses static indexed lines, then dynamic if
   /// [useDynamic] and the table has room; otherwise literals.
   Uint8List encodeFieldSection(
@@ -204,7 +240,7 @@ final class QpackCodec {
     bool huffman = false,
     bool useDynamic = false,
   }) {
-    if (useDynamic && _maxCapacity > 0) {
+    if (useDynamic && _peerCapacity > 0) {
       for (final h in headers) {
         if (_findStatic(h) != null) continue;
         if (_findDynamic(_local, h) != null) continue;
@@ -374,16 +410,21 @@ final class QpackCodec {
     return Result.success(out);
   }
 
-  Result<void, PqTransportError> ingestEncoderStream(Uint8List wire) {
+  /// Bytes consumed. A short instruction is not an error: the caller
+  /// keeps the tail until more bytes arrive. A finished instruction that
+  /// breaks the table is a failure.
+  Result<int, PqTransportError> ingestEncoderStream(Uint8List wire) {
     var i = 0;
     while (i < wire.length) {
+      final start = i;
       final b0 = wire[i];
       if ((b0 & qpackEncoderInsertNameRef) != 0) {
         final tStatic = (b0 & 0x40) != 0;
         final idx = _readInt(wire, i, 6);
-        if (idx.isFailure) return Result.failure(idx.errorOrNull!);
+        if (idx.isFailure) {
+          return _shortOr(start, idx.errorOrNull!);
+        }
         final (index, ni) = idx.valueOrNull!;
-        i = ni;
         final nameH = tStatic
             ? _staticAt(index)
             : _remote.atAbsolute(_remote.inserts - index - 1);
@@ -392,8 +433,8 @@ final class QpackCodec {
             PqTransportError.decodeFailure('qpack enc name'),
           );
         }
-        final val = _readString(wire, i);
-        if (val.isFailure) return Result.failure(val.errorOrNull!);
+        final val = _readString(wire, ni);
+        if (val.isFailure) return _shortOr(start, val.errorOrNull!);
         final (value, vi) = val.valueOrNull!;
         i = vi;
         _remote.insert(HpackHeader(nameH.name, value));
@@ -401,11 +442,10 @@ final class QpackCodec {
       }
       if ((b0 & qpackEncoderInsertLiteralMask) == qpackEncoderInsertLiteral) {
         final name = _readPrefixedString(wire, i, 5);
-        if (name.isFailure) return Result.failure(name.errorOrNull!);
+        if (name.isFailure) return _shortOr(start, name.errorOrNull!);
         final (n, ni) = name.valueOrNull!;
-        i = ni;
-        final val = _readString(wire, i);
-        if (val.isFailure) return Result.failure(val.errorOrNull!);
+        final val = _readString(wire, ni);
+        if (val.isFailure) return _shortOr(start, val.errorOrNull!);
         final (value, vi) = val.valueOrNull!;
         i = vi;
         _remote.insert(HpackHeader(n, value));
@@ -413,7 +453,7 @@ final class QpackCodec {
       }
       if ((b0 & qpackEncoderCapacityMask) == qpackEncoderCapacity) {
         final cap = _readInt(wire, i, 5);
-        if (cap.isFailure) return Result.failure(cap.errorOrNull!);
+        if (cap.isFailure) return _shortOr(start, cap.errorOrNull!);
         final (c, ni) = cap.valueOrNull!;
         i = ni;
         if (_maxCapacity > 0 && c > _maxCapacity) {
@@ -425,7 +465,7 @@ final class QpackCodec {
         continue;
       }
       final dup = _readInt(wire, i, 5);
-      if (dup.isFailure) return Result.failure(dup.errorOrNull!);
+      if (dup.isFailure) return _shortOr(start, dup.errorOrNull!);
       final (index, ni) = dup.valueOrNull!;
       i = ni;
       final src = _remote.atAbsolute(_remote.inserts - index - 1);
@@ -434,33 +474,46 @@ final class QpackCodec {
       }
       _remote.insert(src);
     }
-    return const Result.success(null);
+    return Result.success(i);
   }
 
-  Result<void, PqTransportError> ingestDecoderStream(Uint8List wire) {
+  Result<int, PqTransportError> ingestDecoderStream(Uint8List wire) {
     var i = 0;
     while (i < wire.length) {
+      final start = i;
       final b0 = wire[i];
       if ((b0 & qpackDecoderSectionAck) != 0) {
         final id = _readInt(wire, i, 7);
-        if (id.isFailure) return Result.failure(id.errorOrNull!);
+        if (id.isFailure) return _shortOr(start, id.errorOrNull!);
         i = id.valueOrNull!.$2;
         _local.knownReceived = _local.inserts;
         continue;
       }
       if ((b0 & qpackDecoderStreamCancelMask) == qpackDecoderStreamCancel) {
         final id = _readInt(wire, i, 6);
-        if (id.isFailure) return Result.failure(id.errorOrNull!);
+        if (id.isFailure) return _shortOr(start, id.errorOrNull!);
         i = id.valueOrNull!.$2;
         continue;
       }
       final inc = _readInt(wire, i, 6);
-      if (inc.isFailure) return Result.failure(inc.errorOrNull!);
+      if (inc.isFailure) return _shortOr(start, inc.errorOrNull!);
       final (n, ni) = inc.valueOrNull!;
       i = ni;
       _local.knownReceived += n;
     }
-    return const Result.success(null);
+    return Result.success(i);
+  }
+
+  Result<int, PqTransportError> _shortOr(int consumed, PqTransportError error) {
+    if (_needsMore(error)) return Result.success(consumed);
+    return Result.failure(error);
+  }
+
+  static bool _needsMore(PqTransportError error) {
+    final message = error.message;
+    return message.endsWith('qpack int') ||
+        message.endsWith('qpack str') ||
+        message.endsWith('qpack str len');
   }
 
   void ackSection(int streamId) {
