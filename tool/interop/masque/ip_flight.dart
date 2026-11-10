@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqforge/pqforge.dart';
-import 'package:pqtransport/pqtransport.dart';
 import 'package:pqtransport/pqtransport_io.dart';
 import 'package:swissarmyknife/swissarmyknife.dart';
 

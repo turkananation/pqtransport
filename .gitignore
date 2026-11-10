@@ -17,3 +17,7 @@ tool/interop/boringssl/.build/
 tool/interop/quiche/.build/
 tool/interop/masque/.build/
 tool/interop/nghttp2-curl/.build/
+
+# local demo stores
+demo_ticket_store.bin
+demo_token_store.bin

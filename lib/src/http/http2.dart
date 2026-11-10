@@ -734,11 +734,7 @@ final class PqHttp2Session {
     final headersEnd = fin && resp.body.isEmpty && trailerHeaders.isEmpty;
     _onLocalHeaders(streamId, endStream: headersEnd);
     final block = _encode.encode(headers);
-    final sent = await _sendHeaderBlock(
-      streamId,
-      block,
-      endStream: headersEnd,
-    );
+    final sent = await _sendHeaderBlock(streamId, block, endStream: headersEnd);
     if (sent.isFailure) return sent;
     if (resp.body.isNotEmpty) {
       final data = await _sendBody(

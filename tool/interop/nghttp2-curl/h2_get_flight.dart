@@ -3,9 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:pqforge/pqforge.dart';
-import 'package:pqtransport/pqtransport.dart';
 import 'package:pqtransport/pqtransport_io.dart';
-import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// curl 8.23.0 linked to nghttp2 1.66.0 and OpenSSL 3.5.9.
 ///
