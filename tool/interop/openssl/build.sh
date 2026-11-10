@@ -32,6 +32,8 @@ trap 'rm -rf "$workdir"' EXIT
 curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" -o "$workdir/$tarball"
 tar -xzf "$workdir/$tarball" -C "$workdir"
 src="$workdir/openssl-openssl-${version}"
+mkdir -p "$prefix/src"
+cp "$src/demos/quic/server.c" "$prefix/src/quic-server.c"
 cd "$src"
 ./Configure "linux-$(uname -m)" \
   --prefix="$prefix" --libdir=lib shared no-tests \

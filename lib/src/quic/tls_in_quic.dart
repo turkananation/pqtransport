@@ -7,6 +7,7 @@ import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
+import '../tls/handshake.dart';
 import '../tls/key_schedule.dart';
 import '../tls/pq_tls_client.dart';
 import '../tls/pq_tls_server.dart';
@@ -86,6 +87,10 @@ final class QuicTlsHandshake {
     List<String>? alpnProtocols,
     QuicResumptionTicket? ticket,
     Uint8List? transportParameters,
+    List<TlsCertificateType>? certificateTypes,
+    List<Uint8List> trustAnchors = const [],
+    String? serverName,
+    List<int>? signatureSchemes,
   }) : _client = PqTlsClient(
          crypto: crypto,
          group: group,
@@ -93,6 +98,11 @@ final class QuicTlsHandshake {
          alpnProtocols: alpnProtocols,
          ticket: ticket,
          quicTransportParameters: transportParameters,
+         certificateTypes:
+             certificateTypes ?? const [TlsCertificateType.rawPublicKey],
+         trustAnchors: trustAnchors,
+         serverName: serverName,
+         signatureSchemes: signatureSchemes,
        ),
        _server = null;
 
@@ -139,6 +149,17 @@ final class QuicTlsHandshake {
   Uint8List? get peerTransportParameters =>
       _client?.peerQuicTransportParameters ??
       _server?.peerQuicTransportParameters;
+
+  /// Replace the parameters the server will send. Must happen before the
+  /// ClientHello is ingested. A real client's destination CID is not known
+  /// at construction.
+  void setTransportParameters(Uint8List parameters) {
+    final server = _server;
+    if (server == null) {
+      throw StateError('client transport parameters are already sent');
+    }
+    server.quicTransportParameters = parameters;
+  }
 
   Uint8List exporterBytes(String label, Uint8List context, int length) {
     final c = _client;

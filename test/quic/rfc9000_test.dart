@@ -180,7 +180,10 @@ void main() {
     }
     expect(kinds, contains(0xc0));
     expect(kinds, contains(0xe0));
-    expect(seen.first.length, greaterThanOrEqualTo(8192));
+    expect(seen.first.length, quicMinClientInitialUdpBytes);
+    for (final datagram in seen) {
+      expect(datagram.length, lessThanOrEqualTo(quicMinClientInitialUdpBytes));
+    }
 
     final id = client.openBidi();
     expect(id, isNonNegative);
@@ -238,6 +241,124 @@ void main() {
       isTrue,
     );
   });
+
+  test('server discards an Initial datagram smaller than 1200', () async {
+    final server = PqQuicConn.server(crypto: crypto);
+    final tiny = Uint8List(32)
+      ..[0] = 0xc0
+      ..[1] = 0x00
+      ..[2] = 0x00
+      ..[3] = 0x00
+      ..[4] = 0x01;
+    final got = await server.ingestDatagram(tiny);
+    expect(got.isSuccess, isTrue, reason: '${got.errorOrNull}');
+    expect(server.outgoing, isEmpty);
+    expect(server.isComplete, isFalse);
+  });
+
+  test(
+    'Retry resends the same ClientHello and a second Retry is ignored',
+    () async {
+      final clientCid = crypto.randomBytes(quicShortDcidBytes);
+      final originalDcid = crypto.randomBytes(quicShortDcidBytes);
+      final retryScid = crypto.randomBytes(quicShortDcidBytes);
+      final token = Uint8List.fromList([9, 8, 7, 6]);
+      final client = PqQuicConn.client(
+        crypto: crypto,
+        localCid: clientCid,
+        peerCid: originalDcid,
+      );
+      final started = await client.start();
+      expect(started.isSuccess, isTrue, reason: '${started.errorOrNull}');
+      final firstFlight = [
+        for (final datagram in client.outgoing) Uint8List.fromList(datagram),
+      ];
+      expect(firstFlight, isNotEmpty);
+      for (final datagram in firstFlight) {
+        expect(datagram.length, quicMinClientInitialUdpBytes);
+      }
+
+      final emptySource = quicRetryPacket(
+        crypto: crypto,
+        originalDestinationConnectionId: originalDcid,
+        destinationConnectionId: clientCid,
+        sourceConnectionId: Uint8List(0),
+        token: token,
+      );
+      final discarded = await client.ingestDatagram(emptySource);
+      expect(discarded.isSuccess, isTrue, reason: '${discarded.errorOrNull}');
+      expect(client.outgoing.length, firstFlight.length);
+
+      final retry = quicRetryPacket(
+        crypto: crypto,
+        originalDestinationConnectionId: originalDcid,
+        destinationConnectionId: clientCid,
+        sourceConnectionId: retryScid,
+        token: token,
+      );
+      final accepted = await client.ingestDatagram(retry);
+      expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+      final secondFlight = [
+        for (final datagram in client.outgoing.skip(firstFlight.length))
+          Uint8List.fromList(datagram),
+      ];
+      expect(secondFlight, isNotEmpty);
+      for (final datagram in secondFlight) {
+        expect(
+          datagram.length,
+          lessThanOrEqualTo(quicMinClientInitialUdpBytes),
+        );
+      }
+      final lead = secondFlight.first;
+      expect(lead.length, quicMinClientInitialUdpBytes);
+      expect(lead[0] & 0xf0, 0xc0);
+      var off = 6;
+      final dcidLen = lead[5];
+      expect(lead.sublist(off, off + dcidLen), retryScid);
+      off += dcidLen;
+      final scidLen = lead[off++];
+      off += scidLen;
+      expect(lead[off++], token.length);
+      expect(lead.sublist(off, off + token.length), token);
+
+      Uint8List flightCrypto(List<Uint8List> datagrams, Uint8List dcid) {
+        final codec = QuicInitialCodec(
+          crypto: crypto,
+          keys: QuicInitialSecrets.derive(
+            crypto: crypto,
+            destinationConnectionId: dcid,
+          ).client,
+        );
+        final parts = <QuicCryptoFrame>[];
+        for (final datagram in datagrams) {
+          final split = splitQuicDatagram(datagram);
+          expect(split.isSuccess, isTrue, reason: '${split.errorOrNull}');
+          for (final packet in split.valueOrNull!) {
+            if ((packet[0] & 0xf0) != 0xc0) continue;
+            final opened = codec.open(packet);
+            expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+            if (identical(datagram, secondFlight.first)) {
+              expect(opened.valueOrNull!.packetNumber, 0);
+            }
+            final body = decodeQuicPayload(opened.valueOrNull!.payload);
+            expect(body.isSuccess, isTrue, reason: '${body.errorOrNull}');
+            parts.addAll(body.valueOrNull!.crypto);
+          }
+        }
+        parts.sort((a, b) => a.offset.compareTo(b.offset));
+        return concatBytes([for (final frame in parts) frame.data]);
+      }
+
+      expect(
+        flightCrypto(secondFlight, retryScid),
+        flightCrypto(firstFlight, originalDcid),
+      );
+
+      final again = await client.ingestDatagram(retry);
+      expect(again.isSuccess, isTrue, reason: '${again.errorOrNull}');
+      expect(client.outgoing.length, firstFlight.length + secondFlight.length);
+    },
+  );
 
   test('unknown frame types still fail closed', () {
     final payload = decodeQuicPayload(Uint8List.fromList([0x21]));

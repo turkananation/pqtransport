@@ -222,10 +222,12 @@ final class QuicRecoveryEvent {
 ///    A lost number stays retired (RFC 9000 §12.3, §13.3).
 ///
 /// ECN, connection migration, and multipath are not implemented.
-/// The anti-amplification limit (RFC 9000 §8.1, RFC 9002 §6.2.2.1) is not
-/// enforced: a raw ML-DSA server flight does not fit in three times one
-/// client Initial. A silent peer still stops, because [maxPtoCount] stands
-/// in for the idle timeout this stack does not negotiate.
+/// The anti-amplification limit (RFC 9000 §8.1, RFC 9002 §6.2.2.1) is
+/// applied by [PqQuicConn], not by this object. A flight that does not
+/// fit in three times the bytes received stays queued until the client
+/// sends more or a Handshake packet validates the address. A silent
+/// peer still stops, because [maxPtoCount] stands in for the idle
+/// timeout this stack does not negotiate.
 /// Application Data PTO is disarmed until [markHandshakeConfirmed]
 /// (RFC 9002 §6.2.1). 0-RTT shares that space with 1-RTT (RFC 9000
 /// §12.3). Lost 0-RTT is retransmitted later as 1-RTT under a new
@@ -640,6 +642,33 @@ final class QuicLossRecovery {
     outstanding.clear();
     _lossTime[space] = null;
     _lastAckEliciting[space] = null;
+    _ptoCount = 0;
+    _setLossDetectionTimer();
+  }
+
+  /// RFC 9000 §17.2.5.3. Retry replaces Initial keys, so that space's
+  /// packet numbers start again at 0. This is not key discard: discarded
+  /// numbers stay retired, these do not.
+  void resetAfterRetry() {
+    const space = QuicPacketNumberSpace.initial;
+    final outstanding = _outstanding[space]!;
+    controller.removeFromBytesInFlight([
+      for (final packet in outstanding.values)
+        (sentBytes: packet.sentBytes, inFlight: packet.inFlight),
+    ]);
+    for (final packet in outstanding.values) {
+      packet.inFlight = false;
+    }
+    outstanding.clear();
+    _lost[space]!.clear();
+    _everSent[space]!.clear();
+    _nextPn[space] = 0;
+    _lossTime[space] = null;
+    _lastAckEliciting[space] = null;
+    _largestAcked[space] = null;
+    final ack = _sentAck[space]!;
+    ack.received.clear();
+    ack.inFlight.clear();
     _ptoCount = 0;
     _setLossDetectionTimer();
   }

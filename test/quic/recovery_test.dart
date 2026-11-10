@@ -778,7 +778,7 @@ void main() {
         peerCid: serverCid,
         clock: clock,
         deliver: (packet) {
-          if ((packet[0] & 0x80) != 0) initialSizes.add(packet.length);
+          if ((packet[0] & 0xf0) == 0xc0) initialSizes.add(packet.length);
           return server.ingestDatagram(packet);
         },
       );
@@ -795,7 +795,7 @@ void main() {
       await _pump();
       expect(initialSizes, isNotEmpty);
       for (final size in initialSizes) {
-        expect(size, greaterThanOrEqualTo(quicMinClientInitialUdpBytes));
+        expect(size, quicMinClientInitialUdpBytes);
       }
     });
 

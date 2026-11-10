@@ -185,11 +185,12 @@ protection on Initial (AES-128-GCM) and 1-RTT (AES-256-GCM), ACK
 processing, STREAM reassembly, and RFC 9002 loss recovery. `QuicLossRecovery`
 is usable without a socket: packet number spaces, RTT, loss, PTO, and a
 `QuicNewReno` window. `PqQuicConn` seals lost STREAM and CRYPTO bytes
-under a new packet number and pads a client Initial so the UDP datagram
-is at least 1200 bytes. It does not mint Handshake packet-protection
-keys, sends 0-RTT only as an Application Data long header, and does
-not implement ECN, migration, or the
-anti-amplification limit. A silent peer stops after `quicMaxPtoCount`
+under a new packet number. A UDP datagram stays within 1200 bytes until
+the path is known. A client Initial datagram is padded to 1200 bytes.
+Until a Handshake packet validates the client address, the server sends
+at most three times the bytes it has received. 0-RTT is an Application
+Data long header. ECN and migration are not implemented. A silent peer
+stops after `quicMaxPtoCount`
 probes because `max_idle_timeout` is not negotiated. A caller can set a
 local idle timeout. ChaCha20 header protection uses the pqforge 0.4.8
 keystream. Flow control and CONNECTION_CLOSE / drain are implemented.

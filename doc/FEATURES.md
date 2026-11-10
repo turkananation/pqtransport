@@ -94,7 +94,7 @@ Status vocabulary: **Done** (tested), **Partial** (exists, incomplete),
 | Header protection | Done | AES-ECB for Initial and AES 1-RTT. ChaCha20 mask (RFC 9001 §5.4.4) via pqforge 0.4.8 `chacha20`. |
 | ACK processing | Done | `QuicAckProcessor` RFC 9000 §19.3. One processor per packet number space feeds `QuicLossRecovery`. |
 | Loss recovery | Done | RFC 9002 §5 RTT, §6 packet/time loss and PTO, §7 NewReno. Lost STREAM and CRYPTO are retransmitted under a new packet number. `test/quic/recovery_test.dart` (OPEN-15). |
-| `PqQuicConn` 1-RTT STREAM | Slice | Linked in-memory pair. Handshake packet protection, transport parameters, coalesced datagrams, HANDSHAKE_DONE, and one key update. Not a third-party QUIC stack. |
+| `PqQuicConn` 1-RTT STREAM | Slice | Linked in-memory pair. Handshake packet protection, transport parameters, coalesced datagrams, HANDSHAKE_DONE, and one key update. UDP datagrams stay at or below 1200 bytes. OpenSSL 3.5.9 `s_client -quic` completes and verifies an ML-DSA-65 localhost certificate. `PqQuicConn.client` completes against OpenSSL `demos/quic/server` (Retry, ALPN `ossltest`, ML-DSA-65 checked). quiche 0.30.0 linked to BoringSSL 0.20261020.0 completes both directions (X25519MLKEM768, ALPN `h3`, ML-DSA-65 checked). Not `curl --http3`. Not HTTP/3. |
 | 0-RTT | Slice | Self-interop only. Long header in the Application Data space (RFC 9000 §12.3). The ticket remembers the server flow-control limits. `writeEarly` refuses bytes past them. |
 | HTTP/1.1 request/response | Slice | One request and one response. Not chunked. Not a complete RFC 9112 recipient. |
 | HTTP/1.1 GET over `PqTlsSocket` | Slice | One application-data event. |

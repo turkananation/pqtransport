@@ -8,6 +8,7 @@ import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
+import '../tls/handshake.dart';
 import '../tls/pq_tls_server.dart';
 import '../tls/resumption.dart';
 import 'datagram.dart';
@@ -28,10 +29,13 @@ import 'zero_rtt.dart';
 /// no early data.
 ///
 /// Lost CRYPTO and STREAM bytes are sealed again under a new packet number
-/// (RFC 9000 §13.3). The congestion window is [QuicNewReno]. A client
-/// Initial is padded so three times that datagram covers one raw ML-DSA
-/// server flight (RFC 9000 §8.1, §14.1). Handshake packets use the TLS
-/// handshake traffic secrets (RFC 9001 §5.3). 1-RTT follows. This object does
+/// (RFC 9000 §13.3). The congestion window is [QuicNewReno]. A UDP datagram
+/// stays within [QuicLossRecovery.maxDatagramSize] (1200 until the path is
+/// measured, RFC 9000 §14). A datagram that carries a client Initial is
+/// padded to 1200 bytes. The server answers with at most three times the
+/// bytes it has received until a Handshake packet validates the address
+/// (RFC 9000 §8.1). Handshake packets use the TLS handshake traffic
+/// secrets (RFC 9001 §5.3). 1-RTT follows. This object does
 /// not start a [Timer] by itself: call [driveLossRecovery] when
 /// [QuicLossRecovery.lossDetectionDeadline] is due, or [bindLossTimer] to arm
 /// a wall-clock timer. A [QuicManualClock] does not move that timer; tests
@@ -72,7 +76,8 @@ final class PqQuicConn {
        ),
        _connMachine = quicConnMachine(),
        _originalDcid = Uint8List.fromList(peerCid),
-       _dcid = Uint8List.fromList(peerCid) {
+       _dcid = Uint8List.fromList(peerCid),
+       _peerInitialSource = Uint8List.fromList(peerCid) {
     _connMachine.trigger(QuicConnectionEvent.start);
     _lastActivity = lossRecovery.clock.now();
     final secrets = QuicInitialSecrets.derive(
@@ -107,6 +112,10 @@ final class PqQuicConn {
     int flowWindow = 0,
     Duration? idleTimeout,
     QuicResumptionTicket? ticket,
+    List<TlsCertificateType>? certificateTypes,
+    List<Uint8List> trustAnchors = const [],
+    String? serverName,
+    List<int>? signatureSchemes,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final local = localCid ?? c.randomBytes(quicShortDcidBytes);
@@ -128,6 +137,10 @@ final class PqQuicConn {
           maxStreamData: recvMaxStreamData ?? maxStreamData,
           maxIdleTimeoutMs: idleTimeout?.inMilliseconds ?? 0,
         ),
+        certificateTypes: certificateTypes,
+        trustAnchors: trustAnchors,
+        serverName: serverName,
+        signatureSchemes: signatureSchemes,
       ),
       deliver: deliver,
       clock: clock,
@@ -321,7 +334,6 @@ final class PqQuicConn {
   var _sawHandshakeDone = false;
   var _handshakeDoneSent = false;
   var _handshakeDiscarded = false;
-  var _clientInitialExpanded = false;
   var _earlyAbandoned = false;
   var _streamsConfirmed = false;
   var _peerMaxBidi = 0;
@@ -339,7 +351,15 @@ final class PqQuicConn {
   var _openedBidi = 0;
   var _openedUni = 0;
   Uint8List? _retryToken;
-  final Uint8List _originalDcid;
+  Uint8List? _retrySourceCid;
+  var _retryAccepted = false;
+  var _sawServerInitial = false;
+  Uint8List? _clientInitialCrypto;
+  final QuicCryptoStream _postHandshake = QuicCryptoStream();
+  Uint8List _postPartial = Uint8List(0);
+  Uint8List _originalDcid;
+  Uint8List _peerInitialSource;
+  var _learnedPeerScid = false;
   Future<void> _inFlight = Future<void>.value();
   Completer<void>? _waiter;
   PqTransportError? _error;
@@ -536,46 +556,78 @@ final class PqQuicConn {
     final codec = _zeroSeal;
     if (data == null || codec == null) return const Result.success(null);
     _earlyPayload = null;
-    final frame = QuicRetransmitFrame(
-      space: QuicPacketNumberSpace.application,
-      token: '0rtt:$_earlyStreamId',
-      bytes: QuicStreamFrame(
-        id: _earlyStreamId,
-        offset: 0,
-        data: data,
-      ).encode(),
-    );
-    final pn = lossRecovery.peekPacketNumber(QuicPacketNumberSpace.application);
-    final sealed = codec.protect(
-      dcid: _dcid,
-      scid: localCid,
-      packetNumber: pn,
-      payload: frame.encode(),
-    );
-    if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
-    final packet = sealed.valueOrNull!;
-    final committed = lossRecovery.allocatePacketNumber(
-      QuicPacketNumberSpace.application,
-    );
-    if (committed != pn) {
+    final room =
+        lossRecovery.maxDatagramSize - _longHeaderOverhead(initial: false);
+    if (room < 1) {
       return Result.failure(
-        PqTransportError.internalError('packet number changed'),
+        PqTransportError.internalError('quic datagram payload'),
       );
     }
-    final recorded = lossRecovery.onPacketSent(
-      space: QuicPacketNumberSpace.application,
-      packetNumber: pn,
-      sentBytes: packet.length,
-      ackEliciting: true,
-      inFlight: true,
-      frames: [frame],
-      appLimited: true,
-    );
-    if (recorded.isFailure) return Result.failure(recorded.errorOrNull!);
-    if (_connMachine.currentState == QuicConnectionState.handshake) {
-      _connMachine.trigger(QuicConnectionEvent.early);
+    var offset = 0;
+    while (offset < data.length) {
+      final n = _fitPayload(
+        fixed: 1 + quicVarintLength(_earlyStreamId) + quicVarintLength(offset),
+        available: data.length - offset,
+        room: room,
+      );
+      if (n == null || n < 1) {
+        return Result.failure(
+          PqTransportError.internalError('quic early data does not fit'),
+        );
+      }
+      final chunk = slice(data, offset, offset + n);
+      final frame = QuicRetransmitFrame(
+        space: QuicPacketNumberSpace.application,
+        token: '0rtt:$_earlyStreamId:$offset:${chunk.length}',
+        bytes: QuicStreamFrame(
+          id: _earlyStreamId,
+          offset: offset,
+          data: chunk,
+        ).encode(),
+      );
+      final pn = lossRecovery.peekPacketNumber(
+        QuicPacketNumberSpace.application,
+      );
+      final sealed = codec.protect(
+        dcid: _dcid,
+        scid: localCid,
+        packetNumber: pn,
+        payload: frame.encode(),
+      );
+      if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
+      final packet = sealed.valueOrNull!;
+      if (packet.length > lossRecovery.maxDatagramSize) {
+        return Result.failure(
+          PqTransportError.internalError('quic datagram exceeds path maximum'),
+        );
+      }
+      final committed = lossRecovery.allocatePacketNumber(
+        QuicPacketNumberSpace.application,
+      );
+      if (committed != pn) {
+        return Result.failure(
+          PqTransportError.internalError('packet number changed'),
+        );
+      }
+      final recorded = lossRecovery.onPacketSent(
+        space: QuicPacketNumberSpace.application,
+        packetNumber: pn,
+        sentBytes: packet.length,
+        ackEliciting: true,
+        inFlight: true,
+        frames: [frame],
+        appLimited: true,
+      );
+      if (recorded.isFailure) return Result.failure(recorded.errorOrNull!);
+      if (_connMachine.currentState == QuicConnectionState.handshake) {
+        _connMachine.trigger(QuicConnectionEvent.early);
+      }
+      _bytesSent += packet.length;
+      final emitted = await _emit(packet);
+      if (emitted.isFailure) return emitted;
+      offset += n;
     }
-    return _emit(packet);
+    return const Result.success(null);
   }
 
   Result<QuicResumptionTicket, PqTransportError> _ticketFrom(
@@ -1005,6 +1057,16 @@ final class PqQuicConn {
         );
       }
     }
+    if (!isClient &&
+        wire.length < quicMinClientInitialUdpBytes &&
+        (wire[0] & 0xF0) == 0xC0 &&
+        (wire.length < 5 || readUint32(wire, 1) == quicVersion1)) {
+      // RFC 9000 §14.1. A server discards an Initial carried in a UDP
+      // datagram smaller than 1200 bytes. The bytes still count toward
+      // anti-amplification (RFC 9000 §8.1).
+      _bytesReceived += wire.length;
+      return const Result.success(null);
+    }
     final split = splitQuicDatagram(wire);
     if (split.isFailure) return Result.failure(split.errorOrNull!);
     _bytesReceived += wire.length;
@@ -1036,6 +1098,9 @@ final class PqQuicConn {
 
   Future<Result<void, PqTransportError>> _ingestOne(Uint8List wire) async {
     final type = wire[0] & 0xF0;
+    if (type == 0xC0 || type == 0xD0 || type == 0xE0) {
+      _learnPeerCid(wire);
+    }
     if (type == 0xF0) return _ingestRetry(wire);
     if (type == 0xD0) {
       _installEarlyKeys();
@@ -1084,6 +1149,10 @@ final class PqQuicConn {
     if (!isClient || _tls.isComplete) {
       return Result.failure(PqTransportError.decodeFailure('unexpected retry'));
     }
+    // RFC 9000 §17.2.5.3. One Retry, and none after a server Initial.
+    if (_retryAccepted || _sawServerInitial) {
+      return const Result.success(null);
+    }
     if (!quicRetryTagValid(
       crypto: crypto,
       originalDestinationConnectionId: _originalDcid,
@@ -1095,18 +1164,36 @@ final class PqQuicConn {
     if (parsed == null) {
       return Result.failure(PqTransportError.decodeFailure('retry'));
     }
+    // A zero-length Retry Source Connection ID is discarded, not fatal.
+    if (parsed.sourceConnectionId.isEmpty) {
+      return const Result.success(null);
+    }
+    final hello = _clientInitialCrypto;
+    if (hello == null) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('retry before client hello'),
+      );
+    }
+    _retryAccepted = true;
     _retryToken = parsed.token;
-    _dcid = parsed.sourceConnectionId;
-    _rebindInitial(parsed.sourceConnectionId);
-    _outCrypto.remove(QuicPacketNumberSpace.initial);
+    _retrySourceCid = Uint8List.fromList(parsed.sourceConnectionId);
+    _dcid = Uint8List.fromList(parsed.sourceConnectionId);
+    _rebindInitial(_dcid);
+    _earlyAbandoned = true;
+    lossRecovery.abandonFrames((token) => token.startsWith('0rtt:'));
+    _pending.removeWhere((frame) => frame.token.startsWith('0rtt:'));
     _pending.removeWhere(
       (frame) => frame.space == QuicPacketNumberSpace.initial,
     );
-    final frames = await _tls.start();
-    if (frames.isFailure) return Result.failure(frames.errorOrNull!);
-    for (final frame in frames.valueOrNull!) {
-      _queueCrypto(frame.data);
-    }
+    lossRecovery.resetAfterRetry();
+    final received = _received[QuicPacketNumberSpace.initial]!;
+    received.received.clear();
+    received.inFlight.clear();
+    _wantAck[QuicPacketNumberSpace.initial] = false;
+    _inCrypto[QuicPacketNumberSpace.initial] = QuicCryptoStream();
+    _outCrypto.remove(QuicPacketNumberSpace.initial);
+    // Same ClientHello. A second startHandshake is not a Retry.
+    _queueCrypto(hello, rememberInitial: false);
     return _flush();
   }
 
@@ -1120,7 +1207,7 @@ final class PqQuicConn {
     if (end < off + dcidLen + 1) return null;
     off += dcidLen;
     final scidLen = packet[off++];
-    if (scidLen < 1 || end < off + scidLen) return null;
+    if (scidLen > quicMaxConnectionIdBytes || end < off + scidLen) return null;
     final scid = slice(packet, off, off + scidLen);
     off += scidLen;
     return (sourceConnectionId: scid, token: slice(packet, off, end));
@@ -1133,6 +1220,63 @@ final class PqQuicConn {
     );
     _initialSeal = QuicInitialCodec(crypto: crypto, keys: secrets.client);
     _initialOpen = QuicInitialCodec(crypto: crypto, keys: secrets.server);
+  }
+
+  /// RFC 9000 §7.2. The first long header from the peer carries the CID
+  /// that later packets use. A server also derives Initial secrets from
+  /// the DCID the client actually chose.
+  void _learnPeerCid(Uint8List packet) {
+    if (_learnedPeerScid) return;
+    final scid = _headerCid(packet, source: true);
+    final dcid = _headerCid(packet, source: false);
+    if (scid == null || dcid == null) return;
+    _learnedPeerScid = true;
+    _peerInitialSource = Uint8List.fromList(scid);
+    _dcid = Uint8List.fromList(scid);
+    if (isClient) return;
+    _originalDcid = Uint8List.fromList(dcid);
+    final secrets = QuicInitialSecrets.derive(
+      crypto: crypto,
+      destinationConnectionId: dcid,
+    );
+    _initialSeal = QuicInitialCodec(crypto: crypto, keys: secrets.server);
+    _initialOpen = QuicInitialCodec(crypto: crypto, keys: secrets.client);
+    _tls.setTransportParameters(
+      QuicTransportParameters(
+        originalDestinationConnectionId: _originalDcid,
+        statelessResetToken: _statelessResetToken,
+        maxIdleTimeout: idleTimeout?.inMilliseconds ?? 0,
+        initialMaxData: _flow.localMaxData,
+        initialMaxStreamDataBidiLocal: _flow.localStreamMax(0),
+        initialMaxStreamDataBidiRemote: _flow.localStreamMax(0),
+        initialMaxStreamDataUni: _flow.localStreamMax(0),
+        initialMaxStreamsBidi: _localMaxBidi,
+        initialMaxStreamsUni: _localMaxUni,
+        activeConnectionIdLimit: 4,
+        initialSourceConnectionId: localCid,
+      ).encode(),
+    );
+  }
+
+  Uint8List? _headerCid(Uint8List packet, {required bool source}) {
+    if (packet.length < 7 || (packet[0] & 0x80) == 0) return null;
+    if (readUint32(packet, 1) != quicVersion1) return null;
+    var off = 5;
+    if (packet.length < off + 1) return null;
+    final dcidLen = packet[off];
+    off++;
+    if (dcidLen > quicMaxConnectionIdBytes || packet.length < off + dcidLen) {
+      return null;
+    }
+    if (!source) return slice(packet, off, off + dcidLen);
+    off += dcidLen;
+    if (packet.length < off + 1) return null;
+    final scidLen = packet[off];
+    off++;
+    if (scidLen > quicMaxConnectionIdBytes || packet.length < off + scidLen) {
+      return null;
+    }
+    return slice(packet, off, off + scidLen);
   }
 
   Future<Result<void, PqTransportError>> _ingestApp(Uint8List wire) async {
@@ -1160,6 +1304,9 @@ final class PqQuicConn {
     required Uint8List payload,
     bool early = false,
   }) async {
+    if (isClient && space == QuicPacketNumberSpace.initial) {
+      _sawServerInitial = true;
+    }
     final parsed = decodeQuicPayload(payload);
     if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
     final body = parsed.valueOrNull!;
@@ -1178,9 +1325,30 @@ final class PqQuicConn {
       }
       for (final frame in body.crypto) {
         if (isComplete && space == QuicPacketNumberSpace.application) {
-          final ticket = _ticketFrom(frame.data);
-          if (ticket.isFailure) return Result.failure(ticket.errorOrNull!);
-          receivedTicket = ticket.valueOrNull;
+          final added = _postHandshake.add(frame);
+          if (added.isFailure) return Result.failure(added.errorOrNull!);
+          final available = _postHandshake.takeAvailable();
+          if (available.isNotEmpty) {
+            _postPartial = concatBytes([_postPartial, available]);
+          }
+          while (_postPartial.length >= tlsHandshakeHeaderBytes) {
+            final wire = tlsHandshakeHeaderBytes + readUint24(_postPartial, 1);
+            if (wire < tlsHandshakeHeaderBytes || _postPartial.length < wire) {
+              break;
+            }
+            final message = slice(_postPartial, 0, wire);
+            _postPartial = slice(_postPartial, wire, _postPartial.length);
+            if (message[0] != tlsHsNewSessionTicket) {
+              return Result.failure(
+                PqTransportError.unexpectedMessage(
+                  'post-handshake ${message[0]}',
+                ),
+              );
+            }
+            final ticket = _ticketFrom(message);
+            if (ticket.isFailure) return Result.failure(ticket.errorOrNull!);
+            receivedTicket = ticket.valueOrNull;
+          }
           continue;
         }
         final inbound = _inCrypto[space];
@@ -1415,19 +1583,25 @@ final class PqQuicConn {
   }
 
   List<QuicRetransmittable> _batchFor(QuicPacketNumberSpace space) {
+    final budget = _payloadBudget(space);
+    if (budget <= 0) return const [];
     final batch = <QuicRetransmittable>[];
-    var bytes = 0;
-    for (final frame in _pending) {
+    var used = 0;
+    for (var i = 0; i < _pending.length; i++) {
+      final frame = _pending[i];
       if (frame.space != space) continue;
       final size = frame.encode().length;
-      final cap = space == QuicPacketNumberSpace.application;
-      if (cap &&
-          batch.isNotEmpty &&
-          bytes + size > lossRecovery.maxDatagramPayload) {
-        break;
+      if (used + size <= budget) {
+        batch.add(frame);
+        used += size;
+        continue;
       }
-      batch.add(frame);
-      bytes += size;
+      final split = _splitToFit(frame, budget - used);
+      if (split == null || split.rest == null) break;
+      _pending[i] = split.head;
+      _pending.insert(i + 1, split.rest!);
+      batch.add(split.head);
+      break;
     }
     return batch;
   }
@@ -1461,33 +1635,16 @@ final class PqQuicConn {
       _wantAck[space] = false;
       return const Result.success(true);
     }
-    if (pad && !_clientInitialExpanded) {
+    if (pad) {
       final target = quicClientInitialPayloadBytes(
         dcidLength: _dcid.length,
         scidLength: localCid.length,
         payloadLength: body.length,
-        datagramBytes: quicAntiAmplificationInitialBytes,
+        tokenLength: _retryToken?.length ?? 0,
       );
       if (body.length < target) {
         body = concatBytes([body, Uint8List(target - body.length)]);
       }
-    } else if (pad) {
-      final target = quicClientInitialPayloadBytes(
-        dcidLength: _dcid.length,
-        scidLength: localCid.length,
-        payloadLength: body.length,
-      );
-      if (body.length < target) {
-        body = concatBytes([body, Uint8List(target - body.length)]);
-      }
-    }
-    if (space == QuicPacketNumberSpace.handshake &&
-        isClient &&
-        body.length < quicMinClientInitialUdpBytes) {
-      body = concatBytes([
-        body,
-        Uint8List(quicMinClientInitialUdpBytes - body.length),
-      ]);
     }
     if (space == QuicPacketNumberSpace.application) {
       _ensureAppKeys();
@@ -1523,6 +1680,11 @@ final class PqQuicConn {
     }
     if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
     final packet = sealed.valueOrNull!;
+    if (packet.length > lossRecovery.maxDatagramSize) {
+      return Result.failure(
+        PqTransportError.internalError('quic datagram exceeds path maximum'),
+      );
+    }
     if (!lossRecovery.canSend(
       packet.length,
       probe: ignoreWindow,
@@ -1563,7 +1725,6 @@ final class PqQuicConn {
       return Result.failure(recorded.errorOrNull!);
     }
     if (includeAck) _wantAck[space] = false;
-    if (pad && !_clientInitialExpanded) _clientInitialExpanded = true;
     if (space == QuicPacketNumberSpace.application &&
         _keyUpdateUnconfirmed &&
         _keyUpdateAt == null) {
@@ -1590,7 +1751,136 @@ final class PqQuicConn {
     _coalesce = null;
     if (parts == null || parts.isEmpty) return const Result.success(null);
     parts.sort((a, b) => _packetRank(a).compareTo(_packetRank(b)));
-    return _deliverDatagram(concatBytes(parts));
+    final limit = lossRecovery.maxDatagramSize;
+    final datagram = <Uint8List>[];
+    var used = 0;
+    for (final packet in parts) {
+      // A client Initial is already padded to 1200. Nothing else may
+      // share that datagram (RFC 9000 §14).
+      final initialFull =
+          datagram.isNotEmpty &&
+          (datagram.first[0] & 0xF0) == 0xC0 &&
+          used >= quicMinClientInitialUdpBytes;
+      if (datagram.isNotEmpty &&
+          (used + packet.length > limit || initialFull)) {
+        final sent = await _deliverDatagram(concatBytes(datagram));
+        if (sent.isFailure) return sent;
+        datagram.clear();
+        used = 0;
+      }
+      datagram.add(packet);
+      used += packet.length;
+    }
+    if (datagram.isEmpty) return const Result.success(null);
+    return _deliverDatagram(concatBytes(datagram));
+  }
+
+  int _payloadBudget(QuicPacketNumberSpace space) {
+    var room = lossRecovery.maxDatagramSize - _headerOverhead(space);
+    if (_wantAck[space] == true) {
+      final ack = _received[space]!.pendingAck();
+      if (ack.isSuccess) room -= ack.valueOrNull!.encode().length;
+    }
+    return room > 0 ? room : 0;
+  }
+
+  int _headerOverhead(QuicPacketNumberSpace space) {
+    if (space == QuicPacketNumberSpace.application) {
+      return _shortHeaderOverhead();
+    }
+    return _longHeaderOverhead(initial: space == QuicPacketNumberSpace.initial);
+  }
+
+  int _shortHeaderOverhead() =>
+      1 + _dcid.length + quicPacketNumberMaxBytes + aeadTagBytes;
+
+  /// Long-header overhead for a packet that fills [maxDatagramSize].
+  /// The length field is 2 bytes: a full payload is far past 63.
+  int _longHeaderOverhead({required bool initial}) {
+    final tokenLen = initial ? (_retryToken?.length ?? 0) : 0;
+    final tokenField = initial ? quicVarintLength(tokenLen) + tokenLen : 0;
+    return 1 +
+        4 +
+        1 +
+        _dcid.length +
+        1 +
+        localCid.length +
+        tokenField +
+        2 +
+        quicPacketNumberMaxBytes +
+        aeadTagBytes;
+  }
+
+  ({QuicRetransmittable head, QuicRetransmittable? rest})? _splitToFit(
+    QuicRetransmittable frame,
+    int room,
+  ) {
+    if (room <= 0) return null;
+    if (frame is QuicRetransmitCrypto) {
+      if (frame.data.isEmpty) return null;
+      final n = _fitPayload(
+        fixed: 1 + quicVarintLength(frame.offset),
+        available: frame.data.length,
+        room: room,
+      );
+      if (n == null) return null;
+      if (n >= frame.data.length) return (head: frame, rest: null);
+      return (
+        head: QuicRetransmitCrypto(
+          space: frame.space,
+          offset: frame.offset,
+          data: slice(frame.data, 0, n),
+        ),
+        rest: QuicRetransmitCrypto(
+          space: frame.space,
+          offset: frame.offset + n,
+          data: slice(frame.data, n, frame.data.length),
+        ),
+      );
+    }
+    if (frame is QuicRetransmitStream) {
+      if (frame.data.isEmpty) return null;
+      final n = _fitPayload(
+        fixed:
+            1 +
+            quicVarintLength(frame.streamId) +
+            quicVarintLength(frame.offset),
+        available: frame.data.length,
+        room: room,
+      );
+      if (n == null) return null;
+      if (n >= frame.data.length) return (head: frame, rest: null);
+      return (
+        head: QuicRetransmitStream(
+          streamId: frame.streamId,
+          offset: frame.offset,
+          data: slice(frame.data, 0, n),
+          fin: false,
+        ),
+        rest: QuicRetransmitStream(
+          streamId: frame.streamId,
+          offset: frame.offset + n,
+          data: slice(frame.data, n, frame.data.length),
+          fin: frame.fin,
+        ),
+      );
+    }
+    return null;
+  }
+
+  int? _fitPayload({
+    required int fixed,
+    required int available,
+    required int room,
+  }) {
+    var n = available > room ? room : available;
+    while (n > 0) {
+      final size = fixed + quicVarintLength(n) + n;
+      if (size <= room) return n;
+      final over = size - room;
+      n -= over > 0 ? over : 1;
+    }
+    return null;
   }
 
   int _packetRank(Uint8List packet) {
@@ -1679,12 +1969,18 @@ final class PqQuicConn {
       quicKeysFromTls(schedule: schedule, trafficSecret: _appRecvSecret!),
       aead: schedule.aead,
       keyPhase: _recvKeyPhase,
+      dcidLength: localCid.length,
     );
   }
 
-  void _queueCrypto(Uint8List data) {
+  void _queueCrypto(Uint8List data, {bool rememberInitial = true}) {
     if (data.isEmpty) return;
     final space = _cryptoSpace(data);
+    if (rememberInitial && isClient && space == QuicPacketNumberSpace.initial) {
+      final prior = _clientInitialCrypto;
+      final copy = Uint8List.fromList(data);
+      _clientInitialCrypto = prior == null ? copy : concatBytes([prior, copy]);
+    }
     final offset = _outCrypto[space] ?? 0;
     _outCrypto[space] = offset + data.length;
     _pending.add(
@@ -1738,8 +2034,9 @@ final class PqQuicConn {
     final params = decoded.valueOrNull!;
     final checked = params.check(
       peerIsServer: isClient,
-      expectedInitialSource: peerCid,
+      expectedInitialSource: _peerInitialSource,
       expectedOriginalDestination: isClient ? _originalDcid : null,
+      expectedRetrySource: isClient ? _retrySourceCid : null,
     );
     if (checked.isFailure) return checked;
     _flow.adoptPeerInitial(
@@ -1797,6 +2094,7 @@ final class PqQuicConn {
       quicKeysFromTls(schedule: schedule, trafficSecret: nextSecret),
       aead: schedule.aead,
       keyPhase: !_recvKeyPhase,
+      dcidLength: localCid.length,
     );
     final opened = codec.open(wire);
     if (opened.isFailure) return null;

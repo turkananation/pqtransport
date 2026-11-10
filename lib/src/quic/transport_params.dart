@@ -310,8 +310,8 @@ final class QuicTransportParameters {
 }
 
 /// Parameters this endpoint sends. A server's original destination CID is
-/// the DCID on the client's first Initial, which this stack sets to the
-/// server's source CID.
+/// the DCID on the client's first Initial. It is not the server's source CID
+/// unless the client chose that value, which only the in-memory pair does.
 Uint8List quicEndpointParameters({
   required bool server,
   required Uint8List localCid,

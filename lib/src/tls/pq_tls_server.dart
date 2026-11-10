@@ -212,7 +212,7 @@ final class PqTlsServer {
   final QuicEarlyDataStore? earlyData;
 
   /// Local transport parameters, sent in EncryptedExtensions.
-  final Uint8List? quicTransportParameters;
+  Uint8List? quicTransportParameters;
 
   /// Client's transport parameters, from ClientHello.
   Uint8List? peerQuicTransportParameters;

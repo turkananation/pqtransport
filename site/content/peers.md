@@ -1,6 +1,6 @@
 ---
 title: Peers
-description: What OpenSSL, BoringSSL, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.0.
+description: What OpenSSL, BoringSSL, quiche, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.0.
 ---
 
 These are the peers CI runs. None of them is a browser, and none of
@@ -9,13 +9,14 @@ run builds the peer. Later runs reuse `.build/`.
 
 | Peer | What finished | Run |
 | --- | --- | --- |
-| OpenSSL 3.5.9 | X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024, both directions. Raw public key and an ML-DSA-65 X.509 chain of 1, plus one chain of 2. Also X25519, secp256r1, secp384r1, and ML-KEM-1024. | `bash tool/interop/openssl/run.sh` |
+| OpenSSL 3.5.9 | TLS both directions on X25519MLKEM768, SecP256r1MLKEM768, and SecP384r1MLKEM1024, plus the classical reverse rows. Raw public key and an ML-DSA-65 X.509 chain of 1, plus one chain of 2. QUIC both ways: `s_client -quic` and `demos/quic/server`. Not HTTP/3. | `bash tool/interop/openssl/run.sh` |
 | curl, linked to that OpenSSL | Two HTTP/1.1 GETs with `--cacert`. One against `s_server`, one against `PqTlsSocket`. | The same script. |
-| BoringSSL 0.20261020.0 | X25519MLKEM768 both directions. Also X25519, secp256r1, secp384r1, and ML-KEM-1024. Not the two NIST hybrid groups. One ECH flight, both directions. A wrong CA is rejected. | `bash tool/interop/boringssl/run.sh` |
+| BoringSSL 0.20261020.0 | TLS client, server, and classical reverse. X25519MLKEM768 both directions. Also X25519, secp256r1, secp384r1, and ML-KEM-1024. Not the two NIST hybrid groups. One ECH flight, both directions. A wrong CA is rejected. Not QUIC: this `bssl` has no QUIC transport. | `bash tool/interop/boringssl/run.sh` |
+| quiche 0.30.0, linked to that BoringSSL | QUICv1 handshake both ways. X25519MLKEM768, `TLS_AES_256_GCM_SHA384`, ALPN `h3`, ML-DSA-65. The quiche client checks the certificate. Not HTTP/3. | `bash tool/interop/quiche/run.sh` |
 | nghttp2, through curl | Cleartext HTTP/2 DoH POST and GET. RFC 9113 preface, SETTINGS, HEADERS, DATA, and this package's HPACK. | `bash tool/interop/nghttp2-curl/run.sh` |
 | nghttp3 1.11.0 | One QPACK field section, both directions, including the DoH static-table request. | `bash tool/interop/nghttp3-qpack/run.sh` |
 
-All five:
+All of them:
 
 ```bash
 bash tool/interop/run_all.sh
@@ -28,10 +29,17 @@ handshake is not. Production DoH over our TLS is `DohClient.h2` or
 `DohClient.h3` after ALPN, which the [Cookbook](cookbook) shows.
 
 BoringSSL does not complete SecP256r1MLKEM768 or SecP384r1MLKEM1024.
-ECH has no OpenSSL flight. There is no `curl --http3`. QUIC 0-RTT
-is sent to this stack only: a long header beside the Initial and
-the 1-RTT short header. A third-party HTTP/3 client has not completed
-that path. Early data is replayable.
+ECH has no OpenSSL flight. There is no `curl --http3`. OpenSSL 3.5.9
+`s_client -quic` does complete a QUICv1 handshake and verifies an
+ML-DSA-65 localhost certificate. The reverse also completes:
+`PqQuicConn.client` against OpenSSL `demos/quic/server`, ALPN
+`ossltest`, after Retry, with that certificate checked. quiche
+0.30.0, linked to BoringSSL 0.20261020.0, also completes a QUICv1
+handshake both ways on X25519MLKEM768 with an ML-DSA-65 certificate
+checked. None of these QUIC flights is HTTP/3. QUIC 0-RTT is sent to this stack only:
+a long header beside the Initial and the 1-RTT short header. A
+third-party HTTP/3 client has not completed that path. Early data is
+replayable.
 
 ## Groups the TLS peers selected
 

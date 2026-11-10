@@ -831,6 +831,7 @@ final class QuicPacketCodec {
     required this.hpKey,
     this.aead = TransportAead.aes256Gcm,
     this.keyPhase = false,
+    this.dcidLength = quicShortDcidBytes,
   });
 
   final PqTransportCrypto crypto;
@@ -842,6 +843,9 @@ final class QuicPacketCodec {
   /// RFC 9001 §6. The short-header key phase bit.
   final bool keyPhase;
 
+  /// DCID length on packets this codec opens. Short headers omit it.
+  final int dcidLength;
+
   static const pnLength = 4;
 
   factory QuicPacketCodec.fromKeys(
@@ -849,6 +853,7 @@ final class QuicPacketCodec {
     QuicPacketKeys keys, {
     TransportAead aead = TransportAead.aes256Gcm,
     bool keyPhase = false,
+    int dcidLength = quicShortDcidBytes,
   }) => QuicPacketCodec(
     crypto: crypto,
     key: keys.key,
@@ -856,6 +861,7 @@ final class QuicPacketCodec {
     hpKey: keys.hp,
     aead: aead,
     keyPhase: keyPhase,
+    dcidLength: dcidLength,
   );
 
   Result<Uint8List, PqTransportError> protect({
@@ -868,7 +874,7 @@ final class QuicPacketCodec {
         packetNumberLength > quicPacketNumberMaxBytes) {
       return Result.failure(PqTransportError.decodeFailure('pn length'));
     }
-    if (dcid.length != quicShortDcidBytes) {
+    if (dcid.length > quicMaxConnectionIdBytes) {
       return Result.failure(PqTransportError.decodeFailure('dcid'));
     }
     final nonce = quicAeadNonce(iv, packetNumber);
@@ -885,7 +891,7 @@ final class QuicPacketCodec {
       aead: aead,
     );
     final packet = concatBytes([hdr, body]);
-    final pnOff = 1 + quicShortDcidBytes;
+    final pnOff = 1 + dcid.length;
     if (!quicHeaderProtectionSampleFits(packet.length, pnOff)) {
       return Result.failure(PqTransportError.decodeFailure('hp sample'));
     }
@@ -911,19 +917,15 @@ final class QuicPacketCodec {
     PqTransportError
   >
   open(Uint8List wire) {
-    const minLen =
-        1 +
-        quicShortDcidBytes +
-        quicPacketNumberMaxBytes +
-        quicHeaderProtectionSampleBytes;
-    if (wire.length < minLen) {
+    const minTail = quicPacketNumberMaxBytes + quicHeaderProtectionSampleBytes;
+    if (wire.length < 1 + dcidLength + minTail) {
       return Result.failure(PqTransportError.decodeFailure('short quic'));
     }
     final packet = Uint8List.fromList(wire);
     if ((packet[0] & 0x80) != 0) {
       return Result.failure(PqTransportError.decodeFailure('not short header'));
     }
-    final pnOff = 1 + quicShortDcidBytes;
+    final pnOff = 1 + dcidLength;
     if (!quicHeaderProtectionSampleFits(packet.length, pnOff)) {
       return Result.failure(PqTransportError.decodeFailure('hp sample'));
     }

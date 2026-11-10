@@ -438,10 +438,6 @@ const int quicMaxConnectionIdBytes = 20;
 /// RFC 9000 §14.1: UDP datagrams carrying client Initial packets.
 const int quicMinClientInitialUdpBytes = 1200;
 
-/// Client Initial datagram size. Three times this covers one raw ML-DSA
-/// server flight under the anti-amplification limit (RFC 9000 §8.1).
-const int quicAntiAmplificationInitialBytes = 8192;
-
 /// RFC 9000 §18.2. Absent `active_connection_id_limit` means 2.
 const int quicActiveConnectionIdLimitDefault = 2;
 
@@ -685,14 +681,24 @@ int quicVarintLength(int value) {
 /// Padding is applied to the UDP datagram, not by inflating the frame
 /// payload to 1200 and then adding the long header on top. [payloadLength]
 /// is what the packet already carries; the return value is never smaller.
-/// An empty token is assumed. The length field's own size is included.
+/// [tokenLength] is the Retry token, or zero when there is none. The
+/// length field's own size is included.
 int quicClientInitialPayloadBytes({
   required int dcidLength,
   required int scidLength,
   required int payloadLength,
   int datagramBytes = quicMinClientInitialUdpBytes,
+  int tokenLength = 0,
 }) {
-  final prefix = 1 + 4 + 1 + dcidLength + 1 + scidLength + 1;
+  final prefix =
+      1 +
+      4 +
+      1 +
+      dcidLength +
+      1 +
+      scidLength +
+      quicVarintLength(tokenLength) +
+      tokenLength;
   var payload = payloadLength < 0 ? 0 : payloadLength;
   final target = datagramBytes < quicMinClientInitialUdpBytes
       ? quicMinClientInitialUdpBytes

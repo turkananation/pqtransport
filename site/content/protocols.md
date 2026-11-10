@@ -114,9 +114,12 @@ in the [Cookbook](cookbook#mdns). The program is
 use the TLS handshake traffic secrets. ClientHello and ServerHello stay
 in Initial. Transport parameters ride in ClientHello and
 EncryptedExtensions. CRYPTO frames carry a live TLS handshake (RFC 9001,
-no TLS records). This QUIC is self-interop across those spaces. It is
-not a third-party stack and not `curl --http3`. HTTP/1.1, HTTP/2, and
-HTTP/3 remain self-interop slices. The gap list is `TODO.md`.
+no TLS records). OpenSSL 3.5.9 `s_client -quic` completes a QUICv1
+handshake and verifies an ML-DSA-65 localhost certificate.
+`PqQuicConn.client` completes against OpenSSL `demos/quic/server`
+(Retry, ALPN `ossltest`, that certificate checked). It is not
+`curl --http3`. HTTP/1.1, HTTP/2, and HTTP/3 remain self-interop slices.
+The gap list is `TODO.md`.
 
 HTTP/1.1 is one request and one response. HTTP/2 enforces connection and
 stream windows, the four SETTINGS limits, stream states, GOAWAY,

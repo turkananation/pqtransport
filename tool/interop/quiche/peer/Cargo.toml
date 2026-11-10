@@ -1,0 +1,12 @@
+[package]
+name = "quiche_peer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# The same major quiche's boringssl-boring-crate feature resolves.
+# 5.x exposes ML-DSA signature-algorithm constants. 4.x does not.
+boring = "5.3"
+boring-sys = "5.3"
+quiche = { path = "../.build/src/quiche/quiche", default-features = true }

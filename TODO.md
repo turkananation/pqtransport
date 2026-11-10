@@ -1,10 +1,10 @@
 # RFC completion TODO
 
-Branch: `feat/quic-0rtt-slh`. One pull request. Five commits, one per
-numbered section, pushed only after that section's tests are green.
+Branch: `feat/quic-0rtt-slh`. One pull request.
 
-The bar is the RFC text, a failing-closed test, and claim text that
-does not call a slice a complete protocol. Issues 50 and 55 stay out
+The bar is another implementation on the wire. An in-memory pair is a
+unit test, not completion. No classical fallback, no private header,
+no pre-shared connection ID. QUIC included. Issues 50 and 55 stay out
 of this list.
 
 ## 0. Stop the false Done
@@ -37,9 +37,11 @@ of this list.
 - [x] Q9. Connection IDs up to the active limit. Retire on request.
 - [x] Q10. Retry with the RFC 9001 integrity tag, Version Negotiation,
   stateless reset. Not forced on every handshake.
-- [x] Q11. Anti-amplification: three times the bytes received until the
-  client address is validated. The client Initial is large enough that
-  an ML-DSA flight fits under that budget.
+- [x] Q11. Anti-amplification: three times the bytes received until a
+  Handshake packet validates the client address (RFC 9000 §8.1).
+  Datagrams stay at or below 1200 bytes until the path is known
+  (RFC 9000 §14). Every client Initial datagram is padded to 1200.
+  The server discards an Initial carried in a smaller datagram.
 - [x] Q12. One QUIC key update. A second update before confirmation fails.
 - [x] Q13. PATH_CHALLENGE is answered on the same path. Migration waits
   for a matching PATH_RESPONSE.
@@ -49,6 +51,18 @@ of this list.
   writeEarly refuses bytes past them.
 - [x] Q16. Tests for each frame, a coalesced datagram, Retry, key update,
   and path challenge. The existing suite still passes.
+
+OpenSSL 3.5.9 QUIC is a handshake flight in both directions, not a
+completed protocol. `s_client -quic` against `PqQuicConn.server`
+(ALPN `h3`). `PqQuicConn.client` against `demos/quic/server`
+(ALPN `ossltest`, Retry, ML-DSA-65 checked). Both run from
+`tool/interop/openssl/run.sh`. Not `curl --http3`. Not HTTP/3.
+BoringSSL 0.20261020.0 is the TLS client, server, and reverse in
+`tool/interop/boringssl/run.sh`. That `bssl` has no QUIC transport.
+quiche 0.30.0 (`fa0e480`), linked to that BoringSSL, is the QUIC
+handshake in both directions (`tool/interop/quiche/run.sh`).
+X25519MLKEM768, `TLS_AES_256_GCM_SHA384`, ALPN `h3`, ML-DSA-65 checked.
+Not `curl --http3`. Not HTTP/3.
 
 ## 2. HTTP/2 (RFC 9113, RFC 7541)
 
