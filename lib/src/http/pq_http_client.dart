@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import '../core/errors.dart';
 import '../core/lengths.dart';
 import '../quic/connection.dart';
 import '../tls/pq_tls_socket.dart';
+import 'http1.dart';
 import 'http2.dart';
 import 'http3.dart';
 
@@ -19,12 +21,19 @@ final class PqHttpRequest {
     required this.uri,
     this.headers = const {},
     this.body = const [],
+    this.trailers = const {},
+    this.protocol,
   });
 
   final String method;
   final Uri uri;
   final Map<String, String> headers;
   final List<int> body;
+  final Map<String, String> trailers;
+
+  /// RFC 8441 / RFC 9220 `:protocol` on an extended CONNECT.
+  /// Null is an ordinary request, or a classic CONNECT tunnel.
+  final String? protocol;
 }
 
 final class PqHttpResponse {
@@ -33,12 +42,14 @@ final class PqHttpResponse {
     required this.headers,
     required this.body,
     required this.version,
+    this.trailers = const {},
   });
 
   final int status;
   final Map<String, String> headers;
   final Uint8List body;
   final HttpVersion version;
+  final Map<String, String> trailers;
 }
 
 /// HTTP/1.1 request encoder / response parser.
@@ -61,50 +72,53 @@ Uint8List encodeHttp1Request(PqHttpRequest req) {
 }
 
 Result<PqHttpResponse, PqTransportError> decodeHttp1Response(Uint8List wire) {
-  final text = utf8.decode(wire, allowMalformed: true);
-  final split = text.split('\r\n\r\n');
-  if (split.length < 2) {
+  final parsed = tryParseHttp1Response(wire, closed: true);
+  if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
+  final message = parsed.valueOrNull!;
+  if (message.incomplete || message.response == null) {
     return Result.failure(PqTransportError.decodeFailure('http1 headers'));
   }
-  final lines = split[0].split('\r\n');
-  if (lines.isEmpty) {
-    return Result.failure(PqTransportError.decodeFailure('http1 status'));
-  }
-  final statusParts = lines.first.split(' ');
-  if (statusParts.length < 2) {
-    return Result.failure(PqTransportError.decodeFailure('http1 status line'));
-  }
-  final status = int.tryParse(statusParts[1]);
-  if (status == null) {
-    return Result.failure(PqTransportError.decodeFailure('http1 status int'));
-  }
-  final headers = <String, String>{};
-  for (final line in lines.skip(1)) {
-    final i = line.indexOf(':');
-    if (i <= 0) continue;
-    headers[line.substring(0, i).toLowerCase()] = line.substring(i + 1).trim();
-  }
-  final bodyText = split.sublist(1).join('\r\n\r\n');
-  return Result.success(
-    PqHttpResponse(
-      status: status,
-      headers: headers,
-      body: Uint8List.fromList(utf8.encode(bodyText)),
-      version: HttpVersion.h1,
-    ),
-  );
+  return Result.success(message.response!);
 }
 
 Uint8List encodeHttp1Response(PqHttpResponse resp) {
-  final b = StringBuffer();
-  b.write('HTTP/1.1 ${resp.status} OK\r\n');
-  resp.headers.forEach((k, v) => b.write('$k: $v\r\n'));
-  b.write('Content-Length: ${resp.body.length}\r\n');
-  b.write('\r\n');
-  return concatBytes([
-    Uint8List.fromList(utf8.encode(b.toString())),
-    resp.body,
-  ]);
+  final headers = <String, String>{};
+  resp.headers.forEach((key, value) {
+    final name = key.toLowerCase();
+    if (name == 'content-length' || name == 'transfer-encoding') return;
+    headers[name] = value;
+  });
+  final chunked = resp.headers.entries.any(
+    (entry) =>
+        entry.key.toLowerCase() == 'transfer-encoding' &&
+        entry.value.toLowerCase().split(',').last.trim() == 'chunked',
+  );
+  final b = BytesBuilder(copy: false);
+  void add(String text) => b.add(utf8.encode(text));
+  add('HTTP/1.1 ${resp.status} ${http1ReasonPhrase(resp.status)}\r\n');
+  headers.forEach((key, value) => add('$key: $value\r\n'));
+  if (chunked) {
+    add('transfer-encoding: chunked\r\n\r\n');
+    add('${resp.body.length.toRadixString(16)}\r\n');
+    b.add(resp.body);
+    add('\r\n0\r\n');
+    resp.trailers.forEach((key, value) => add('$key: $value\r\n'));
+    add('\r\n');
+    return b.takeBytes();
+  }
+  add('content-length: ${resp.body.length}\r\n\r\n');
+  b.add(resp.body);
+  return b.takeBytes();
+}
+
+Result<PqHttpRequest, PqTransportError> decodeHttp1Request(Uint8List wire) {
+  final parsed = tryParseHttp1Request(wire);
+  if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
+  final message = parsed.valueOrNull!;
+  if (message.incomplete || message.request == null) {
+    return Result.failure(PqTransportError.decodeFailure('http1 request'));
+  }
+  return Result.success(message.request!);
 }
 
 final class PqHttpClient {
@@ -208,16 +222,55 @@ final class PqHttpClient {
         PqTransportError.handshakeFailure('tls not complete'),
       );
     }
-    final pending = tls.applicationData.first;
+    final buf = BytesBuilder(copy: false);
+    final done = Completer<Result<PqHttpResponse, PqTransportError>>();
+    late final StreamSubscription<Uint8List> sub;
+    void consider(Uint8List raw, {required bool closed}) {
+      if (done.isCompleted) return;
+      final parsed = tryParseHttp1Response(raw, closed: closed);
+      if (parsed.isFailure) {
+        done.complete(Result.failure(parsed.errorOrNull!));
+        return;
+      }
+      final message = parsed.valueOrNull!;
+      if (!message.incomplete && message.response != null) {
+        done.complete(Result.success(message.response!));
+      } else if (closed) {
+        done.complete(
+          Result.failure(PqTransportError.decodeFailure('http1 headers')),
+        );
+      }
+    }
+
+    sub = tls.applicationData.listen(
+      (chunk) {
+        buf.add(chunk);
+        consider(buf.toBytes(), closed: false);
+      },
+      onDone: () => consider(buf.toBytes(), closed: true),
+      onError: (Object e) {
+        if (!done.isCompleted) {
+          done.complete(
+            Result.failure(
+              PqTransportError.decodeFailure('http1 wait ${e.runtimeType}'),
+            ),
+          );
+        }
+      },
+    );
     final sent = await tls.send(encodeHttp1Request(request));
-    if (sent.isFailure) return Result.failure(sent.errorOrNull!);
+    if (sent.isFailure) {
+      if (!done.isCompleted) {
+        done.complete(Result.failure(sent.errorOrNull!));
+      }
+      return done.future;
+    }
     try {
-      final raw = await pending.timeout(timeout);
-      return decodeHttp1Response(raw);
-    } on Object catch (e) {
-      return Result.failure(
-        PqTransportError.decodeFailure('http1 wait ${e.runtimeType}'),
-      );
+      return await done.future.timeout(timeout);
+    } on TimeoutException {
+      return Result.failure(PqTransportError.decodeFailure('http1 wait'));
+    } finally {
+      await sub.cancel();
     }
   }
 }

@@ -490,10 +490,9 @@ void main() {
       expect(loss.ptoCount, 0);
     });
 
-    test('LIM-05: 0-RTT is not a fourth packet number space', () {
-      // RFC 9000 §12.3: 0-RTT shares Application Data with 1-RTT.
-      // Issue 55 forbids sending it. The PTO rule in RFC 9002 §6.2.1
-      // is what this stack implements instead.
+    test('0-RTT shares the application packet number space', () {
+      // RFC 9000 §12.3. RFC 9002 §6.2.1 still disarms the PTO until
+      // the handshake is confirmed, including when 0-RTT was sent.
       expect(QuicPacketNumberSpace.values, [
         QuicPacketNumberSpace.initial,
         QuicPacketNumberSpace.handshake,
@@ -779,7 +778,7 @@ void main() {
         peerCid: serverCid,
         clock: clock,
         deliver: (packet) {
-          if ((packet[0] & 0x80) != 0) initialSizes.add(packet.length);
+          if ((packet[0] & 0xf0) == 0xc0) initialSizes.add(packet.length);
           return server.ingestDatagram(packet);
         },
       );
@@ -796,7 +795,7 @@ void main() {
       await _pump();
       expect(initialSizes, isNotEmpty);
       for (final size in initialSizes) {
-        expect(size, greaterThanOrEqualTo(quicMinClientInitialUdpBytes));
+        expect(size, quicMinClientInitialUdpBytes);
       }
     });
 
@@ -918,13 +917,14 @@ Future<_Link> _linked({
   final clientApp = <Uint8List>[];
   final appPackets = <int>[0];
   var dropNext = dropNextClientApp;
+  var armed = !dropNextClientApp && !dropAllClientApp;
   client = PqQuicConn.client(
     crypto: crypto,
     localCid: clientCid,
     peerCid: serverCid,
     clock: clock,
     deliver: (packet) {
-      if ((packet[0] & 0x80) == 0) {
+      if ((packet[0] & 0x80) == 0 && armed) {
         appPackets[0]++;
         clientApp.add(Uint8List.fromList(packet));
         if (dropAllClientApp || dropNext) {
@@ -948,5 +948,6 @@ Future<_Link> _linked({
   final hand = await client.handshake();
   expect(hand.isSuccess, isTrue, reason: '${hand.errorOrNull}');
   await _pump();
+  armed = true;
   return _Link(client, server, clientApp, appPackets);
 }

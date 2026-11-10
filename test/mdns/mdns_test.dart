@@ -60,6 +60,46 @@ void main() {
       ).isFailure,
       isTrue,
     );
+    expect(
+      signed.valueOrNull!.strings.any((s) => s.startsWith('pqslh=')),
+      isFalse,
+    );
+  });
+
+  test('SLH-DSA-SHA2-128f archival TXT verifies; mutation fails', () {
+    final crypto = PqTransportCrypto();
+    final kp = crypto.slhDsaSha2128fKeyGen();
+    final signed = signTxtArchival(
+      crypto: crypto,
+      secretKey: kp.secretKey,
+      name: 'svc.local.',
+      body: ['path=/', 'tls=1'],
+    );
+    expect(signed.isSuccess, isTrue, reason: '${signed.errorOrNull}');
+    expect(
+      signed.valueOrNull!.strings.any((s) => s.startsWith('pqsig=')),
+      isFalse,
+    );
+    expect(
+      verifyTxtArchival(
+        crypto: crypto,
+        publicKey: kp.publicKey,
+        txt: signed.valueOrNull!,
+      ).isSuccess,
+      isTrue,
+    );
+    final mutated = DnsTxt(
+      name: 'svc.local.',
+      strings: ['path=/changed', signed.valueOrNull!.strings.last],
+    );
+    expect(
+      verifyTxtArchival(
+        crypto: crypto,
+        publicKey: kp.publicKey,
+        txt: mutated,
+      ).isFailure,
+      isTrue,
+    );
   });
 
   test('OPEN-09 memory multicast delivers only to joined sockets', () async {

@@ -7,10 +7,12 @@ import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
+import '../tls/handshake.dart';
 import '../tls/key_schedule.dart';
 import '../tls/pq_tls_client.dart';
 import '../tls/pq_tls_server.dart';
 import '../tls/record.dart';
+import '../tls/resumption.dart';
 import '../tls/tls_state.dart';
 import 'packet.dart';
 
@@ -83,11 +85,24 @@ final class QuicTlsHandshake {
     PqTransportCrypto? crypto,
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
+    QuicResumptionTicket? ticket,
+    Uint8List? transportParameters,
+    List<TlsCertificateType>? certificateTypes,
+    List<Uint8List> trustAnchors = const [],
+    String? serverName,
+    List<int>? signatureSchemes,
   }) : _client = PqTlsClient(
          crypto: crypto,
          group: group,
          quic: true,
          alpnProtocols: alpnProtocols,
+         ticket: ticket,
+         quicTransportParameters: transportParameters,
+         certificateTypes:
+             certificateTypes ?? const [TlsCertificateType.rawPublicKey],
+         trustAnchors: trustAnchors,
+         serverName: serverName,
+         signatureSchemes: signatureSchemes,
        ),
        _server = null;
 
@@ -96,6 +111,8 @@ final class QuicTlsHandshake {
     HybridGroup group = HybridGroup.x25519MlKem768,
     PqTlsServerIdentity? identity,
     List<String>? alpnProtocols,
+    QuicEarlyDataStore? earlyData,
+    Uint8List? transportParameters,
   }) : _client = null,
        _server = PqTlsServer(
          crypto: crypto,
@@ -103,6 +120,8 @@ final class QuicTlsHandshake {
          identity: identity,
          quic: true,
          alpnProtocols: alpnProtocols,
+         earlyData: earlyData,
+         quicTransportParameters: transportParameters,
        );
 
   final PqTlsClient? _client;
@@ -117,6 +136,39 @@ final class QuicTlsHandshake {
       (_client?.isComplete ?? false) || (_server?.isComplete ?? false);
 
   String? get alpn => _client?.selectedAlpn ?? _server?.selectedAlpn;
+
+  Uint8List? get earlyTrafficSecret =>
+      _client?.earlyTrafficSecret ?? _server?.earlyTrafficSecret;
+
+  bool get earlyDataAccepted =>
+      (_client?.earlyDataAccepted ?? false) ||
+      (_server?.earlyDataAccepted ?? false);
+
+  bool get peerAuthenticated => _client?.peerAuthenticated ?? false;
+
+  /// X.509 leaf the client checked. Null on a server, or before
+  /// CertificateVerify.
+  String? get peerLeafAlgorithm => _client?.peerLeafAlgorithm;
+
+  String? get negotiatedGroupName =>
+      (_client?.negotiatedGroup ?? _server?.negotiatedGroup)?.name;
+
+  bool get handshakeSecretsReady => schedule.handshakeSecretsReady;
+
+  Uint8List? get peerTransportParameters =>
+      _client?.peerQuicTransportParameters ??
+      _server?.peerQuicTransportParameters;
+
+  /// Replace the parameters the server will send. Must happen before the
+  /// ClientHello is ingested. A real client's destination CID is not known
+  /// at construction.
+  void setTransportParameters(Uint8List parameters) {
+    final server = _server;
+    if (server == null) {
+      throw StateError('client transport parameters are already sent');
+    }
+    server.quicTransportParameters = parameters;
+  }
 
   Uint8List exporterBytes(String label, Uint8List context, int length) {
     final c = _client;

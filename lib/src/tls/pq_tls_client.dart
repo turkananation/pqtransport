@@ -11,6 +11,7 @@ import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
 import 'certificate_policy.dart';
+import 'resumption.dart';
 import 'cipher_suite.dart';
 import 'ech.dart';
 import 'handshake.dart';
@@ -58,6 +59,12 @@ final class PqTlsClient {
     /// RFC 9849 configuration. When set, the wire hello is ClientHelloOuter
     /// and rejection fails closed. There is no cleartext retry.
     this.ech,
+
+    /// RFC 8446 resumption ticket. QUIC only. Sends early_data and a PSK.
+    this.ticket,
+
+    /// RFC 9001 transport parameters. Sent when QUIC and non-null.
+    this.quicTransportParameters,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -105,6 +112,18 @@ final class PqTlsClient {
   /// Null means this client does not offer ECH.
   final EchConfig? ech;
 
+  /// Set only for a QUIC resumption. Null is a full handshake.
+  final QuicResumptionTicket? ticket;
+
+  /// Local `quic_transport_parameters` extension body.
+  final Uint8List? quicTransportParameters;
+
+  /// Peer's parameters, from EncryptedExtensions. Null until then.
+  Uint8List? peerQuicTransportParameters;
+
+  Uint8List? earlyTrafficSecret;
+  bool earlyDataAccepted = false;
+
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
 
@@ -128,13 +147,17 @@ final class PqTlsClient {
   /// Group in the peer's ServerHello. Null until that message is accepted.
   TlsNamedGroup? negotiatedGroup;
   var _peerAuthenticated = false;
+  String? _peerLeafAlgorithm;
   Uint8List? _peerPublicKey;
   int? _certificateType;
   List<Uint8List>? _certificateEntries;
 
-  /// Handshake bytes that did not finish a message. RFC 8446 permits a
-  /// handshake message to span records. OpenSSL sends one message per record.
+  /// Handshake bytes that did not finish a message. RFC 8446 §5.1
+  /// permits one handshake message to span records, and several
+  /// messages to share a record. The encrypted flight uses this buffer.
+  /// ServerHello is still cleartext, so it uses [_pendingCleartext].
   Uint8List _pendingHandshake = Uint8List(0);
+  Uint8List _pendingCleartext = Uint8List(0);
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -146,6 +169,10 @@ final class PqTlsClient {
   /// False before completion, false after a fatal alert, and false when
   /// [allowUnauthenticated] skipped the check. Finished is not this bit.
   bool get peerAuthenticated => _peerAuthenticated && isComplete;
+
+  /// X.509 leaf algorithm name after CertificateVerify succeeded.
+  /// Null for a raw public key, and null until that check passes.
+  String? get peerLeafAlgorithm => isComplete ? _peerLeafAlgorithm : null;
 
   Future<Result<Uint8List, PqTransportError>> startHandshake() async {
     final shares = _sharesToMint();
@@ -172,7 +199,28 @@ final class PqTlsClient {
       _localShares.add(minted.valueOrNull!);
     }
     final hello = _clientHello();
-    final encoded = hello.encode();
+    var encoded = hello.encode();
+    final resumed = ticket;
+    if (resumed != null) {
+      if (!quic || ech != null) {
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(PqTransportError.unsupported('quic 0-rtt'));
+      }
+      if (!offeredCipherSuites.contains(resumed.cipherSuite)) {
+        driveTls(machine, TlsEvent.fatal);
+        return Result.failure(
+          PqTransportError.handshakeFailure('ticket cipher suite'),
+        );
+      }
+      final built = buildEarlyClientHello(
+        baseHello: encoded,
+        schedule: schedule,
+        ticket: resumed,
+        now: now == null ? DateTime.now().toUtc() : now!(),
+      );
+      encoded = built.hello;
+      earlyTrafficSecret = built.earlySecret;
+    }
     if (ech == null) {
       transcript.add(encoded);
       return Result.success(wrapHandshake(encoded, quic: quic));
@@ -235,7 +283,25 @@ final class PqTlsClient {
     if (rec.isFailure) return Result.failure(rec.errorOrNull!);
     var shBytes = rec.valueOrNull!;
     var leftover = Uint8List(0);
-    if (quic) {
+    if (!quic) {
+      // OpenSSL -max_send_frag splits ServerHello. The ML-KEM share
+      // does not fit in 512 octets, so the first record is a prefix.
+      _pendingCleartext = _pendingCleartext.isEmpty
+          ? shBytes
+          : concatBytes([_pendingCleartext, shBytes]);
+      if (_pendingCleartext.length > tlsHandshakeReassemblyMaxBytes) {
+        return _fail('handshake too large');
+      }
+      final n = handshakeWireLength(_pendingCleartext);
+      if (n < 0 || _pendingCleartext.length < n) {
+        return const Result.success([]);
+      }
+      if (_pendingCleartext.length != n) {
+        return _fail('trailing server hello');
+      }
+      shBytes = _pendingCleartext;
+      _pendingCleartext = Uint8List(0);
+    } else {
       final n = handshakeWireLength(shBytes);
       if (n < 0 || n > shBytes.length) return _fail('truncated sh');
       leftover = n < shBytes.length
@@ -289,6 +355,14 @@ final class PqTlsClient {
       return Result.failure(secret.errorOrNull!);
     }
     _hybridSs = secret.valueOrNull!;
+    final resumed = ticket;
+    if (sh.valueOrNull!.selectedPsk) {
+      if (resumed == null) return _fail('psk not offered');
+      schedule.usePsk(resumed.psk);
+    } else {
+      schedule.clearPsk();
+      earlyTrafficSecret = null;
+    }
     schedule.deriveHandshake(
       hybridSharedSecret: _hybridSs!,
       handshakeTranscriptHash: transcript.snapshot(),
@@ -343,6 +417,11 @@ final class PqTlsClient {
           return _fail('alpn not offered');
         }
         selectedAlpn = selected;
+        peerQuicTransportParameters = ee.valueOrNull!.quicTransportParameters;
+        if (ee.valueOrNull!.earlyData) {
+          if (ticket == null) return _fail('early_data not offered');
+          earlyDataAccepted = true;
+        }
         final type = _selectedCertificateType(ee.valueOrNull!);
         if (type.isFailure) return _fatal(type.errorOrNull!, onWire: false);
         _certificateType = type.valueOrNull;
@@ -422,6 +501,7 @@ final class PqTlsClient {
               mlDsaVerify: crypto.mlDsaVerify,
             );
             if (checked.isFailure) return _fatal(checked.errorOrNull!);
+            _peerLeafAlgorithm = leaf.valueOrNull!.algorithm.name;
             final key = leaf.valueOrNull!.publicKey;
             if (key is PqX509MlDsaKey) _peerPublicKey = key.raw;
           }
@@ -554,6 +634,7 @@ final class PqTlsClient {
                   tlsSignatureRsaPssSha512,
                 ]
               : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
+      quicTransportParameters: quic ? quicTransportParameters : null,
     );
   }
 
@@ -639,6 +720,7 @@ final class PqTlsClient {
     _peerAuthenticated = false;
     _peerPublicKey = null;
     _pendingHandshake = Uint8List(0);
+    _pendingCleartext = Uint8List(0);
     if (onWire) _certificateFailure = error;
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(error);
@@ -670,6 +752,7 @@ final class PqTlsClient {
     _peerAuthenticated = false;
     _peerPublicKey = null;
     _pendingHandshake = Uint8List(0);
+    _pendingCleartext = Uint8List(0);
     driveTls(machine, TlsEvent.fatal);
     return Result.failure(PqTransportError.handshakeFailure(why));
   }

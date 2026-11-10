@@ -462,5 +462,424 @@ void main() {
       );
       expect(wrong.isFailure, isTrue);
     }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('GOAWAY stops a later request and cannot increase', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+
+      final gone = await h3s.goAway(0);
+      expect(gone.isSuccess, isTrue, reason: '${gone.errorOrNull}');
+      final blocked = await h3c.request(
+        PqHttpRequest(method: 'GET', uri: Uri.parse('https://example.test/')),
+      );
+      expect(blocked.isFailure, isTrue);
+      expect(blocked.errorOrNull!.message, contains('goaway'));
+      expect(h3c.peerGoawayId, 0);
+
+      final increased = await h3s.goAway(4);
+      expect(increased.isFailure, isTrue);
+      expect(increased.errorOrNull!.message, contains('goaway increased'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('MAX_PUSH_ID is remembered and a smaller value is rejected', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      expect(
+        (await Future.wait([
+          h3c.start(),
+          h3s.start(),
+        ])).every((r) => r.isSuccess),
+        isTrue,
+      );
+
+      final sent = await h3c.sendMaxPushId(4);
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      final serverTask = h3s.accept();
+      final resp = h3c.request(
+        PqHttpRequest(method: 'GET', uri: Uri.parse('https://example.test/p')),
+      );
+      final accepted = await serverTask;
+      expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+      expect(h3s.maxPushId, 4);
+      await h3s.respond(
+        accepted.valueOrNull!.$1,
+        PqHttpResponse(
+          status: 200,
+          headers: const {},
+          body: Uint8List(0),
+          version: HttpVersion.h3,
+        ),
+      );
+      expect((await resp).isSuccess, isTrue);
+
+      final smaller = await h3c.sendMaxPushId(1);
+      expect(smaller.isFailure, isTrue);
+      // The API will not send a decrease. A raw one is H3_ID_ERROR.
+      final raw = Http3Frame(
+        type: http3FrameMaxPushId,
+        payload: Uint8List.fromList([0x01]),
+      );
+      final wrote = await client.writeStream(2, raw.encode());
+      expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
+      final again = await h3s.accept();
+      expect(again.isFailure, isTrue);
+      expect(again.errorOrNull!.message, contains('max_push_id'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('CANCEL_PUSH for an unpromised push is H3_ID_ERROR', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      expect(
+        (await Future.wait([
+          h3c.start(),
+          h3s.start(),
+        ])).every((r) => r.isSuccess),
+        isTrue,
+      );
+      expect((await h3c.sendMaxPushId(0)).isSuccess, isTrue);
+      expect((await h3c.sendCancelPush(0)).isSuccess, isTrue);
+      final accepted = await h3s.accept();
+      expect(accepted.isFailure, isTrue);
+      expect(accepted.errorOrNull!.message, contains('cancel_push'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('a control frame on a request stream is an error', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      expect(
+        (await Future.wait([
+          h3c.start(),
+          h3s.start(),
+        ])).every((r) => r.isSuccess),
+        isTrue,
+      );
+      final id = client.openBidi();
+      final wrote = await client.writeStream(
+        id,
+        encodeHttp3Settings(http3ClientSettings),
+        fin: true,
+      );
+      expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
+      final accepted = await h3s.accept();
+      expect(accepted.isFailure, isTrue);
+      expect(accepted.errorOrNull!.message, contains('h3 frame'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test(
+      'a second control stream is an error; an unknown type is not',
+      () async {
+        final (client, server) = await _h3Pair(crypto);
+        final h3c = PqHttp3Session.client(client);
+        final h3s = PqHttp3Session.server(server);
+        expect(
+          (await Future.wait([
+            h3c.start(),
+            h3s.start(),
+          ])).every((r) => r.isSuccess),
+          isTrue,
+        );
+        final grease = client.openUni();
+        expect(
+          (await client.writeStream(
+            grease,
+            Uint8List.fromList([0x21]),
+          )).isSuccess,
+          isTrue,
+        );
+        final serverTask = () async {
+          final accepted = await h3s.accept();
+          expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+          return h3s.respond(
+            accepted.valueOrNull!.$1,
+            PqHttpResponse(
+              status: 204,
+              headers: const {},
+              body: Uint8List(0),
+              version: HttpVersion.h3,
+            ),
+          );
+        }();
+        final resp = await h3c.request(
+          PqHttpRequest(
+            method: 'GET',
+            uri: Uri.parse('https://example.test/g'),
+          ),
+        );
+        expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+        expect((await serverTask).isSuccess, isTrue);
+
+        final second = client.openUni();
+        expect(
+          (await client.writeStream(
+            second,
+            Uint8List.fromList([0x00]),
+          )).isSuccess,
+          isTrue,
+        );
+        final failed = await h3s.accept();
+        expect(failed.isFailure, isTrue);
+        expect(failed.errorOrNull!.message, contains('second control'));
+      },
+      timeout: const Timeout(Duration(seconds: 40)),
+    );
+
+    test('trailers are a second HEADERS block', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final serverTask = () async {
+        final accepted = await h3s.accept();
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (id, req) = accepted.valueOrNull!;
+        expect(req.trailers['x-req'], 'one');
+        return h3s.respond(
+          id,
+          PqHttpResponse(
+            status: 200,
+            headers: const {},
+            body: Uint8List.fromList('t'.codeUnits),
+            version: HttpVersion.h3,
+            trailers: const {'x-resp': 'two'},
+          ),
+        );
+      }();
+      final resp = await h3c.request(
+        PqHttpRequest(
+          method: 'POST',
+          uri: Uri.parse('https://example.test/t'),
+          body: 'b'.codeUnits,
+          trailers: const {'x-req': 'one'},
+        ),
+      );
+      expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+      expect(resp.valueOrNull!.trailers['x-resp'], 'two');
+      expect((await serverTask).isSuccess, isTrue);
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('dynamic table follows the peer QPACK limit', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final serverTask = () async {
+        final accepted = await h3s.accept();
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (id, req) = accepted.valueOrNull!;
+        expect(req.headers['x-pq-dyn'], 'alpha');
+        expect(h3s.remoteQpackInserts, greaterThan(0));
+        return h3s.respond(
+          id,
+          PqHttpResponse(
+            status: 200,
+            headers: const {'x-pq-dyn': 'alpha'},
+            body: Uint8List(0),
+            version: HttpVersion.h3,
+          ),
+        );
+      }();
+      final resp = await h3c.request(
+        PqHttpRequest(
+          method: 'GET',
+          uri: Uri.parse('https://example.test/d'),
+          headers: const {'x-pq-dyn': 'alpha'},
+        ),
+      );
+      expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+      expect(resp.valueOrNull!.headers['x-pq-dyn'], 'alpha');
+      expect(h3c.localQpackInserts, greaterThan(0));
+      expect(h3s.localQpackInserts, greaterThan(0));
+      expect((await serverTask).isSuccess, isTrue);
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('RESET_STREAM and STOP_SENDING cancel a request', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      expect(
+        (await Future.wait([
+          h3c.start(),
+          h3s.start(),
+        ])).every((r) => r.isSuccess),
+        isTrue,
+      );
+      final id = client.openBidi();
+      final block = QpackCodec().encodeFieldSection([
+        const HpackHeader(':method', 'GET'),
+        const HpackHeader(':scheme', 'https'),
+        const HpackHeader(':authority', 'example.test'),
+        const HpackHeader(':path', '/c'),
+      ]);
+      final wrote = await client.writeStream(
+        id,
+        Http3Frame(type: http3FrameHeaders, payload: block).encode(),
+        fin: true,
+      );
+      expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
+      final cancelled = await h3c.cancel(id);
+      expect(cancelled.isSuccess, isTrue, reason: '${cancelled.errorOrNull}');
+      final accepted = await h3s.accept();
+      expect(accepted.isFailure, isTrue);
+      expect(accepted.errorOrNull!.message, contains('cancelled'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('DATAGRAM capsule on extended CONNECT is one HTTP datagram', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final serving = () async {
+        final accepted = await h3s.accept(
+          untilFin: false,
+          timeout: const Duration(seconds: 10),
+        );
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (stream, request) = accepted.valueOrNull!;
+        expect(request.headers['capsule-protocol'], '?1');
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (DateTime.now().isBefore(deadline)) {
+          final pumped = await h3s.receive();
+          expect(pumped.isSuccess, isTrue, reason: '${pumped.errorOrNull}');
+          final datagrams = h3s.takeHttpDatagrams();
+          if (datagrams.isEmpty) {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            continue;
+          }
+          expect(datagrams.single.$1, stream);
+          expect(datagrams.single.$2, [4, 5, 6]);
+          return;
+        }
+        fail('no capsule');
+      }();
+      final opened = await h3c.beginRequest(
+        PqHttpRequest(
+          method: 'CONNECT',
+          uri: Uri.parse('https://localhost/pq'),
+          protocol: 'websocket',
+          headers: const {'capsule-protocol': '?1'},
+        ),
+        fin: false,
+      );
+      expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+      final sent = await h3c.sendDatagramCapsule(
+        opened.valueOrNull!,
+        Uint8List.fromList([4, 5, 6]),
+      );
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      await serving;
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('HTTP/3 datagram, priority, and extended CONNECT', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      expect(h3c.peerExtendedConnect, isTrue);
+      expect(h3c.peerHttpDatagrams, isTrue);
+      final id = client.openBidi();
+      final sent = await h3c.sendHttpDatagram(
+        id,
+        Uint8List.fromList([9, 8, 7]),
+      );
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      final datagrams = h3s.takeHttpDatagrams();
+      expect(datagrams, hasLength(1));
+      expect(datagrams.single.$1, id);
+      expect(datagrams.single.$2, [9, 8, 7]);
+      final priority = await h3c.updatePriority(id, urgency: 2);
+      expect(priority.isSuccess, isTrue, reason: '${priority.errorOrNull}');
+      await h3s.accept(timeout: const Duration(milliseconds: 200));
+      expect(h3s.priorities[id]?.urgency, 2);
+      final serving = () async {
+        final accepted = await h3s.accept(timeout: const Duration(seconds: 10));
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (stream, request) = accepted.valueOrNull!;
+        expect(request.protocol, 'websocket');
+        await h3s.respond(
+          stream,
+          PqHttpResponse(
+            status: 200,
+            headers: const {},
+            body: Uint8List(0),
+            version: HttpVersion.h3,
+          ),
+        );
+      }();
+      final response = await h3c.request(
+        PqHttpRequest(
+          method: 'CONNECT',
+          uri: Uri.parse('https://localhost/pq'),
+          protocol: 'websocket',
+        ),
+      );
+      await serving;
+      expect(response.isSuccess, isTrue, reason: '${response.errorOrNull}');
+      expect(response.valueOrNull!.status, 200);
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('PRIORITY_UPDATE on a request stream is unexpected', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      expect(h3c.localEncoderStreamId, quicStreamIdClientUni + 4);
+      final id = client.openBidi();
+      final payload = BytesBuilder(copy: false);
+      writeQuicVarint(payload, id);
+      payload.add(Uint8List.fromList('u=1'.codeUnits));
+      final wrote = await client.writeStream(
+        id,
+        Http3Frame(
+          type: http3FramePriorityUpdate,
+          payload: payload.takeBytes(),
+        ).encode(),
+        fin: true,
+      );
+      expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
+      final accepted = await h3s.accept();
+      expect(accepted.isFailure, isTrue);
+      expect(accepted.errorOrNull!.message, contains('h3 frame'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
+    test('push PRIORITY_UPDATE is H3_ID_ERROR while push is off', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final started = await Future.wait([h3c.start(), h3s.start()]);
+      expect(started.every((r) => r.isSuccess), isTrue);
+      final push = BytesBuilder(copy: false);
+      writeQuicVarint(push, 0);
+      push.add(Uint8List.fromList('u=1'.codeUnits));
+      final control = await client.writeStream(
+        quicStreamIdClientUni,
+        Http3Frame(
+          type: http3FramePriorityUpdatePush,
+          payload: push.takeBytes(),
+        ).encode(),
+      );
+      expect(control.isSuccess, isTrue, reason: '${control.errorOrNull}');
+      final after = await h3s.accept(timeout: const Duration(seconds: 5));
+      expect(after.isFailure, isTrue);
+      expect(after.errorOrNull!.message, contains('priority'));
+    }, timeout: const Timeout(Duration(seconds: 40)));
   });
+}
+
+Future<(PqQuicConn, PqQuicConn)> _h3Pair(PqTransportCrypto crypto) async {
+  final pair = PqQuicConn.pair(
+    crypto: crypto,
+    alpnProtocols: const [httpAlpnH3],
+  );
+  final hs = await Future.wait([pair.$1.handshake(), pair.$2.handshake()]);
+  expect(
+    hs[0].isSuccess && hs[1].isSuccess,
+    isTrue,
+    reason: '${hs[0].errorOrNull}',
+  );
+  return pair;
 }

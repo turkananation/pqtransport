@@ -136,6 +136,7 @@ final class IoTcpSocket implements PqTransportSocket {
 
   final Socket _socket;
   var _closed = false;
+  Future<void> _writes = Future<void>.value();
 
   /// Connect to [host]:[port].
   static Future<IoTcpSocket> connect(
@@ -158,13 +159,33 @@ final class IoTcpSocket implements PqTransportSocket {
   bool get isClosed => _closed;
 
   @override
-  Future<Result<void, PqTransportError>> send(Uint8List bytes) async {
+  Future<Result<void, PqTransportError>> send(Uint8List bytes) {
     if (_closed) {
-      return Result.failure(PqTransportError.closed('tcp send'));
+      return Future.value(Result.failure(PqTransportError.closed('tcp send')));
     }
-    _socket.add(bytes);
-    await _socket.flush();
-    return const Result.success(null);
+    // Handshake records and the first HTTP/2 frame can be queued from
+    // different futures. Socket.add throws if a flush is still running.
+    final copy = Uint8List.fromList(bytes);
+    final done = Completer<Result<void, PqTransportError>>();
+    _writes = _writes.then((_) async {
+      if (_closed) {
+        if (!done.isCompleted) {
+          done.complete(Result.failure(PqTransportError.closed('tcp send')));
+        }
+        return;
+      }
+      try {
+        _socket.add(copy);
+        await _socket.flush();
+        if (!done.isCompleted) done.complete(const Result.success(null));
+      } on Object {
+        _closed = true;
+        if (!done.isCompleted) {
+          done.complete(Result.failure(PqTransportError.closed('tcp send')));
+        }
+      }
+    });
+    return done.future;
   }
 
   @override

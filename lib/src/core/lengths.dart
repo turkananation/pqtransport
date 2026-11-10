@@ -114,6 +114,7 @@ const String udpSessionInfoPrefix = 'pqtransport udp-session v1';
 
 const int dnsPort = 53;
 const int mdnsPort = 5353;
+const String mdnsSlhDsaName = 'SLH-DSA-SHA2-128f';
 const String mdnsIpv4Group = '224.0.0.251';
 const String mdnsIpv6Group = 'ff02::fb';
 const int dnsMessageMaxBytes = 65535;
@@ -295,6 +296,7 @@ const int tlsContentAlert = 21;
 const int tlsContentChangeCipherSpec = 20;
 const int tlsHsClientHello = 1;
 const int tlsHsServerHello = 2;
+const int tlsHsNewSessionTicket = 4;
 const int tlsHsEncryptedExtensions = 8;
 const int tlsHsCertificate = 11;
 const int tlsHsCertificateVerify = 15;
@@ -313,6 +315,9 @@ const int tlsExtAlpn = 16;
 const int tlsExtClientCertificateType = 19;
 const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
+const int tlsExtPreSharedKey = 41;
+const int tlsExtEarlyData = 42;
+const int tlsExtQuicTransportParameters = 57;
 
 /// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.
 const int tlsExtEncryptedClientHello = 0xfe0d;
@@ -403,6 +408,10 @@ const String tlsLabelCApTraffic = 'c ap traffic';
 const String tlsLabelSApTraffic = 's ap traffic';
 const String tlsLabelFinished = 'finished';
 const String tlsLabelExpMaster = 'exp master';
+const String tlsLabelResMaster = 'res master';
+const String tlsLabelResumption = 'resumption';
+const String tlsLabelResBinder = 'res binder';
+const String tlsLabelCEarlyTraffic = 'c e traffic';
 const String tlsLabelExporter = 'exporter';
 const String tlsLabelIv = 'iv';
 const String tlsLabelKey = 'key';
@@ -414,6 +423,10 @@ const int handshakeTimestampWindowMs = 2000;
 // ---------------------------------------------------------------------------
 
 const int quicVersion1 = 0x00000001;
+
+/// RFC 9001 §4.6.1. QUIC tickets carry this instead of a byte limit.
+/// Flow control is the limit.
+const int quicEarlyDataUnlimited = 0xffffffff;
 const int quicMaxStreamDataDefault = 65536;
 const int quicMaxDataDefault = 262144;
 const int quicHeaderProtectionSampleBytes = 16;
@@ -424,6 +437,73 @@ const int quicMaxConnectionIdBytes = 20;
 
 /// RFC 9000 §14.1: UDP datagrams carrying client Initial packets.
 const int quicMinClientInitialUdpBytes = 1200;
+
+/// RFC 9000 §18.2. Absent `active_connection_id_limit` means 2.
+const int quicActiveConnectionIdLimitDefault = 2;
+
+const int quicInitialMaxStreams = 100;
+const int quicAckDelayExponentDefault = 3;
+const int quicMaxAckDelayMsDefault = 25;
+const int quicStatelessResetTokenBytes = 16;
+const int quicPathChallengeBytes = 8;
+const int quicRetryIntegrityTagBytes = 16;
+
+/// RFC 9001 §5.8 Retry Integrity Tag key and nonce for QUIC version 1.
+const List<int> quicRetryIntegrityKeyV1 = [
+  0xbe, 0x0c, 0x69, 0x0b, 0x9f, 0x66, 0x57, 0x5a, //
+  0x1d, 0x76, 0x6b, 0x54, 0xe3, 0x68, 0xc8, 0x4e,
+];
+const List<int> quicRetryIntegrityNonceV1 = [
+  0x46, 0x15, 0x99, 0xd3, 0x5d, 0x63, 0x2b, 0xf2, //
+  0x23, 0x98, 0x25, 0xbb,
+];
+
+const int quicTpOriginalDestinationConnectionId = 0x00;
+const int quicTpMaxIdleTimeout = 0x01;
+const int quicTpStatelessResetToken = 0x02;
+const int quicTpMaxUdpPayloadSize = 0x03;
+const int quicTpInitialMaxData = 0x04;
+const int quicTpInitialMaxStreamDataBidiLocal = 0x05;
+const int quicTpInitialMaxStreamDataBidiRemote = 0x06;
+const int quicTpInitialMaxStreamDataUni = 0x07;
+const int quicTpInitialMaxStreamsBidi = 0x08;
+const int quicTpInitialMaxStreamsUni = 0x09;
+const int quicTpAckDelayExponent = 0x0a;
+const int quicTpMaxAckDelay = 0x0b;
+const int quicTpDisableActiveMigration = 0x0c;
+const int quicTpActiveConnectionIdLimit = 0x0e;
+const int quicTpInitialSourceConnectionId = 0x0f;
+const int quicTpRetrySourceConnectionId = 0x10;
+const int quicTpMaxDatagramFrameSize = 0x20;
+
+/// RFC 10069. Sent only when the endpoint enables multipath. A value
+/// above 2^32-1 is a transport parameter error.
+const int quicTpInitialMaxPathId = 0x3e;
+
+/// RFC 10069 frame types. Legal only in 1-RTT, and only after both
+/// endpoints have sent [quicTpInitialMaxPathId].
+const int quicFramePathAck = 0x3e;
+const int quicFramePathAckEcn = 0x3f;
+const int quicFramePathAbandon = 0x3e75;
+const int quicFramePathStatusBackup = 0x3e76;
+const int quicFramePathStatusAvailable = 0x3e77;
+const int quicFramePathNewConnectionId = 0x3e78;
+const int quicFramePathRetireConnectionId = 0x3e79;
+const int quicFrameMaxPathId = 0x3e7a;
+const int quicFramePathsBlocked = 0x3e7b;
+const int quicFramePathCidsBlocked = 0x3e7c;
+
+/// RFC 10069 error codes carried in PATH_ABANDON. These are not frame types.
+const int quicErrorApplicationAbandonPath = 0x3e;
+const int quicErrorPathResourceLimit = 0x3e75;
+const int quicErrorPathUnstable = 0x3e76;
+const int quicErrorNoCidForPath = 0x3e77;
+
+/// Largest path identifier the nonce calculation allows (RFC 10069 §2.4).
+const int quicMaxPathId = 0xffffffff;
+
+/// Largest DATAGRAM frame, type and length included, this stack will accept.
+const int quicLocalMaxDatagramFrameSize = 65535;
 
 /// RFC 9001 §5.2 Initial salt for QUIC version 1.
 const List<int> quicInitialSaltV1 = [
@@ -454,24 +534,38 @@ const String quicLabelServerIn = 'server in';
 const String quicLabelKey = 'quic key';
 const String quicLabelIv = 'quic iv';
 const String quicLabelHp = 'quic hp';
+const String quicLabelKeyUpdate = 'quic ku';
 
 const int quicFramePadding = 0x00;
 const int quicFramePing = 0x01;
 const int quicFrameAck = 0x02;
 const int quicFrameAckEcn = 0x03;
+const int quicFrameResetStream = 0x04;
+const int quicFrameStopSending = 0x05;
 const int quicFrameCrypto = 0x06;
+const int quicFrameNewToken = 0x07;
 const int quicFrameStream = 0x08;
 const int quicFrameStreamTypeMask = 0xF8;
 const int quicFrameStreamOffBit = 0x04;
 const int quicFrameStreamLenBit = 0x02;
 const int quicFrameStreamFinBit = 0x01;
-const int quicFrameResetStream = 0x04;
 const int quicFrameMaxData = 0x10;
 const int quicFrameMaxStreamData = 0x11;
+const int quicFrameMaxStreamsBidi = 0x12;
+const int quicFrameMaxStreamsUni = 0x13;
 const int quicFrameDataBlocked = 0x14;
 const int quicFrameStreamDataBlocked = 0x15;
+const int quicFrameStreamsBlockedBidi = 0x16;
+const int quicFrameStreamsBlockedUni = 0x17;
+const int quicFrameNewConnectionId = 0x18;
+const int quicFrameRetireConnectionId = 0x19;
+const int quicFramePathChallenge = 0x1a;
+const int quicFramePathResponse = 0x1b;
 const int quicFrameConnectionClose = 0x1c;
 const int quicFrameConnectionCloseApp = 0x1d;
+const int quicFrameHandshakeDone = 0x1e;
+const int quicFrameDatagram = 0x30;
+const int quicFrameDatagramLen = 0x31;
 
 /// RFC 9000 §20. A STREAM past MAX_DATA or MAX_STREAM_DATA.
 const int quicErrorFlowControl = 0x03;
@@ -479,9 +573,19 @@ const int quicErrorFlowControl = 0x03;
 /// RFC 9000 §20.1. No error. Used by an application CONNECTION_CLOSE.
 const int quicErrorNoError = 0x00;
 
-/// Local idle timer. Not the negotiated `max_idle_timeout` transport
-/// parameter (this stack does not send transport parameters). Null on
-/// [PqQuicConn] leaves the timer disarmed. RFC 9000 §10.1.
+/// RFC 9000 §20. A STREAM past the peer's stream limit.
+const int quicErrorStreamLimit = 0x04;
+
+/// RFC 9000 §20. A transport parameter that is missing, duplicated, or
+/// inconsistent with the handshake.
+const int quicErrorTransportParameter = 0x08;
+
+/// RFC 9000 §20. A frame that is not allowed in this state.
+const int quicErrorProtocolViolation = 0x0a;
+
+/// Local idle timer. `max_idle_timeout` is negotiated in transport
+/// parameters. Null on [PqQuicConn] leaves the local timer disarmed.
+/// RFC 9000 §10.1.
 const int quicLocalIdleTimeoutMicros = 30000000;
 
 /// RFC 9000 §10.2. The draining period is three times the current PTO.
@@ -533,9 +637,6 @@ const int quicInitialRttMicros = 333000;
 
 /// RFC 9000 §18.2. Default `max_ack_delay` (25 milliseconds).
 const int quicMaxAckDelayMicros = 25000;
-
-/// RFC 9000 §18.2. Default `ack_delay_exponent` (delay × 2^3 microseconds).
-const int quicAckDelayExponentDefault = 3;
 
 /// RFC 9002 §7.2. Recommended initial window, in maximum datagrams.
 const int quicInitialWindowDatagrams = 10;
@@ -612,14 +713,28 @@ int quicVarintLength(int value) {
 /// Padding is applied to the UDP datagram, not by inflating the frame
 /// payload to 1200 and then adding the long header on top. [payloadLength]
 /// is what the packet already carries; the return value is never smaller.
-/// An empty token is assumed. The length field's own size is included.
+/// [tokenLength] is the Retry token, or zero when there is none. The
+/// length field's own size is included.
 int quicClientInitialPayloadBytes({
   required int dcidLength,
   required int scidLength,
   required int payloadLength,
+  int datagramBytes = quicMinClientInitialUdpBytes,
+  int tokenLength = 0,
 }) {
-  final prefix = 1 + 4 + 1 + dcidLength + 1 + scidLength + 1;
+  final prefix =
+      1 +
+      4 +
+      1 +
+      dcidLength +
+      1 +
+      scidLength +
+      quicVarintLength(tokenLength) +
+      tokenLength;
   var payload = payloadLength < 0 ? 0 : payloadLength;
+  final target = datagramBytes < quicMinClientInitialUdpBytes
+      ? quicMinClientInitialUdpBytes
+      : datagramBytes;
   while (true) {
     final bodyLen = quicPacketNumberMaxBytes + payload + aeadTagBytes;
     final lengthField = quicVarintLength(bodyLen);
@@ -629,8 +744,8 @@ int quicClientInitialPayloadBytes({
         quicPacketNumberMaxBytes +
         payload +
         aeadTagBytes;
-    if (total >= quicMinClientInitialUdpBytes) {
-      final extra = total - quicMinClientInitialUdpBytes;
+    if (total >= target) {
+      final extra = total - target;
       if (extra > 0 &&
           payload - extra >= (payloadLength < 0 ? 0 : payloadLength)) {
         final shrunk = payload - extra;
@@ -639,7 +754,7 @@ int quicClientInitialPayloadBytes({
       }
       return payload;
     }
-    final deficit = quicMinClientInitialUdpBytes - total;
+    final deficit = target - total;
     payload += deficit > 0 ? deficit : 1;
   }
 }
@@ -665,8 +780,40 @@ const int http3StreamTypeQpackDecoder = 0x03;
 const int http3SettingsQpackMaxTableCapacity = 0x01;
 const int http3SettingsMaxFieldSectionSize = 0x06;
 const int http3SettingsQpackBlockedStreams = 0x07;
+const int http3SettingsEnableConnectProtocol = 0x08;
+const int http3SettingsH3Datagram = 0x33;
+const int http3FramePriorityUpdate = 0xf0700;
+const int http3FramePriorityUpdatePush = 0xf0701;
 const int http3DefaultQpackMaxTableCapacity = 4096;
 const int http3DefaultQpackBlockedStreams = 16;
+
+/// RFC 9114 §8.1.
+const int http3ErrorNoError = 0x0100;
+const int http3ErrorGeneralProtocol = 0x0101;
+const int http3ErrorInternal = 0x0102;
+const int http3ErrorStreamCreation = 0x0103;
+const int http3ErrorClosedCriticalStream = 0x0104;
+const int http3ErrorFrameUnexpected = 0x0105;
+const int http3ErrorFrame = 0x0106;
+const int http3ErrorExcessiveLoad = 0x0107;
+const int http3ErrorId = 0x0108;
+const int http3ErrorSettings = 0x0109;
+const int http3ErrorMissingSettings = 0x010a;
+const int http3ErrorRequestRejected = 0x010b;
+const int http3ErrorRequestCancelled = 0x010c;
+const int http3ErrorRequestIncomplete = 0x010d;
+const int http3ErrorMessage = 0x010e;
+const int http3ErrorConnect = 0x010f;
+const int http3ErrorVersionFallback = 0x0110;
+
+/// RFC 9297. A capsule that ends before its length, or a DATAGRAM
+/// capsule the peer was not allowed to send.
+const int http3ErrorDatagram = 0x33;
+
+/// RFC 9204 §6.
+const int qpackErrorDecompressionFailed = 0x0200;
+const int qpackErrorEncoderStream = 0x0201;
+const int qpackErrorDecoderStream = 0x0202;
 
 const String httpAlpnH1 = 'http/1.1';
 const String httpAlpnH2 = 'h2';
@@ -688,6 +835,11 @@ const String dohTemplateQuery = '{?dns}';
 const String http2ConnectionPreface = 'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n';
 const int http2PrefaceBytes = 24;
 const int http2FrameHeaderBytes = 9;
+
+/// Largest DATA payload that still fits in one TLS 1.3 record. The frame
+/// header, the inner content-type byte, and the AEAD tag share the budget.
+const int http2TlsSafeDataBytes =
+    tlsMaxPlaintextBytes - aeadTagBytes - 1 - http2FrameHeaderBytes;
 const int http2DefaultMaxFrameSize = 16384;
 const int http2MinMaxFrameSize = 16384;
 const int http2MaxMaxFrameSize = 16777215;
@@ -714,6 +866,7 @@ const int http2FramePing = 0x06;
 const int http2FrameGoaway = 0x07;
 const int http2FrameWindowUpdate = 0x08;
 const int http2FrameContinuation = 0x09;
+const int http2FramePriorityUpdate = 0x10;
 
 const int http2FlagEndStream = 0x01;
 const int http2FlagAck = 0x01;
@@ -727,6 +880,16 @@ const int http2SettingsMaxConcurrentStreams = 0x03;
 const int http2SettingsInitialWindowSize = 0x04;
 const int http2SettingsMaxFrameSize = 0x05;
 const int http2SettingsMaxHeaderListSize = 0x06;
+const int http2SettingsEnableConnectProtocol = 0x08;
+const int http2SettingsNoRfc7540Priorities = 0x09;
+const int http2DefaultMaxHeaderListSize = 65536;
+
+const int http2ErrorNoError = 0x0;
+const int http2ErrorProtocol = 0x1;
+const int http2ErrorFlowControl = 0x3;
+const int http2ErrorStreamClosed = 0x5;
+const int http2ErrorFrameSize = 0x6;
+const int http2ErrorRefusedStream = 0x7;
 
 const int hpackStaticTableLength = 61;
 const int hpackEntryOverheadBytes = 32;

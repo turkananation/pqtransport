@@ -236,6 +236,26 @@ final class PqTransportCrypto {
     );
   }
 
+  /// FIPS 205 SLH-DSA-SHA2-128f. Archival only. Not the ML-DSA default.
+  PqKeyPair slhDsaSha2128fKeyGen() =>
+      PqSlhDsaPrimitives.generateKeyPair(PqSlhDsaAlgorithm.sha2128f);
+
+  Uint8List slhDsaSha2128fSign({
+    required Uint8List secretKey,
+    required Uint8List message,
+  }) => PqSlhDsaPrimitives.sign(PqSlhDsaAlgorithm.sha2128f, secretKey, message);
+
+  bool slhDsaSha2128fVerify({
+    required Uint8List publicKey,
+    required Uint8List message,
+    required Uint8List signatureBytes,
+  }) => PqSlhDsaPrimitives.verify(
+    PqSlhDsaAlgorithm.sha2128f,
+    publicKey,
+    message,
+    signatureBytes,
+  );
+
   Uint8List hmac(Uint8List key, Uint8List data) =>
       PqBytes.hmacSha256(key: key, data: data);
 

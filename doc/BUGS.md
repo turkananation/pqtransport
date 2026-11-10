@@ -37,7 +37,6 @@ Do not vendor ChaCha or ECDH.
 | LIM-02 | CMVP / FIPS 140 | Portable Dart library. [CLAIM_BOUNDARY.md](CLAIM_BOUNDARY.md). |
 | LIM-03 | Hard constant-time / hard erasure | VM / dart2js / dart2wasm cannot guarantee either. |
 | LIM-04 | Browser raw UDP / mDNS | Browsers do not expose generic UDP or multicast. |
-| LIM-05 | QUIC 0-RTT | Permanent (issue 55). Not implemented. Not a fourth packet number space. |
 
 ## Fixed in 0.1.0
 
@@ -56,6 +55,9 @@ Do not vendor ChaCha or ECDH.
 | FIX-11 | Analyze | Example missing `dart:typed_data`; unused import/field. | `dart analyze` clean |
 | FIX-12 | UDP | `requireLength` collided with pqforge's same-named helper. | Hide pqforge `requireLength` |
 | OPEN-03 | TLS / crypto | Profile/group mismatch is constructible. | `PqTransportCrypto.requireGroup`; tests in `handshake_test.dart` / `crypto_facade_test.dart`. |
+| OPEN-19 | DNS | Algorithms 5, 7, 8, 10, 13, 14, 15, and 16 verify. NSEC and NSEC3. | `test/dns/dnssec_test.dart` |
+| LIM-05 | QUIC | 0-RTT early data. Not a fourth packet number space. | `test/quic/early_data_test.dart` |
+| OPEN-21 | mDNS | Optional SLH-DSA-SHA2-128f TXT (`pqslh=`). Default stays ML-DSA-65. | `test/mdns/mdns_test.dart` |
 | BLK-01 | TLS / UDP | No P-256 / P-384 ECDH. | pqforge 0.4.4 + live handshakes for all three RFC 10024 groups. |
 | BLK-02 | TLS | Local HMAC Expand only. | `hkdfExtract`/`hkdfExpand` call pqforge SHA-256 RFC 5869; A.1 pin kept. SHA-384 schedule is OPEN-02 **Fixed**. |
 | BLK-04 | Hybrid | Temptation to call `PqForgeCombiner.combine()`. | `concatenateSharedSecrets` after length checks; pin tests; still no `combine()`. |

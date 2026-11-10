@@ -402,7 +402,13 @@ final class PqEncryptedUdpSocket {
         return Result.failure(PqTransportError.decodeFailure('dcid'));
       }
     }
-    return codec.open(wire);
+    final opened = codec.open(wire);
+    if (opened.isFailure) return Result.failure(opened.errorOrNull!);
+    final packet = opened.valueOrNull!;
+    return Result.success((
+      packetNumber: packet.packetNumber,
+      payload: packet.payload,
+    ));
   }
 
   Future<void> _listen() async {

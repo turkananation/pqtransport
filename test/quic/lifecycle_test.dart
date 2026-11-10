@@ -43,7 +43,7 @@ void main() {
     },
   );
 
-  test('inbound STREAM past the receive limit closes the connection', () async {
+  test('a sender stops at the peer receive limit', () async {
     final linked = await _linked(maxStreamData: 20, serverRecvStream: 4);
     final id = linked.client.openBidi();
     final wrote = await linked.client.writeStream(
@@ -52,11 +52,10 @@ void main() {
     );
     expect(wrote.isSuccess, isTrue, reason: '${wrote.errorOrNull}');
     await _pump();
-    expect(linked.server.readStream(id), isEmpty);
-    expect(linked.server.isDraining || linked.server.isClosed, isTrue);
-    final more = await linked.server.writeStream(id, Uint8List.fromList([9]));
-    expect(more.isFailure, isTrue);
-    expect(more.errorOrNull!.code, PqTransportErrorCode.closed);
+    expect(linked.server.readStream(id), [1, 2, 3, 4]);
+    expect(linked.server.isDraining || linked.server.isClosed, isFalse);
+    final flow = QuicFlowControl(recvMaxStreamData: 4, recvMaxData: 4);
+    expect(flow.receive(0, 5).isFailure, isTrue);
   });
 
   test('idle timeout closes and a later send fails', () async {

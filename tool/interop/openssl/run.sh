@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# LIM-01: one X25519MLKEM768 handshake against OpenSSL 3.5+.
-# Fails if the peer flight does not complete. No dart:ffi.
+# OpenSSL 3.5.9 peer. Fails if a flight does not finish. No dart:ffi.
+#
+# TLS: PqTlsClient to s_server, s_client against PqTlsSocket, and the
+# classical reverse rows (s_client -groups). QUIC: s_client -quic
+# against PqQuicConn.server, then the reverse, PqQuicConn.client
+# against demos/quic/server.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$root/../../.." && pwd)"
@@ -24,5 +28,16 @@ else
 fi
 export BORINGSSL_VERIFY
 bash "$root/build_curl.sh" >/dev/null
+demo="$(bash "$root/build_quic_demo.sh" | tail -n 1)"
 cd "$repo"
+echo "== OpenSSL TLS: client, server, and reverse =="
 dart run tool/interop/openssl/handshake.dart "$bin"
+echo "== OpenSSL QUIC: s_client against PqQuicConn.server =="
+dart run tool/interop/openssl/quic_flight.dart "$bin"
+echo "== OpenSSL QUIC reverse: PqQuicConn.client against demos/quic/server =="
+dart run tool/interop/openssl/quic_client_flight.dart "$bin" "$demo"
+echo "== curl HTTP/1.1 against PqHttpServer =="
+dart run tool/interop/openssl/http1_server_flight.dart \
+  "$root/.build/curl/bin/curl"
+echo "== OpenSSL s_server -max_send_frag against PqHttpClient =="
+dart run tool/interop/openssl/http1_frag_flight.dart "$bin"

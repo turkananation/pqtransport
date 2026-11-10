@@ -53,6 +53,16 @@ void main() {
     expect(resp.valueOrNull!.status, 200);
     expect(String.fromCharCodes(resp.valueOrNull!.body), 'pq-ok');
 
+    final again = await http.roundTripH1(
+      tls: client,
+      request: PqHttpRequest(
+        method: 'GET',
+        uri: Uri.parse('https://example.test/dns-query'),
+      ),
+    );
+    expect(again.isSuccess, isTrue, reason: '${again.errorOrNull}');
+    expect(String.fromCharCodes(again.valueOrNull!.body), 'pq-ok');
+
     final cExp = client.exporter('http', Uint8List(0), 16);
     final sExp = server.exporter('http', Uint8List(0), 16);
     expect(cExp, sExp);
@@ -257,6 +267,46 @@ void main() {
     expect(allowed.isSuccess, isTrue, reason: '${allowed.errorOrNull}');
     expect(String.fromCharCodes(allowed.valueOrNull!.body), 'downgraded');
 
+    await sub.cancel();
+    await client.close();
+    await server.close();
+  }, timeout: const Timeout(Duration(seconds: 40)));
+
+  test('an HTTP/1.1 body split across TLS records is one message', () async {
+    final identity = PqTlsServerIdentity.generate(crypto);
+    final (clientSock, serverSock) = MemoryByteSocket.pair();
+    final client = PqTlsSocket.client(clientSock, crypto: crypto);
+    final server = PqTlsSocket.server(
+      serverSock,
+      crypto: crypto,
+      identity: identity,
+    );
+    final hs = await Future.wait([server.handshake(), client.handshake()]);
+    expect(hs[0].isSuccess && hs[1].isSuccess, isTrue);
+    server.maxRecordPlaintext = 32;
+    final body = Uint8List.fromList(List<int>.filled(180, 0x61));
+    late StreamSubscription<Uint8List> sub;
+    sub = server.applicationData.listen((_) async {
+      await server.send(
+        encodeHttp1Response(
+          PqHttpResponse(
+            status: 200,
+            headers: const {'content-type': 'text/plain'},
+            body: body,
+            version: HttpVersion.h1,
+          ),
+        ),
+      );
+    });
+    final resp = await PqHttpClient().roundTripH1(
+      tls: client,
+      request: PqHttpRequest(
+        method: 'GET',
+        uri: Uri.parse('https://example.test/split'),
+      ),
+    );
+    expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+    expect(resp.valueOrNull!.body, body);
     await sub.cancel();
     await client.close();
     await server.close();

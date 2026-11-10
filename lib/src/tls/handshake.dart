@@ -44,6 +44,11 @@ final class ClientHello {
     this.keyShares,
     this.ignoredKeyShareGroups = const [],
     this.echInner = false,
+    this.earlyData = false,
+    this.pskIdentity,
+    this.pskObfuscatedAge,
+    this.pskBinder,
+    this.quicTransportParameters,
   });
 
   final Uint8List random;
@@ -78,6 +83,17 @@ final class ClientHello {
   /// RFC 9849 inner encrypted_client_hello (one byte, type = inner).
   /// The outer hello is built in `ech.dart` and does not set this.
   final bool echInner;
+
+  /// RFC 8446 early_data. Empty on the wire. Requires [pskIdentity].
+  final bool earlyData;
+
+  /// RFC 8446 pre_shared_key identity. One identity. Last extension.
+  final Uint8List? pskIdentity;
+  final int? pskObfuscatedAge;
+  final Uint8List? pskBinder;
+
+  /// RFC 9001 `quic_transport_parameters` (extension 57). Null omits it.
+  final Uint8List? quicTransportParameters;
 
   List<({TlsNamedGroup group, Uint8List share})> get offeredKeyShares =>
       keyShares ?? [(group: group, share: share)];
@@ -135,6 +151,10 @@ final class ClientHello {
     b.add(_extKeyShareClients(offeredKeyShares, ignoredKeyShareGroups));
     if (echInner) {
       b.add(_ext(tlsExtEncryptedClientHello, Uint8List.fromList([1])));
+    }
+    final tp = quicTransportParameters;
+    if (tp != null) {
+      b.add(_ext(tlsExtQuicTransportParameters, tp));
     }
     return b.takeBytes();
   }
@@ -207,8 +227,8 @@ final class ClientHello {
     if (sigs.isFailure) return Result.failure(sigs.errorOrNull!);
     final shares = _parseKeyShareClient(map, groups.valueOrNull!);
     if (shares.isFailure) return Result.failure(shares.errorOrNull!);
-    final offered = shares.valueOrNull!;
-    for (final entry in offered) {
+    final sharesOffered = shares.valueOrNull!;
+    for (final entry in sharesOffered) {
       final decoded = validateTlsKeyShare(
         entry.group,
         entry.share,
@@ -216,7 +236,10 @@ final class ClientHello {
       );
       if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     }
-    final (group, keyShare) = (offered.first.group, offered.first.share);
+    final (group, keyShare) = (
+      sharesOffered.first.group,
+      sharesOffered.first.share,
+    );
     final sni = _parseServerName(map);
     if (sni.isFailure) return Result.failure(sni.errorOrNull!);
     final alpn = _parseAlpn(map);
@@ -225,6 +248,23 @@ final class ClientHello {
     if (rawPk.isFailure) return Result.failure(rawPk.errorOrNull!);
     final cookie = _parseCookie(map);
     if (cookie.isFailure) return Result.failure(cookie.errorOrNull!);
+    final early = map.containsKey(tlsExtEarlyData);
+    if (early) {
+      final body = map[tlsExtEarlyData]!;
+      if (body.isNotEmpty) {
+        return Result.failure(
+          PqTransportError.decodeFailure('ClientHello early_data'),
+        );
+      }
+    }
+    final psk = _parsePreSharedKey(map, extBlock.valueOrNull!);
+    if (psk.isFailure) return Result.failure(psk.errorOrNull!);
+    final pskOffered = psk.valueOrNull;
+    if (early && pskOffered == null) {
+      return Result.failure(
+        PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+      );
+    }
     return Result.success(
       ClientHello(
         random: random.valueOrNull!,
@@ -238,7 +278,12 @@ final class ClientHello {
         cookie: cookie.valueOrNull,
         certificateTypes: rawPk.valueOrNull,
         signatureSchemes: sigs.valueOrNull!,
-        keyShares: offered.length == 1 ? null : offered,
+        keyShares: sharesOffered.length == 1 ? null : sharesOffered,
+        earlyData: early,
+        pskIdentity: pskOffered?.identity,
+        pskObfuscatedAge: pskOffered?.age,
+        pskBinder: pskOffered?.binder,
+        quicTransportParameters: map[tlsExtQuicTransportParameters],
       ),
     );
   }
@@ -258,6 +303,7 @@ final class ServerHello {
     this.legacySessionId = const [],
     this.cipherSuite = tlsCipherAes256GcmSha384,
     this.cookie,
+    this.selectedPsk = false,
   });
 
   factory ServerHello.helloRetryRequest({
@@ -281,6 +327,9 @@ final class ServerHello {
   final int cipherSuite;
   final Uint8List? cookie;
 
+  /// RFC 8446 pre_shared_key on ServerHello. Index 0. Last extension.
+  final bool selectedPsk;
+
   bool get isHelloRetryRequest => isHelloRetryRequestRandom(random);
 
   Uint8List encode() {
@@ -300,6 +349,11 @@ final class ServerHello {
       }
     } else {
       exts.add(_extKeyShareServer(group, share));
+    }
+    if (selectedPsk) {
+      final selected = BytesBuilder(copy: false);
+      writeUint16(selected, 0);
+      exts.add(_ext(tlsExtPreSharedKey, selected.takeBytes()));
     }
     writeOpaque16(b, exts.takeBytes());
     return encodeHandshake(tlsHsServerHello, b.takeBytes());
@@ -396,6 +450,8 @@ final class ServerHello {
     final (group, keyShare) = share.valueOrNull!;
     final decoded = validateTlsKeyShare(group, keyShare, fromServer: true);
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+    final selectedPsk = _parseSelectedPsk(map, extBlock.valueOrNull!);
+    if (selectedPsk.isFailure) return Result.failure(selectedPsk.errorOrNull!);
     return Result.success(
       ServerHello(
         random: random.valueOrNull!,
@@ -403,6 +459,7 @@ final class ServerHello {
         share: keyShare,
         legacySessionId: sid.valueOrNull!,
         cipherSuite: suite.valueOrNull!,
+        selectedPsk: selectedPsk.valueOrNull!,
       ),
     );
   }
@@ -764,6 +821,8 @@ Result<Uint8List, PqTransportError> decodeFinished(
 Uint8List encodeEncryptedExtensions({
   int? serverCertificateType = tlsCertTypeRawPublicKey,
   String? alpnProtocol,
+  bool earlyData = false,
+  Uint8List? quicTransportParameters,
 }) {
   final parts = BytesBuilder(copy: false);
   if (serverCertificateType != null) {
@@ -777,6 +836,12 @@ Uint8List encodeEncryptedExtensions({
   if (alpnProtocol != null) {
     parts.add(_extAlpn([alpnProtocol]));
   }
+  if (earlyData) {
+    parts.add(_ext(tlsExtEarlyData, Uint8List(0)));
+  }
+  if (quicTransportParameters != null) {
+    parts.add(_ext(tlsExtQuicTransportParameters, quicTransportParameters));
+  }
   final b = BytesBuilder(copy: false);
   writeOpaque16(b, parts.takeBytes());
   return encodeHandshake(tlsHsEncryptedExtensions, b.takeBytes());
@@ -785,10 +850,17 @@ Uint8List encodeEncryptedExtensions({
 /// RFC 8446 EncryptedExtensions. A null [serverCertificateType] means the
 /// extension was absent, which is X.509 when the client allowed it.
 final class EncryptedExtensions {
-  const EncryptedExtensions({this.serverCertificateType, this.alpnProtocol});
+  const EncryptedExtensions({
+    this.serverCertificateType,
+    this.alpnProtocol,
+    this.earlyData = false,
+    this.quicTransportParameters,
+  });
 
   final int? serverCertificateType;
   final String? alpnProtocol;
+  final bool earlyData;
+  final Uint8List? quicTransportParameters;
 }
 
 Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
@@ -838,10 +910,18 @@ Result<EncryptedExtensions, PqTransportError> decodeEncryptedExtensions(
       PqTransportError.decodeFailure('EncryptedExtensions ALPN not singleton'),
     );
   }
+  final early = map[tlsExtEarlyData];
+  if (early != null && early.isNotEmpty) {
+    return Result.failure(
+      PqTransportError.decodeFailure('EncryptedExtensions early_data'),
+    );
+  }
   return Result.success(
     EncryptedExtensions(
       serverCertificateType: certificateType,
       alpnProtocol: protocols?.first,
+      earlyData: early != null,
+      quicTransportParameters: map[tlsExtQuicTransportParameters],
     ),
   );
 }
@@ -1300,4 +1380,114 @@ Result<List<String>?, PqTransportError> _parseAlpn(Map<int, Uint8List> exts) {
     return Result.failure(PqTransportError.decodeFailure('empty ALPN'));
   }
   return Result.success(out);
+}
+
+/// Appends one extension to a ClientHello and fixes the two length fields.
+Uint8List appendHandshakeExtension(Uint8List handshake, Uint8List extension) {
+  final body = Uint8List.sublistView(handshake, tlsHandshakeHeaderBytes);
+  var o = 2 + handshakeRandomBytes;
+  final sid = body[o];
+  o += 1 + sid;
+  final suites = readUint16(body, o);
+  o += 2 + suites;
+  final comp = body[o];
+  o += 1 + comp;
+  final extLen = readUint16(body, o);
+  final next = extLen + extension.length;
+  final out = Uint8List(body.length + extension.length);
+  out.setRange(0, o, body);
+  out[o] = (next >> 8) & 0xff;
+  out[o + 1] = next & 0xff;
+  out.setRange(o + 2, o + 2 + extLen, body, o + 2);
+  out.setRange(o + 2 + extLen, out.length, extension);
+  return encodeHandshake(handshake[0], out);
+}
+
+Uint8List encodePreSharedKeyExtension({
+  required Uint8List identity,
+  required int obfuscatedAge,
+  Uint8List? binder,
+}) {
+  final one = BytesBuilder(copy: false);
+  writeOpaque16(one, identity);
+  writeUint32(one, obfuscatedAge);
+  final identities = BytesBuilder(copy: false);
+  writeOpaque16(identities, one.takeBytes());
+  final body = BytesBuilder(copy: false)..add(identities.takeBytes());
+  if (binder != null) {
+    final entry = BytesBuilder(copy: false);
+    writeOpaque8(entry, binder);
+    writeOpaque16(body, entry.takeBytes());
+  }
+  return _ext(tlsExtPreSharedKey, body.takeBytes());
+}
+
+Uint8List encodeEarlyDataExtension() => _ext(tlsExtEarlyData, Uint8List(0));
+
+bool _extensionIsLast(Uint8List extBlock, int type) {
+  final r = ByteReader(extBlock);
+  var last = -1;
+  while (!r.isDone) {
+    final t = r.u16();
+    if (t.isFailure) return false;
+    final data = r.opaque16(PqLengthLabel.tlsExtension);
+    if (data.isFailure) return false;
+    last = t.valueOrNull!;
+  }
+  return last == type;
+}
+
+Result<({Uint8List identity, int age, Uint8List binder})?, PqTransportError>
+_parsePreSharedKey(Map<int, Uint8List> exts, Uint8List extBlock) {
+  final data = exts[tlsExtPreSharedKey];
+  if (data == null) return const Result.success(null);
+  if (!_extensionIsLast(extBlock, tlsExtPreSharedKey)) {
+    return Result.failure(
+      PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+    );
+  }
+  final r = ByteReader(data);
+  final identities = r.opaque16(PqLengthLabel.tlsExtension);
+  if (identities.isFailure) return Result.failure(identities.errorOrNull!);
+  final idReader = ByteReader(identities.valueOrNull!);
+  final identity = idReader.opaque16(PqLengthLabel.tlsExtension);
+  if (identity.isFailure) return Result.failure(identity.errorOrNull!);
+  final age = idReader.u32();
+  if (age.isFailure) return Result.failure(age.errorOrNull!);
+  if (!idReader.isDone) {
+    return Result.failure(PqTransportError.unsupported('one PSK identity'));
+  }
+  final binders = r.opaque16(PqLengthLabel.tlsExtension);
+  if (binders.isFailure) return Result.failure(binders.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(PqTransportError.decodeFailure('pre_shared_key'));
+  }
+  final binderReader = ByteReader(binders.valueOrNull!);
+  final binder = binderReader.opaque8(PqLengthLabel.verifyData);
+  if (binder.isFailure) return Result.failure(binder.errorOrNull!);
+  if (!binderReader.isDone) {
+    return Result.failure(PqTransportError.unsupported('one PSK binder'));
+  }
+  return Result.success((
+    identity: identity.valueOrNull!,
+    age: age.valueOrNull!,
+    binder: binder.valueOrNull!,
+  ));
+}
+
+Result<bool, PqTransportError> _parseSelectedPsk(
+  Map<int, Uint8List> exts,
+  Uint8List extBlock,
+) {
+  final data = exts[tlsExtPreSharedKey];
+  if (data == null) return const Result.success(false);
+  if (!_extensionIsLast(extBlock, tlsExtPreSharedKey)) {
+    return Result.failure(
+      PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+    );
+  }
+  if (data.length != 2 || readUint16(data, 0) != 0) {
+    return Result.failure(PqTransportError.decodeFailure('selected_identity'));
+  }
+  return const Result.success(true);
 }

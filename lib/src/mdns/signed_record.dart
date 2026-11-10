@@ -10,6 +10,7 @@ import '../dns/records.dart';
 
 const String pqsigTxtKey = 'pqsig';
 const String pqpkTxtKey = 'pqpk';
+const String pqslhTxtKey = 'pqslh';
 
 /// Split a buffer into 255-byte TXT strings. Never truncates.
 List<String> splitTxt(Uint8List bytes) {
@@ -77,6 +78,56 @@ Result<void, PqTransportError> verifyTxt({
   );
   if (!ok) {
     return Result.failure(PqTransportError.decryptError('mdns ml-dsa'));
+  }
+  return const Result.success(null);
+}
+
+/// Optional FIPS 205 SLH-DSA-SHA2-128f archival signature.
+///
+/// Does not replace [signTxt]. The default announce path stays ML-DSA-65.
+Result<DnsTxt, PqTransportError> signTxtArchival({
+  required PqTransportCrypto crypto,
+  required Uint8List secretKey,
+  required String name,
+  required List<String> body,
+}) {
+  final payload = Uint8List.fromList(utf8.encode(body.join('\n')));
+  final sig = crypto.slhDsaSha2128fSign(secretKey: secretKey, message: payload);
+  final strings = [...body, '$pqslhTxtKey=${splitTxt(sig).join('')}'];
+  return Result.success(DnsTxt(name: name, strings: strings));
+}
+
+Result<void, PqTransportError> verifyTxtArchival({
+  required PqTransportCrypto crypto,
+  required Uint8List publicKey,
+  required DnsTxt txt,
+}) {
+  String? sigField;
+  final body = <String>[];
+  for (final s in txt.strings) {
+    if (s.startsWith('$pqslhTxtKey=')) {
+      sigField = s.substring(pqslhTxtKey.length + 1);
+    } else if (!s.startsWith('$pqsigTxtKey=')) {
+      body.add(s);
+    }
+  }
+  if (sigField == null) {
+    return Result.failure(PqTransportError.decodeFailure('missing pqslh'));
+  }
+  Uint8List sig;
+  try {
+    sig = joinTxt([sigField]);
+  } on FormatException {
+    return Result.failure(PqTransportError.decodeFailure('pqslh'));
+  }
+  final payload = Uint8List.fromList(utf8.encode(body.join('\n')));
+  final ok = crypto.slhDsaSha2128fVerify(
+    publicKey: publicKey,
+    message: payload,
+    signatureBytes: sig,
+  );
+  if (!ok) {
+    return Result.failure(PqTransportError.decryptError('mdns slh-dsa'));
   }
   return const Result.success(null);
 }

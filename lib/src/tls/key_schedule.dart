@@ -29,12 +29,17 @@ final class TlsKeySchedule {
   late Uint8List clientApplicationTraffic;
   late Uint8List serverApplicationTraffic;
   late Uint8List exporterMaster;
+  Uint8List? resumptionMaster;
+  Uint8List? _psk;
   late final Uint8List clientHandshakeIv;
   late final Uint8List serverHandshakeIv;
   late Uint8List clientApplicationIv;
   late Uint8List serverApplicationIv;
   late final Uint8List clientFinishedKey;
   late final Uint8List serverFinishedKey;
+
+  /// True after [derive] has produced handshake traffic secrets.
+  var handshakeSecretsReady = false;
 
   Uint8List _extract(Uint8List salt, Uint8List ikm) => suite.usesSha384
       ? crypto.hkdfExtractSha384(salt, ikm)
@@ -53,6 +58,61 @@ final class TlsKeySchedule {
       ? crypto.hmacSha384(finishedKey, transcriptHashBytes)
       : crypto.hmac(finishedKey, transcriptHashBytes);
 
+  /// RFC 8446 §7.1. Null means the all-zero PSK of a full handshake.
+  void usePsk(Uint8List psk) {
+    if (psk.length != hashLen) {
+      throw ArgumentError.value(psk.length, 'psk', 'expected $hashLen');
+    }
+    _psk = Uint8List.fromList(psk);
+  }
+
+  void clearPsk() {
+    final psk = _psk;
+    if (psk != null) zeroize(psk);
+    _psk = null;
+  }
+
+  Uint8List _earlySecret() {
+    final zeros = Uint8List(hashLen);
+    return _extract(zeros, _psk ?? zeros);
+  }
+
+  Uint8List resumptionBinderKey() {
+    final early = _earlySecret();
+    final key = deriveSecret(
+      early,
+      tlsLabelResBinder,
+      transcriptHash(Uint8List(0)),
+    );
+    zeroize(early);
+    return key;
+  }
+
+  Uint8List binderVerifyData(
+    Uint8List binderKey,
+    Uint8List transcriptHashBytes,
+  ) {
+    final finished = deriveSecret(binderKey, tlsLabelFinished, Uint8List(0));
+    final mac = finishedMac(finished, transcriptHashBytes);
+    zeroize(finished);
+    return mac;
+  }
+
+  Uint8List clientEarlyTraffic(Uint8List clientHelloHash) {
+    final early = _earlySecret();
+    final secret = deriveSecret(early, tlsLabelCEarlyTraffic, clientHelloHash);
+    zeroize(early);
+    return secret;
+  }
+
+  Uint8List ticketPsk(Uint8List nonce) {
+    final master = resumptionMaster;
+    if (master == null) {
+      throw StateError('resumption master is not ready');
+    }
+    return expandLabel(master, tlsLabelResumption, nonce, hashLen);
+  }
+
   void derive({
     required Uint8List hybridSharedSecret,
     required Uint8List handshakeTranscriptHash,
@@ -62,7 +122,7 @@ final class TlsKeySchedule {
     // RFC 8446 §7.1: Derive-Secret(., "derived", "") is
     // Transcript-Hash(""), Hash of the empty input, not a zero salt.
     final emptyTranscript = transcriptHash(Uint8List(0));
-    final early = _extract(zeros, zeros);
+    final early = _earlySecret();
     final derivedEarly = deriveSecret(early, tlsLabelDerived, emptyTranscript);
     final handshake = _extract(derivedEarly, hybridSharedSecret);
     clientHandshakeTraffic = deriveSecret(
@@ -131,6 +191,7 @@ final class TlsKeySchedule {
     zeroize(handshake);
     zeroize(derivedHs);
     zeroize(master);
+    handshakeSecretsReady = true;
   }
 
   void deriveHandshake({
@@ -150,7 +211,7 @@ final class TlsKeySchedule {
   }) {
     final zeros = Uint8List(hashLen);
     final emptyTranscript = transcriptHash(Uint8List(0));
-    final early = _extract(zeros, zeros);
+    final early = _earlySecret();
     final derivedEarly = deriveSecret(early, tlsLabelDerived, emptyTranscript);
     final handshake = _extract(derivedEarly, hybridSharedSecret);
     final derivedHs = deriveSecret(handshake, tlsLabelDerived, emptyTranscript);
@@ -168,6 +229,11 @@ final class TlsKeySchedule {
     exporterMaster = deriveSecret(
       master,
       tlsLabelExpMaster,
+      applicationTranscriptHash,
+    );
+    resumptionMaster = deriveSecret(
+      master,
+      tlsLabelResMaster,
       applicationTranscriptHash,
     );
     clientApplicationIv = expandLabel(
@@ -246,4 +312,8 @@ final class TlsKeySchedule {
 
   Uint8List quicHeaderProtectionKey(Uint8List secret, int length) =>
       expandLabel(secret, quicLabelHp, Uint8List(0), length);
+
+  /// RFC 9001 §6.1. The next traffic secret after one key update.
+  Uint8List quicNextSecret(Uint8List secret) =>
+      expandLabel(secret, quicLabelKeyUpdate, Uint8List(0), hashLen);
 }

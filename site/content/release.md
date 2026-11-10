@@ -37,8 +37,9 @@ branch is merged. Do not tag the feature branch.
 ## What this is not
 
 Not an authoritative DNS server. Not a recursive resolver that sets
-the AD bit. Not WebPKI. Not a browser. Not `curl --http3`. Not QUIC
-0-RTT. Not ML-KEM-512 or ML-KEM-768 as a standalone group. Not TLS
+the AD bit. Not WebPKI. Not a browser. Not `curl --http3`. Not a
+third-party QUIC stack: 0-RTT here is self-interop, and early data
+is replayable. Not ML-KEM-512 or ML-KEM-768 as a standalone group. Not TLS
 1.2. Not a FIPS 140 module.
 
 ## Dependency floor

@@ -3,3 +3,4 @@ library;
 
 export 'pqtransport.dart';
 export 'src/socket/io_socket.dart';
+export 'src/http/pq_http_server.dart';

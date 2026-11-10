@@ -21,7 +21,13 @@ are HelloRetryRequest. BoringSSL sends that retry with no cookie.
 | Suite | `TLS_AES_256_GCM_SHA384` (`0x1302`) |
 | Negative | A different CA is rejected on the hybrid flight. ECH without the server key ends in `ech_required` and no second ClientHello. |
 | ECH | RFC 9849, both directions, X25519MLKEM768 only. Inner name `localhost`, public name `public.example`. `bssl s_server` / `bssl s_client`. Not OpenSSL. Not DNS. Not GREASE. Not a browser. |
-| Not claimed | SecP256r1MLKEM768, SecP384r1MLKEM1024, MLKEM512, MLKEM768, TLS 1.2, a browser, WebPKI, curl. |
+| Not claimed | SecP256r1MLKEM768, SecP384r1MLKEM1024, MLKEM512, MLKEM768, TLS 1.2, QUIC, a browser, WebPKI, curl. |
+
+`bssl` in this pin has no `-quic`. `SSL_QUIC_METHOD` is how a QUIC stack
+asks BoringSSL for the TLS 1.3 handshake (RFC 9001). It does not send
+QUIC packets. This fixture does not wrap that hook in a private
+transport and call it interop. QUIC against this same library is
+quiche in `tool/interop/quiche`.
 
 SecP256r1MLKEM768 and SecP384r1MLKEM1024 are not `SSL_GROUP_*` values in
 this pin. They stay on the OpenSSL 3.5.9 fixture.

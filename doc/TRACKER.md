@@ -113,6 +113,8 @@ language) are green as of this pass. See [INDEX.md](INDEX.md).
 | OPEN-17 | P2 | **Fixed** | RFC 9000 §4 flow control. `test/quic/lifecycle_test.dart` |
 | OPEN-18 | P2 | **Fixed** | Idle timeout, CONNECTION_CLOSE, drain, RESET_STREAM |
 | OPEN-19 | P2 | **Fixed** | Iterative validating resolver. Algorithms 5, 7, 8, 10, 13, 14, 15, 16. RSA moduli 1024, 2048, 3072, 4096. DS set for the two root KSKs. NSEC, NSEC3, DNAME, DO, CD, BADCOOKIE, TC-over-TCP, CNAME. NSEC3 ceiling defaults to 0, field maximum 65535. Ed448 is pure, empty context. `test/dns/dnssec_test.dart`, `test/dns/resolve_test.dart` |
+| OPEN-21 | P2 | **Fixed** | Optional mDNS TXT signature SLH-DSA-SHA2-128f (`pqslh=`). Default announce stays ML-DSA-65. Not TLS CertificateVerify. `test/mdns/mdns_test.dart` |
+| LIM-05 | P2 | **Fixed** | QUIC 0-RTT shares the Application Data packet number space with 1-RTT. Single-use ticket. Replay accepts no early data. `test/quic/early_data_test.dart` |
 
 Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 
@@ -124,7 +126,6 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 | LIM-02 | CMVP / FIPS 140 module | Never this package |
 | LIM-03 | Hard constant-time / hard erasure | Never this language runtime |
 | LIM-04 | Browser raw UDP / mDNS | Never (browser platform) |
-| LIM-05 | QUIC 0-RTT | Permanent (issue 55). Not implemented. RFC 9000 §12.3 would share Application Data with 1-RTT. This stack does not send early data. Application Data PTO stays off until the handshake is confirmed (RFC 9002 §6.2.1). |
 
 ## Roadmap slices (ownership)
 
@@ -139,10 +140,12 @@ Exact signatures: [PQFORGE_EXPORTS.md](PQFORGE_EXPORTS.md).
 OPEN-07 (HTTP/2 + HTTP/3+QPACK+STREAM) is **Fixed**. OPEN-10 (DoH/DoT)
 is **Fixed**. OPEN-15 (RFC 9002 loss recovery) is **Fixed**. LIM-01
 handshake interop with OpenSSL 3.5.9 on the three RFC 10024 groups,
-auth mode raw-pk, is the fixture in `tool/interop/openssl`. LIM-05
-(issue 55) stays open: 0-RTT is not implemented. Do not vendor P-256
-ECDH. Do not treat loss recovery as `curl --http3` or as Handshake
-packet protection.
+auth mode raw-pk, is the fixture in `tool/interop/openssl`. OPEN-21
+and LIM-05 are implemented in this tree. Issues 50 and 55 stay open
+until the owner closes them. 0-RTT is not a fourth packet number
+space, and its PTO stays off until the handshake is confirmed. Do not
+vendor P-256 ECDH. Do not treat loss recovery as `curl --http3` or as
+Handshake packet protection.
 
 ## Verification commands
 

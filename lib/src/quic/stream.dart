@@ -83,7 +83,10 @@ final class QuicStreamReassembler {
       ..addAll(merged);
   }
 
-  Result<void, PqTransportError> add(QuicStreamFrame frame) {
+  Result<void, PqTransportError> add(
+    QuicStreamFrame frame, {
+    bool early = false,
+  }) {
     if (frame.id != id) {
       return Result.failure(PqTransportError.decodeFailure('stream id mix'));
     }
@@ -91,7 +94,9 @@ final class QuicStreamReassembler {
       return Result.failure(PqTransportError.decodeFailure('stream reset'));
     }
     if (machine.currentState == QuicStreamState.idle) {
-      final opened = machine.trigger(QuicStreamEvent.open);
+      final opened = machine.trigger(
+        early ? QuicStreamEvent.early : QuicStreamEvent.open,
+      );
       if (opened.isFailure) {
         return Result.failure(
           PqTransportError.decodeFailure('stream open illegal'),
@@ -101,7 +106,9 @@ final class QuicStreamReassembler {
     if (frame.data.isNotEmpty) {
       final merged = _merge(frame.offset, frame.data);
       if (merged.isFailure) return Result.failure(merged.errorOrNull!);
-      machine.trigger(QuicStreamEvent.data);
+      if (machine.currentState != QuicStreamState.zeroRtt) {
+        machine.trigger(QuicStreamEvent.data);
+      }
     }
     if (frame.fin) {
       final end = frame.offset + frame.data.length;
@@ -187,6 +194,26 @@ final class QuicStreamMap {
     final added = s.add(frame);
     if (added.isFailure) return Result.failure(added.errorOrNull!);
     return Result.success(s);
+  }
+
+  Result<QuicStreamReassembler, PqTransportError> ingestEarly(
+    QuicStreamFrame frame,
+  ) {
+    final s = streams.putIfAbsent(
+      frame.id,
+      () => QuicStreamReassembler(frame.id),
+    );
+    final added = s.add(frame, early: true);
+    if (added.isFailure) return Result.failure(added.errorOrNull!);
+    return Result.success(s);
+  }
+
+  void confirmEarly() {
+    for (final stream in streams.values) {
+      if (stream.machine.currentState == QuicStreamState.zeroRtt) {
+        stream.machine.trigger(QuicStreamEvent.confirm);
+      }
+    }
   }
 
   List<int> peerBidi({required bool clientInitiated}) {

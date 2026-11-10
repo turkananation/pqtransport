@@ -32,6 +32,16 @@ trap 'rm -rf "$workdir"' EXIT
 curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" -o "$workdir/$tarball"
 tar -xzf "$workdir/$tarball" -C "$workdir"
 src="$workdir/openssl-openssl-${version}"
+mkdir -p "$prefix/src"
+# 3.5.9 moved the demo from demos/quic/server.c to demos/quic/server/server.c.
+if [[ -f "$src/demos/quic/server/server.c" ]]; then
+  cp "$src/demos/quic/server/server.c" "$prefix/src/quic-server.c"
+elif [[ -f "$src/demos/quic/server.c" ]]; then
+  cp "$src/demos/quic/server.c" "$prefix/src/quic-server.c"
+else
+  echo "OpenSSL ${version} has no demos/quic server.c" >&2
+  exit 1
+fi
 cd "$src"
 ./Configure "linux-$(uname -m)" \
   --prefix="$prefix" --libdir=lib shared no-tests \

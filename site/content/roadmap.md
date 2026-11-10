@@ -13,7 +13,7 @@ Canonical:
 ## Non-goals that stay non-goals
 
 CMVP / FIPS 140. Hard constant-time / hard erasure. Browser raw UDP /
-mDNS / QUIC sockets. QUIC 0-RTT (LIM-05). Classical-only fallback after
+mDNS / QUIC sockets. Classical-only fallback after
 a PQ hello. Direct `pqcrypto` dependency. `dart:ffi` / `SecureSocket`
 on the PQ path. ML-DSA DNSSEC. An authoritative DNS server.
 
@@ -23,12 +23,11 @@ on the PQ path. ML-DSA DNSSEC. An authoritative DNS server.
 | --- | --- |
 | 0.2 | RFC 8446 hellos, raw public key, wire HRR, IANA `0x1302` / `0x1303` |
 | 0.3 | Live KEX on all three RFC 10024 groups. SHA-384 schedule for `0x1302` |
-| 0.4 | OpenSSL 3.5.9, raw-pk and X.509, both directions. BoringSSL 0.20261020.0 on X25519MLKEM768 and X25519, secp256r1, secp384r1, MLKEM1024. Not the two NIST hybrids on BoringSSL. curl is two HTTP/1.1 GETs |
+| 0.4 | OpenSSL 3.5.9, raw-pk and X.509, both directions. BoringSSL 0.20261020.0 on X25519MLKEM768 and X25519, secp256r1, secp384r1, MLKEM1024. Not the two NIST hybrids on BoringSSL. curl is HTTP/1.1: one GET against `s_server`, one against `PqTlsSocket`, and against `PqHttpServer` a chunked body, keep-alive, and `Connection: close`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not `curl --http3` |
 | 0.5 | DoH, DoT, HTTP/2, HTTP/3+QPACK, QUIC loss recovery |
-| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli 1024 through 4096. Ed448 verifies. Iterative resolver, NSEC and NSEC3 |
+| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli 1024 through 4096. Ed448 verifies. Iterative resolver, NSEC and NSEC3. QUIC 0-RTT shares the Application Data space with 1-RTT. Optional mDNS TXT is SLH-DSA-SHA2-128f |
 
 ## Next
 
-OPEN-21: an optional SLH-DSA signature on mDNS TXT, one parameter set
-pqforge already exports. The default announce path stays ML-DSA-65.
-Do not start 0-RTT.
+No coding turn is queued. OPEN-21 and QUIC 0-RTT are in this tree.
+Issues 50 and 55 stay open until the owner closes them.

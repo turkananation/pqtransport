@@ -15,7 +15,8 @@ Pure-Dart post-quantum transport for Dart and Flutter.
 - OpenSSL 3.5.9: the three hybrid groups, raw-pk and X.509, both directions, plus the four fallback groups. BoringSSL 0.20261020.0 is a TLS peer on X25519MLKEM768 and the four fallback groups, not SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl is two HTTP/1.1 GETs. Not curl --http3.
 - ECH (RFC 9849) is self-interop and one BoringSSL flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via PqHpke. Not an OpenSSL flight. Not GREASE. Not DNS.
 - DNSSEC verifies algorithms 8, 13, 14, and 15 via pqforge. DS digests are SHA-1, SHA-256, and SHA-384. A caller-supplied root trust anchor drives an iterative resolver: referrals, glue, qname minimization, DNAME, CNAME, and secure, insecure, or bogus. NSEC and NSEC3 denial are cached and reused across names in the span. NSEC3 is hash algorithm 1, SHA-1 from pqforge. The iteration field allows 0 through 65535. The resolver's default ceiling is 0. The stub and the resolver set DO and CD, match the response id, retry truncation over TCP, and retry BADCOOKIE once. The AD bit is not validation. Not an authoritative server.
-- HTTP/2 is on PqTlsSocket (ALPN h2). HTTP/3 is on PqQuicConn (ALPN h3). Silent h2/h3 to h1 downgrade is refused. QUIC 0-RTT is not implemented (LIM-05).
+- HTTP/2 is on PqTlsSocket (ALPN h2). HTTP/3 is on PqQuicConn (ALPN h3). Silent h2/h3 to h1 downgrade is refused. QUIC 0-RTT is self-interop in the Application Data packet number space, shared with 1-RTT. Early data is replayable. A replayed ticket accepts none. Not a fourth space. Not curl --http3.
+- Optional mDNS TXT field pqslh= is SLH-DSA-SHA2-128f. The default announce path stays ML-DSA-65 (pqsig=). Not TLS CertificateVerify. Not the other eleven FIPS 205 sets.
 - Not a FIPS 140 module.
 
 Start at doc/INDEX.md. Do not invent FIPS/CMVP, constant-time, or erasure claims.

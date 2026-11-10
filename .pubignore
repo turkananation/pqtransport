@@ -14,3 +14,7 @@ tool/
 **/*.vm.json
 .DS_Store
 pubspec.lock
+
+# local resumption stores
+demo_ticket_store.bin
+demo_token_store.bin

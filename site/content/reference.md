@@ -241,7 +241,11 @@ peer FIN. `resetStream(id, errorCode)` sends RESET_STREAM.
 CONNECTION_CLOSE and then discards inbound packets until three times
 the current PTO. `isComplete` is the TLS handshake. `alpn` is the
 selected protocol. `isDraining` and `isClosed` are the connection
-state. There is no 0-RTT send.
+state. `writeEarly` sends replayable 0-RTT before `handshake`.
+The server calls `sendNewSessionTicket` after the handshake, into a
+`QuicEarlyDataStore`. The next `pair` takes that ticket. A second
+use of the same ticket completes and accepts no early data. 0-RTT
+shares the Application Data packet number space with 1-RTT.
 
 ## HTTP
 

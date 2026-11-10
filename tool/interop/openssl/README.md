@@ -9,7 +9,9 @@ There is no `dart:ffi` and no checked-in transcript.
 Handshake interop with OpenSSL 3.5.9 on X25519MLKEM768,
 SecP256r1MLKEM768, and SecP384r1MLKEM1024. raw-pk and X.509.
 SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
-BoringSSL verifies the OpenSSL leaf. curl does two GETs. Not a browser.
+BoringSSL verifies the OpenSSL leaf. curl does HTTP/1.1 GETs,
+including keep-alive and `Connection: close` against `PqHttpServer`.
+`PqHttpClient` reassembles `s_server -max_send_frag 512`. Not a browser.
 
 | Item | Value |
 | --- | --- |
@@ -22,7 +24,8 @@ BoringSSL verifies the OpenSSL leaf. curl does two GETs. Not a browser.
 | Auth, X.509 server | `s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65, chain length 1 on all three groups, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768. |
 | BoringSSL | This script: 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. The TLS peer is `tool/interop/boringssl`. |
 | Classical / pure | X25519, secp256r1, secp384r1, and MLKEM1024, both directions, ML-DSA-65 chain length 1. Hybrid stays first. `x25519:secp256r1` finishes on X25519. The other three are HelloRetryRequest. Not MLKEM512. Not MLKEM768. Not TLS 1.2. |
-| curl | Two HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`. Not a browser. Not `curl --http3`. |
+| curl | HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`, and against `PqHttpServer` a chunked body, a reused connection, and a new connection after `Connection: close`. Not a browser. Not `curl --http3`. |
+| HTTP/1.1 records | `s_server -max_send_frag 512` serves a 2048-octet body. `PqHttpClient` reassembles it. ServerHello is fragmented on that flight and buffered until complete. |
 | Finished | Each raw-pk and X.509 client group: OpenSSL logs `read finished` and `peerAuthenticated` is true. Each server group: `s_client` exits 0 and prints `Verify return code: 0`. |
 
 ## Wire this fixture requires

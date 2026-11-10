@@ -47,7 +47,8 @@ the three RFC 10024 groups (raw-pk and X.509, both directions) and
 X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is
 a TLS peer on X25519MLKEM768 and those four fallback groups, not on
 SecP256r1MLKEM768 or SecP384r1MLKEM1024. curl linked to this OpenSSL
-does two HTTP/1.1 GETs with `--cacert`. Not `curl --http3`.
+does HTTP/1.1 GETs with `--cacert`, including a reused connection and
+`Connection: close` against `PqHttpServer`. Not `curl --http3`.
 
 ECH (RFC 9849) is self-interop and one BoringSSL flight. The suite is
 DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
@@ -96,30 +97,76 @@ in the [Cookbook](cookbook#dns-stub). The programs are
 
 Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
 `ff02::fb` (`joinMdnsGroups`). Optional ML-DSA-65 TXT (`pqsig=`).
-EventBus announcements per client. Real LAN mDNS uses
+An optional second field, `pqslh=`, is SLH-DSA-SHA2-128f and is not
+the default. EventBus announcements per client. Real LAN mDNS uses
 `IoDatagramChannel.joinMulticast`. Browsers have no raw UDP (LIM-04).
-SLH-DSA signed records are not the interactive default.
+SLH-DSA-SHA2-128f is archival only. The other eleven sets are not
+used here, and TLS CertificateVerify stays ML-DSA.
 
 The call is `beginProbe`, two `completeProbe`s, then `announce`.
-`signTxt` takes `crypto`, `secretKey`, `name`, and `body`. Both are
+`signTxt` takes `crypto`, `secretKey`, `name`, and `body`.
+`signTxtArchival` is the optional SLH-DSA-SHA2-128f path. Both are
 in the [Cookbook](cookbook#mdns). The program is
 `example/mdns_discovery.dart`.
 
 ## QUIC / HTTP
 
-1-RTT short-header HP and Initial long-header HP. AES for Initial and
-for an AES 1-RTT suite. ChaCha20 header protection (RFC 9001 §5.4.4)
-uses the pqforge keystream. CRYPTO frames carry a live TLS handshake
-(RFC 9001, no TLS records). ACK processor is present. QUIC 0-RTT is not
-implemented (LIM-05, issue 55). It is not a fourth packet number space.
+1-RTT short-header HP and Initial long-header HP. Handshake packets
+use the TLS handshake traffic secrets. ClientHello and ServerHello stay
+in Initial. Transport parameters ride in ClientHello and
+EncryptedExtensions. CRYPTO frames carry a live TLS handshake (RFC 9001,
+no TLS records). OpenSSL 3.5.9 `s_client -quic` completes a QUICv1
+handshake and verifies an ML-DSA-65 localhost certificate.
+`PqQuicConn.client` completes against OpenSSL `demos/quic/server`
+(Retry, ALPN `ossltest`, that certificate checked). quiche 0.30.0
+(`fa0e480`), linked to BoringSSL 0.20261020.0, completes one HTTP/3
+GET both ways: the quiche client checks the ML-DSA-65 certificate
+and reads body `pq-h3`; the Dart client reads body `quiche-h3`.
+QPACK capacity stays 0 because that quiche build rejects dynamic
+references. It is not `curl --http3` and not a complete RFC 9114
+stack. The gap list is `TODO.md`.
 
-HTTP/1.1 request/response is Done, including GET over a completed
-`PqTlsSocket`. HTTP/2 is Done on ALPN `h2` (RFC 9113 + RFC 7541). HTTP/3
-is Done on ALPN `h3` (RFC 9114 + RFC 9204 QPACK on QUIC STREAM). Silent
+HTTP/1.1 decodes chunked bodies and trailers, writes the registered
+reason phrase, and rejects obs-fold plus Content-Length conflicts.
+A missing, empty, or duplicate Host on HTTP/1.1 fails. curl linked
+to OpenSSL 3.5.9 `--http1.1` reads chunked `pq-h1` from
+`PqHttpServer`, reuses one connection for a second response, and
+opens a new connection after `Connection: close`. OpenSSL
+`s_server -max_send_frag 512` serves a 2048-octet body. Every TLS
+record ciphertext on that flight is at most 529 octets, and
+`PqHttpClient` reassembles the body. The same limit fragments
+ServerHello; the client buffers it until the handshake message is
+complete (RFC 8446 §5.1). A 32-byte in-memory split remains a unit
+test. HTTP/2 enforces connection and
+stream windows, the four SETTINGS limits, stream states, GOAWAY,
+RST_STREAM, trailers, and CONTINUATION. Extended CONNECT and
+PRIORITY_UPDATE on HTTP/3 are the quiche flights. HTTP/2
+PRIORITY_UPDATE is still in-memory. curl 8.23.0 with nghttp2 1.66.0 completed
+one HTTP/2 GET. libnghttp2 1.66.0 completed extended CONNECT.
+curl `wss://` did not. The server does not send
+ENABLE_PUSH. The old PRIORITY frame is ignored. It is not a
+complete RFC 9113 stack. HTTP/3 on `PqQuicConn` is the quiche GET
+above, plus one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID,
+and CANCEL_PUSH), QPACK limits, trailers, and request cancel.
+SETTINGS_H3_DATAGRAM=1 is sent only when the peer advertised
+`max_datagram_frame_size`. HTTP datagrams and PRIORITY_UPDATE are
+the same quiche flights. connect-ip-go v0.6.0 parsed
+ADDRESS_ASSIGN and ROUTE_ADVERTISEMENT. masque-go v0.6.0
+completed one CONNECT-UDP echo, and the reverse echoed
+`ping-reverse`. connect-ip-go did the same in both directions,
+including one 20-byte IPv4 packet to `198.51.100.1`. Both
+checked ML-DSA-65. The payloads are QUIC DATAGRAMs. The
+masque-go reverse response omitted `capsule-protocol`. Unknown
+control-stream frames are ignored. Push is off. It is not a
+complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
 
 HTTP/1.1 is `PqHttpClient.roundTrip` after the server listens on
 `applicationData`. HTTP/2 is `PqHttp2Session.server` plus
-`roundTripH2`. HTTP/3 is `PqQuicConn.pair` plus `roundTripH3`. The
-three calls are in the [Cookbook](cookbook#http11). The programs are
+`roundTripH2`. HTTP/3 is `PqQuicConn` plus `roundTripH3`. Shelf
+replaces `shelf_io.serve` and `SecurityContext` with `serveShelf`.
+Relic's web server takes `PqRelicAdapter` instead of `IOAdapter`.
+Serverpod's API and insights servers still build a `SecurityContext`
+inside Serverpod. Shelf, Relic, and that Serverpod limit are in
+the [Cookbook](cookbook#servers). The HTTP programs are
 `example/http1.dart`, `example/http2.dart`, and `example/http3.dart`.

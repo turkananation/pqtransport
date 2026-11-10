@@ -6,14 +6,23 @@ import '../core/bytes.dart';
 import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/lengths.dart';
+import 'multipath.dart';
 
-enum QuicConnectionState { idle, handshake, ready, draining, closed, failed }
+enum QuicConnectionState {
+  idle,
+  handshake,
+  ready,
+  draining,
+  closed,
+  failed,
+  zeroRtt,
+}
 
-enum QuicConnectionEvent { start, handshakeDone, close, fatal, drain }
+enum QuicConnectionEvent { start, handshakeDone, close, fatal, drain, early }
 
-enum QuicStreamState { idle, open, halfClosed, closed, reset }
+enum QuicStreamState { idle, open, halfClosed, closed, reset, zeroRtt }
 
-enum QuicStreamEvent { open, data, fin, reset, close }
+enum QuicStreamEvent { open, data, fin, reset, close, early, confirm }
 
 StateMachine<QuicConnectionState, QuicConnectionEvent> quicConnMachine() {
   final m = StateMachine<QuicConnectionState, QuicConnectionEvent>(
@@ -74,6 +83,26 @@ StateMachine<QuicConnectionState, QuicConnectionEvent> quicConnMachine() {
     QuicConnectionEvent.close,
     QuicConnectionState.closed,
   );
+  m.addTransition(
+    QuicConnectionState.handshake,
+    QuicConnectionEvent.early,
+    QuicConnectionState.zeroRtt,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.handshakeDone,
+    QuicConnectionState.ready,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.fatal,
+    QuicConnectionState.failed,
+  );
+  m.addTransition(
+    QuicConnectionState.zeroRtt,
+    QuicConnectionEvent.close,
+    QuicConnectionState.closed,
+  );
   return m;
 }
 
@@ -113,6 +142,26 @@ StateMachine<QuicStreamState, QuicStreamEvent> quicStreamMachine() {
   );
   m.addTransition(
     QuicStreamState.halfClosed,
+    QuicStreamEvent.reset,
+    QuicStreamState.reset,
+  );
+  m.addTransition(
+    QuicStreamState.idle,
+    QuicStreamEvent.early,
+    QuicStreamState.zeroRtt,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
+    QuicStreamEvent.confirm,
+    QuicStreamState.open,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
+    QuicStreamEvent.fin,
+    QuicStreamState.halfClosed,
+  );
+  m.addTransition(
+    QuicStreamState.zeroRtt,
     QuicStreamEvent.reset,
     QuicStreamState.reset,
   );
@@ -250,12 +299,20 @@ final class QuicAckFrame {
     required this.delay,
     required this.firstRange,
     this.additional = const [],
+    this.ecn = false,
+    this.ect0 = 0,
+    this.ect1 = 0,
+    this.ce = 0,
   });
 
   final int largest;
   final int delay;
   final int firstRange;
   final List<(int gap, int range)> additional;
+  final bool ecn;
+  final int ect0;
+  final int ect1;
+  final int ce;
 
   /// Packet numbers acknowledged by this frame, descending.
   List<int> packetNumbers() {
@@ -279,7 +336,7 @@ final class QuicAckFrame {
 
   Uint8List encode() {
     final b = BytesBuilder(copy: false);
-    b.addByte(quicFrameAck);
+    b.addByte(ecn ? quicFrameAckEcn : quicFrameAck);
     writeQuicVarint(b, largest);
     writeQuicVarint(b, delay);
     writeQuicVarint(b, additional.length);
@@ -287,6 +344,11 @@ final class QuicAckFrame {
     for (final (gap, range) in additional) {
       writeQuicVarint(b, gap);
       writeQuicVarint(b, range);
+    }
+    if (ecn) {
+      writeQuicVarint(b, ect0);
+      writeQuicVarint(b, ect1);
+      writeQuicVarint(b, ce);
     }
     return b.takeBytes();
   }
@@ -297,9 +359,11 @@ final class QuicAckFrame {
   static Result<QuicAckFrame, PqTransportError> read(ByteReader r) {
     final type = r.u8();
     if (type.isFailure) return Result.failure(type.errorOrNull!);
-    if (type.valueOrNull != quicFrameAck) {
+    if (type.valueOrNull != quicFrameAck &&
+        type.valueOrNull != quicFrameAckEcn) {
       return Result.failure(PqTransportError.decodeFailure('not ACK frame'));
     }
+    final ecn = type.valueOrNull == quicFrameAckEcn;
     final largest = readVarint(r);
     final delay = readVarint(r);
     final count = readVarint(r);
@@ -316,12 +380,27 @@ final class QuicAckFrame {
       }
       extra.add((gap, range));
     }
+    var ect0 = 0;
+    var ect1 = 0;
+    var ce = 0;
+    if (ecn) {
+      ect0 = readVarint(r);
+      ect1 = readVarint(r);
+      ce = readVarint(r);
+      if (ect0 < 0 || ect1 < 0 || ce < 0) {
+        return Result.failure(PqTransportError.decodeFailure('ack ecn'));
+      }
+    }
     return Result.success(
       QuicAckFrame(
         largest: largest,
         delay: delay,
         firstRange: first,
         additional: extra,
+        ecn: ecn,
+        ect0: ect0,
+        ect1: ect1,
+        ce: ce,
       ),
     );
   }
@@ -389,10 +468,32 @@ final class QuicAckProcessor {
   }
 }
 
-/// CRYPTO + ACK + STREAM + flow-control frames from a QUIC packet payload.
+/// RFC 9221 DATAGRAM. Not retransmitted. [lengthPrefixed] is type 0x31.
+final class QuicDatagramFrame {
+  const QuicDatagramFrame(this.payload, {required this.lengthPrefixed});
+
+  final Uint8List payload;
+  final bool lengthPrefixed;
+
+  int get encodedLength =>
+      1 +
+      (lengthPrefixed ? quicVarintLength(payload.length) : 0) +
+      payload.length;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(lengthPrefixed ? quicFrameDatagramLen : quicFrameDatagram);
+    if (lengthPrefixed) writeQuicVarint(b, payload.length);
+    b.add(payload);
+    return b.takeBytes();
+  }
+}
+
+/// CRYPTO + ACK + STREAM + flow-control and path frames.
 /// PADDING and PING are skipped. [ackEliciting] is set when any frame
 /// other than ACK, PADDING, or CONNECTION_CLOSE was present (RFC 9002
-/// §2 / RFC 9000 §13.2.1). ACK-ECN and unknown types fail closed.
+/// §2 / RFC 9000 §13.2.1). Unknown types fail closed. ECN counts are
+/// parsed and are not a congestion signal on a memory datagram.
 final class QuicPayload {
   const QuicPayload({
     this.crypto = const [],
@@ -404,6 +505,17 @@ final class QuicPayload {
     this.streamDataBlocked = const [],
     this.resets = const [],
     this.closes = const [],
+    this.stopSending = const [],
+    this.maxStreams = const [],
+    this.streamsBlocked = const [],
+    this.newConnectionIds = const [],
+    this.retireConnectionIds = const [],
+    this.newTokens = const [],
+    this.pathChallenges = const [],
+    this.pathResponses = const [],
+    this.datagrams = const [],
+    this.multipath = const [],
+    this.handshakeDone = false,
     this.ackEliciting = false,
   });
 
@@ -416,6 +528,17 @@ final class QuicPayload {
   final List<QuicStreamDataBlockedFrame> streamDataBlocked;
   final List<QuicResetStreamFrame> resets;
   final List<QuicConnectionCloseFrame> closes;
+  final List<QuicStopSendingFrame> stopSending;
+  final List<QuicMaxStreamsFrame> maxStreams;
+  final List<QuicStreamsBlockedFrame> streamsBlocked;
+  final List<QuicNewConnectionIdFrame> newConnectionIds;
+  final List<QuicRetireConnectionIdFrame> retireConnectionIds;
+  final List<QuicNewTokenFrame> newTokens;
+  final List<QuicPathChallengeFrame> pathChallenges;
+  final List<QuicPathResponseFrame> pathResponses;
+  final List<QuicDatagramFrame> datagrams;
+  final List<QuicMultipathFrame> multipath;
+  final bool handshakeDone;
   final bool ackEliciting;
 }
 
@@ -430,6 +553,17 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
   final streamDataBlocked = <QuicStreamDataBlockedFrame>[];
   final resets = <QuicResetStreamFrame>[];
   final closes = <QuicConnectionCloseFrame>[];
+  final stopSending = <QuicStopSendingFrame>[];
+  final maxStreams = <QuicMaxStreamsFrame>[];
+  final streamsBlocked = <QuicStreamsBlockedFrame>[];
+  final newConnectionIds = <QuicNewConnectionIdFrame>[];
+  final retireConnectionIds = <QuicRetireConnectionIdFrame>[];
+  final newTokens = <QuicNewTokenFrame>[];
+  final pathChallenges = <QuicPathChallengeFrame>[];
+  final pathResponses = <QuicPathResponseFrame>[];
+  final datagrams = <QuicDatagramFrame>[];
+  final multipath = <QuicMultipathFrame>[];
+  var handshakeDone = false;
   var ackEliciting = false;
   while (r.remaining > 0) {
     final type = r.bytes[r.offset];
@@ -449,7 +583,7 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       ackEliciting = true;
       continue;
     }
-    if (type == quicFrameAck) {
+    if (type == quicFrameAck || type == quicFrameAckEcn) {
       final f = QuicAckFrame.read(r);
       if (f.isFailure) return Result.failure(f.errorOrNull!);
       acks.add(f.valueOrNull!);
@@ -505,6 +639,104 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       closes.add(f.valueOrNull!);
       continue;
     }
+    if (type == quicFrameStopSending) {
+      final f = QuicStopSendingFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      stopSending.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameMaxStreamsBidi || type == quicFrameMaxStreamsUni) {
+      final f = QuicMaxStreamsFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      maxStreams.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameStreamsBlockedBidi ||
+        type == quicFrameStreamsBlockedUni) {
+      final f = QuicStreamsBlockedFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      streamsBlocked.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameNewConnectionId) {
+      final f = QuicNewConnectionIdFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      newConnectionIds.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameRetireConnectionId) {
+      final f = QuicRetireConnectionIdFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      retireConnectionIds.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameNewToken) {
+      final f = QuicNewTokenFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      newTokens.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFramePathChallenge) {
+      final f = QuicPathChallengeFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      pathChallenges.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFramePathResponse) {
+      final f = QuicPathResponseFrame.read(r);
+      if (f.isFailure) return Result.failure(f.errorOrNull!);
+      pathResponses.add(f.valueOrNull!);
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameHandshakeDone) {
+      r.offset++;
+      handshakeDone = true;
+      ackEliciting = true;
+      continue;
+    }
+    if (type == quicFrameDatagram || type == quicFrameDatagramLen) {
+      r.offset++;
+      final prefixed = type == quicFrameDatagramLen;
+      Uint8List payload;
+      if (prefixed) {
+        final len = readVarint(r);
+        if (len < 0 || r.remaining < len) {
+          return Result.failure(PqTransportError.decodeFailure('datagram'));
+        }
+        final taken = r.take(len, PqLengthLabel.datagram);
+        if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+        payload = taken.valueOrNull!;
+      } else {
+        final taken = r.take(r.remaining, PqLengthLabel.datagram);
+        if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+        payload = taken.valueOrNull!;
+      }
+      final frame = QuicDatagramFrame(payload, lengthPrefixed: prefixed);
+      if (frame.encodedLength > quicLocalMaxDatagramFrameSize) {
+        return Result.failure(
+          PqTransportError.decodeFailure('datagram too large'),
+        );
+      }
+      datagrams.add(frame);
+      ackEliciting = true;
+      continue;
+    }
+    final multi = readQuicMultipathFrame(r);
+    if (multi != null) {
+      if (multi.isFailure) return Result.failure(multi.errorOrNull!);
+      final frame = multi.valueOrNull!;
+      multipath.add(frame);
+      if (frame.ackEliciting) ackEliciting = true;
+      continue;
+    }
     return Result.failure(
       PqTransportError.decodeFailure(
         'unsupported quic frame 0x${type.toRadixString(16)}',
@@ -522,6 +754,17 @@ Result<QuicPayload, PqTransportError> decodeQuicPayload(Uint8List payload) {
       streamDataBlocked: streamDataBlocked,
       resets: resets,
       closes: closes,
+      stopSending: stopSending,
+      maxStreams: maxStreams,
+      streamsBlocked: streamsBlocked,
+      newConnectionIds: newConnectionIds,
+      retireConnectionIds: retireConnectionIds,
+      newTokens: newTokens,
+      pathChallenges: pathChallenges,
+      pathResponses: pathResponses,
+      datagrams: datagrams,
+      multipath: multipath,
+      handshakeDone: handshakeDone,
       ackEliciting: ackEliciting,
     ),
   );
@@ -539,10 +782,16 @@ void writeQuicVarint(BytesBuilder b, int v) {
   } else if (v <= quicVarintMax4) {
     writeUint32(b, v | quicVarint4Prefix);
   } else {
-    b.addByte(quicVarint8Prefix | ((v >> 56) & quicVarintPrefixMask));
-    for (var i = 6; i >= 0; i--) {
-      b.addByte((v >> (8 * i)) & 0xff);
+    // `>>` is a signed int32 on dart2js, so 2^32 encoded as all zeros
+    // and the initial_max_path_id limit never fired in Chrome.
+    var rest = v;
+    final bytes = Uint8List(8);
+    for (var i = 7; i >= 0; i--) {
+      bytes[i] = rest % 256;
+      rest ~/= 256;
     }
+    bytes[0] = (bytes[0] & quicVarintPrefixMask) | quicVarint8Prefix;
+    b.add(bytes);
   }
 }
 
@@ -555,7 +804,9 @@ int readVarint(ByteReader r) {
   var v = first & quicVarintPrefixMask;
   r.offset++;
   for (var i = 1; i < len; i++) {
-    v = (v << 8) | r.bytes[r.offset++];
+    final byte = r.bytes[r.offset++];
+    // Eight-byte values pass 2^31. A shift would wrap them on dart2js.
+    v = len == 8 ? v * 256 + byte : (v << 8) | byte;
   }
   return v;
 }
@@ -652,6 +903,8 @@ final class QuicPacketCodec {
     required this.iv,
     required this.hpKey,
     this.aead = TransportAead.aes256Gcm,
+    this.keyPhase = false,
+    this.dcidLength = quicShortDcidBytes,
   });
 
   final PqTransportCrypto crypto;
@@ -660,18 +913,28 @@ final class QuicPacketCodec {
   final Uint8List hpKey;
   final TransportAead aead;
 
+  /// RFC 9001 §6. The short-header key phase bit.
+  final bool keyPhase;
+
+  /// DCID length on packets this codec opens. Short headers omit it.
+  final int dcidLength;
+
   static const pnLength = 4;
 
   factory QuicPacketCodec.fromKeys(
     PqTransportCrypto crypto,
     QuicPacketKeys keys, {
     TransportAead aead = TransportAead.aes256Gcm,
+    bool keyPhase = false,
+    int dcidLength = quicShortDcidBytes,
   }) => QuicPacketCodec(
     crypto: crypto,
     key: keys.key,
     iv: keys.iv,
     hpKey: keys.hp,
     aead: aead,
+    keyPhase: keyPhase,
+    dcidLength: dcidLength,
   );
 
   Result<Uint8List, PqTransportError> protect({
@@ -679,17 +942,21 @@ final class QuicPacketCodec {
     required int packetNumber,
     required Uint8List payload,
     int packetNumberLength = pnLength,
+    int pathId = 0,
+    bool multipath = false,
   }) {
     if (packetNumberLength < 1 ||
         packetNumberLength > quicPacketNumberMaxBytes) {
       return Result.failure(PqTransportError.decodeFailure('pn length'));
     }
-    if (dcid.length != quicShortDcidBytes) {
+    if (dcid.length > quicMaxConnectionIdBytes) {
       return Result.failure(PqTransportError.decodeFailure('dcid'));
     }
-    final nonce = quicAeadNonce(iv, packetNumber);
+    final nonce = multipath
+        ? quicMultipathNonce(iv, pathId, packetNumber)
+        : quicAeadNonce(iv, packetNumber);
     final header = BytesBuilder(copy: false);
-    header.addByte(0x40 | (packetNumberLength - 1));
+    header.addByte((keyPhase ? 0x44 : 0x40) | (packetNumberLength - 1));
     header.add(dcid);
     writePacketNumber(header, packetNumber, packetNumberLength);
     final hdr = header.takeBytes();
@@ -701,7 +968,7 @@ final class QuicPacketCodec {
       aead: aead,
     );
     final packet = concatBytes([hdr, body]);
-    final pnOff = 1 + quicShortDcidBytes;
+    final pnOff = 1 + dcid.length;
     if (!quicHeaderProtectionSampleFits(packet.length, pnOff)) {
       return Result.failure(PqTransportError.decodeFailure('hp sample'));
     }
@@ -722,22 +989,20 @@ final class QuicPacketCodec {
     return Result.success(packet);
   }
 
-  Result<({int packetNumber, Uint8List payload}), PqTransportError> open(
-    Uint8List wire,
-  ) {
-    const minLen =
-        1 +
-        quicShortDcidBytes +
-        quicPacketNumberMaxBytes +
-        quicHeaderProtectionSampleBytes;
-    if (wire.length < minLen) {
+  Result<
+    ({int packetNumber, Uint8List payload, bool keyPhase}),
+    PqTransportError
+  >
+  open(Uint8List wire, {int pathId = 0, bool multipath = false}) {
+    const minTail = quicPacketNumberMaxBytes + quicHeaderProtectionSampleBytes;
+    if (wire.length < 1 + dcidLength + minTail) {
       return Result.failure(PqTransportError.decodeFailure('short quic'));
     }
     final packet = Uint8List.fromList(wire);
     if ((packet[0] & 0x80) != 0) {
       return Result.failure(PqTransportError.decodeFailure('not short header'));
     }
-    final pnOff = 1 + quicShortDcidBytes;
+    final pnOff = 1 + dcidLength;
     if (!quicHeaderProtectionSampleFits(packet.length, pnOff)) {
       return Result.failure(PqTransportError.decodeFailure('hp sample'));
     }
@@ -761,12 +1026,18 @@ final class QuicPacketCodec {
     try {
       final payload = crypto.aeadOpen(
         key: key,
-        nonce: quicAeadNonce(iv, pn),
+        nonce: multipath
+            ? quicMultipathNonce(iv, pathId, pn)
+            : quicAeadNonce(iv, pn),
         ciphertextWithTag: slice(packet, pnOff + pnLen, packet.length),
         aad: hdr,
         aead: aead,
       );
-      return Result.success((packetNumber: pn, payload: payload));
+      return Result.success((
+        packetNumber: pn,
+        payload: payload,
+        keyPhase: (packet[0] & 0x04) != 0,
+      ));
     } on Object catch (e) {
       return Result.failure(
         PqTransportError.decryptError('quic ${e.runtimeType}'),
@@ -997,7 +1268,7 @@ final class QuicFlowControl {
 
   int _peerMaxData;
   int _localMaxData;
-  final int _initialSendStream;
+  int _initialSendStream;
   final int _initialRecvStream;
   final Map<int, int> _peerStream = {};
   final Map<int, int> _localStream = {};
@@ -1084,6 +1355,12 @@ final class QuicFlowControl {
     return const Result.success(null);
   }
 
+  void adoptPeerInitial({required int maxData, required int maxStreamData}) {
+    _peerMaxData = maxData;
+    _initialSendStream = maxStreamData;
+    _peerStream.clear();
+  }
+
   void onMaxData(int limit) {
     if (limit > _peerMaxData) _peerMaxData = limit;
   }
@@ -1115,5 +1392,251 @@ final class QuicFlowControl {
       frames.add(QuicMaxDataFrame(nextConn).encode());
     }
     return frames;
+  }
+}
+
+final class QuicStopSendingFrame {
+  const QuicStopSendingFrame(this.id, this.errorCode);
+
+  final int id;
+  final int errorCode;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameStopSending);
+    writeQuicVarint(b, id);
+    writeQuicVarint(b, errorCode);
+    return b.takeBytes();
+  }
+
+  static Result<QuicStopSendingFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final id = readVarint(r);
+    final code = readVarint(r);
+    if (id < 0 || code < 0) {
+      return Result.failure(PqTransportError.decodeFailure('stop_sending'));
+    }
+    return Result.success(QuicStopSendingFrame(id, code));
+  }
+}
+
+final class QuicMaxStreamsFrame {
+  const QuicMaxStreamsFrame({
+    required this.bidirectional,
+    required this.maximum,
+  });
+
+  final bool bidirectional;
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(bidirectional ? quicFrameMaxStreamsBidi : quicFrameMaxStreamsUni);
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicMaxStreamsFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final value = type.valueOrNull!;
+    final maximum = readVarint(r);
+    if (maximum < 0) {
+      return Result.failure(PqTransportError.decodeFailure('max_streams'));
+    }
+    return Result.success(
+      QuicMaxStreamsFrame(
+        bidirectional: value == quicFrameMaxStreamsBidi,
+        maximum: maximum,
+      ),
+    );
+  }
+}
+
+final class QuicStreamsBlockedFrame {
+  const QuicStreamsBlockedFrame({
+    required this.bidirectional,
+    required this.maximum,
+  });
+
+  final bool bidirectional;
+  final int maximum;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(
+      bidirectional ? quicFrameStreamsBlockedBidi : quicFrameStreamsBlockedUni,
+    );
+    writeQuicVarint(b, maximum);
+    return b.takeBytes();
+  }
+
+  static Result<QuicStreamsBlockedFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final value = type.valueOrNull!;
+    final maximum = readVarint(r);
+    if (maximum < 0) {
+      return Result.failure(PqTransportError.decodeFailure('streams_blocked'));
+    }
+    return Result.success(
+      QuicStreamsBlockedFrame(
+        bidirectional: value == quicFrameStreamsBlockedBidi,
+        maximum: maximum,
+      ),
+    );
+  }
+}
+
+final class QuicNewConnectionIdFrame {
+  const QuicNewConnectionIdFrame({
+    required this.sequence,
+    required this.retirePriorTo,
+    required this.connectionId,
+    required this.statelessResetToken,
+  });
+
+  final int sequence;
+  final int retirePriorTo;
+  final Uint8List connectionId;
+  final Uint8List statelessResetToken;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameNewConnectionId);
+    writeQuicVarint(b, sequence);
+    writeQuicVarint(b, retirePriorTo);
+    b.addByte(connectionId.length);
+    b.add(connectionId);
+    b.add(statelessResetToken);
+    return b.takeBytes();
+  }
+
+  static Result<QuicNewConnectionIdFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final sequence = readVarint(r);
+    final retire = readVarint(r);
+    final len = r.u8();
+    if (sequence < 0 || retire < 0 || len.isFailure || retire > sequence) {
+      return Result.failure(
+        PqTransportError.decodeFailure('new_connection_id'),
+      );
+    }
+    final n = len.valueOrNull!;
+    if (n < 1 || n > quicMaxConnectionIdBytes) {
+      return Result.failure(PqTransportError.decodeFailure('connection id'));
+    }
+    final cid = r.take(n, PqLengthLabel.tlsExtension);
+    if (cid.isFailure) return Result.failure(cid.errorOrNull!);
+    final token = r.take(
+      quicStatelessResetTokenBytes,
+      PqLengthLabel.tlsExtension,
+    );
+    if (token.isFailure) return Result.failure(token.errorOrNull!);
+    return Result.success(
+      QuicNewConnectionIdFrame(
+        sequence: sequence,
+        retirePriorTo: retire,
+        connectionId: cid.valueOrNull!,
+        statelessResetToken: token.valueOrNull!,
+      ),
+    );
+  }
+}
+
+final class QuicRetireConnectionIdFrame {
+  const QuicRetireConnectionIdFrame(this.sequence);
+
+  final int sequence;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameRetireConnectionId);
+    writeQuicVarint(b, sequence);
+    return b.takeBytes();
+  }
+
+  static Result<QuicRetireConnectionIdFrame, PqTransportError> read(
+    ByteReader r,
+  ) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final sequence = readVarint(r);
+    if (sequence < 0) {
+      return Result.failure(
+        PqTransportError.decodeFailure('retire_connection_id'),
+      );
+    }
+    return Result.success(QuicRetireConnectionIdFrame(sequence));
+  }
+}
+
+final class QuicNewTokenFrame {
+  const QuicNewTokenFrame(this.token);
+
+  final Uint8List token;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFrameNewToken);
+    writeQuicVarint(b, token.length);
+    b.add(token);
+    return b.takeBytes();
+  }
+
+  static Result<QuicNewTokenFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final len = readVarint(r);
+    if (len < 1) {
+      return Result.failure(PqTransportError.decodeFailure('new_token'));
+    }
+    final token = r.take(len, PqLengthLabel.tlsExtension);
+    if (token.isFailure) return Result.failure(token.errorOrNull!);
+    return Result.success(QuicNewTokenFrame(token.valueOrNull!));
+  }
+}
+
+final class QuicPathChallengeFrame {
+  const QuicPathChallengeFrame(this.data);
+
+  final Uint8List data;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFramePathChallenge);
+    b.add(data);
+    return b.takeBytes();
+  }
+
+  static Result<QuicPathChallengeFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final data = r.take(quicPathChallengeBytes, PqLengthLabel.tlsExtension);
+    if (data.isFailure) return Result.failure(data.errorOrNull!);
+    return Result.success(QuicPathChallengeFrame(data.valueOrNull!));
+  }
+}
+
+final class QuicPathResponseFrame {
+  const QuicPathResponseFrame(this.data);
+
+  final Uint8List data;
+
+  Uint8List encode() {
+    final b = BytesBuilder(copy: false);
+    b.addByte(quicFramePathResponse);
+    b.add(data);
+    return b.takeBytes();
+  }
+
+  static Result<QuicPathResponseFrame, PqTransportError> read(ByteReader r) {
+    final type = r.u8();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final data = r.take(quicPathChallengeBytes, PqLengthLabel.tlsExtension);
+    if (data.isFailure) return Result.failure(data.errorOrNull!);
+    return Result.success(QuicPathResponseFrame(data.valueOrNull!));
   }
 }

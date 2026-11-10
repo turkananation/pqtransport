@@ -114,13 +114,15 @@ is not read. `DnsIterativeResolver` walks root hints and returns
 | Type | Role |
 |---|---|
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
-| `signTxt` / `verifyTxt` | ML-DSA-65 TXT |
+| `signTxt` / `verifyTxt` | ML-DSA-65 TXT (`pqsig=`). Default announce path |
+| `signTxtArchival` / `verifyTxtArchival` | Optional SLH-DSA-SHA2-128f TXT (`pqslh=`). Does not replace `signTxt` |
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |
 | `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK |
 | `PqHttp3Session` / `Http3Frame` / `QpackCodec` | RFC 9114 session + RFC 9204 QPACK |
-| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC + 1-RTT STREAM. `driveLossRecovery` runs RFC 9002 when the deadline is due. |
-| `QuicLossRecovery` / `QuicNewReno` / `QuicClock` | RFC 9002 loss detection, PTO, and NewReno. Compose without a connection: peek a packet number, seal, `canSend`, `onPacketSent`, `onAck`, `onLossDetectionTimeout`. `ssthresh` is null until the first loss (Appendix B infinite). 0-RTT is not sent (LIM-05). |
-| `QuicPacketCodec` / `QuicInitialCodec` / `QuicCryptoFrame` | 1-RTT and Initial HP |
+| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC, 0-RTT, and 1-RTT STREAM. `writeEarly` before `start`. `sendNewSessionTicket` after the handshake. `driveLossRecovery` runs RFC 9002 when the deadline is due. |
+| `QuicResumptionTicket` / `QuicEarlyDataStore` | Single-use PSK ticket. `early_data` max `0xffffffff`. A second `take` accepts no early data. |
+| `QuicLossRecovery` / `QuicNewReno` / `QuicClock` | RFC 9002 loss detection, PTO, and NewReno. Compose without a connection: peek a packet number, seal, `canSend`, `onPacketSent`, `onAck`, `onLossDetectionTimeout`. `ssthresh` is null until the first loss (Appendix B infinite). 0-RTT uses the Application Data space. Its PTO stays off until `markHandshakeConfirmed`. |
+| `QuicPacketCodec` / `QuicInitialCodec` / `QuicZeroRttCodec` / `QuicCryptoFrame` | 1-RTT, Initial, and 0-RTT header protection |
 | `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
 | `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |
 | `QuicFlowControl` | MAX_DATA / MAX_STREAM_DATA |

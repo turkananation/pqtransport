@@ -16,8 +16,9 @@ Canonical tracker:
 ## Open
 
 None. OPEN-19 (DNSSEC algorithms 5, 7, 8, 10, 13, 14, 15, and 16) is fixed.
-Ed448 verifies. OPEN-21 (optional
-SLH-DSA on mDNS TXT) is the next coding turn, not an open defect.
+Ed448 verifies. OPEN-21 (optional SLH-DSA-SHA2-128f on mDNS TXT) and
+LIM-05 (QUIC 0-RTT) are implemented in this tree. The GitHub issues
+stay open until the owner closes them.
 
 ## Blocked on pqforge
 
@@ -31,7 +32,9 @@ OPEN-13 are **Fixed** in this tree.
 LIM-01 was the raw-public-key OpenSSL row. OpenSSL 3.5.9 now completes
 that row, and the X.509 row, in both directions. LIM-02 is CMVP / FIPS 140.
 LIM-03 hard constant-time / hard erasure. LIM-04 browser raw UDP /
-mDNS. LIM-05 QUIC 0-RTT is permanent (issue 55): early data is not sent.
+mDNS. 0-RTT is not a permanent limit: early data is sent, it shares
+the Application Data packet number space with 1-RTT, and it is
+replayable.
 
 
 ## Fixed in 0.1.0

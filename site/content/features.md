@@ -34,7 +34,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | X.509 / certificate chains | Done. Opt-in, chain of 1 to 8, caller anchors. Default offer stays raw public key. Not WebPKI. Not a browser |
 | ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js via pqforge 0.4.5) |
 | ECH (RFC 9849) | Done. One BoringSSL 0.20261020.0 flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via `PqHpke` (pqforge 0.4.10). Inner name `localhost`. Not OpenSSL. Not GREASE. Not DNS |
-| OpenSSL 3.5.9 RFC 10024 | Done. Three hybrid groups, raw-pk and X.509, both directions. Also X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is a TLS peer on those same groups except the two NIST hybrids. curl does two HTTP/1.1 GETs. Not a browser |
+| OpenSSL 3.5.9 RFC 10024 | Done. Three hybrid groups, raw-pk and X.509, both directions. Also X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is a TLS peer on those same groups except the two NIST hybrids. curl does HTTP/1.1 GETs, including keep-alive and `Connection: close` against `PqHttpServer`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not a browser |
 
 ## UDP / DNS / mDNS / QUIC / HTTP
 
@@ -50,8 +50,8 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | HTTP/1.1 GET over `PqTlsSocket` | Done |
 | QUIC 1-RTT protect + CRYPTO/STREAM | Done |
 | QUIC loss recovery (RFC 9002 NewReno) | Done |
-| HTTP/2 | Done (ALPN `h2`, RFC 9113 + RFC 7541) |
-| HTTP/3 QPACK | Done (ALPN `h3`, RFC 9114 + RFC 9204) |
+| HTTP/2 | Slice. Windows, SETTINGS limits, stream states, GOAWAY, RST_STREAM, trailers, CONTINUATION. Extended CONNECT and PRIORITY_UPDATE are in-memory. Not a complete RFC 9113 stack |
+| HTTP/3 QPACK | Slice. quiche 0.30.0 completes one GET both ways (bodies `pq-h3` and `quiche-h3`). Not a complete RFC 9114 stack. Not `curl --http3` |
 | IoDatagramChannel multicast join | Done |
 
 ## Claims we do not feature

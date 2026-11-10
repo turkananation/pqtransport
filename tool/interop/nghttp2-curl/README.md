@@ -13,9 +13,8 @@ HEADERS, DATA). That path is nghttp2. The script refuses to start
 if `curl --version` does not contain `nghttp2/`.
 
 TLS is not on this path. Our `PqTlsSocket` handshake is hybrid
-post-quantum. curl speaks classical TLS. Prior knowledge is the
-honest interop: the bytes after the handshake, which is what
-nghttp2 owns. Production DoH over our own TLS is
+post-quantum. The cleartext path is the bytes after a handshake,
+which is what this script owns. Production DoH over our own TLS is
 `DohClient.h2` / `DohClient.h3` in `test/dns/doh_dot_test.dart`.
 
 ## Run
@@ -63,7 +62,23 @@ only argument to serve more.
 
 ## Not covered
 
-- TLS, ALPN, or certificates. See the DoT / DoH self-interop tests.
-- HTTP/3. See [../nghttp3-qpack/README.md](../nghttp3-qpack/README.md).
 - Loss, flow-control stalls, or concurrent streams. One request per
   connection is enough to prove the frame and HPACK bytes.
+- HTTP/3. See [../nghttp3-qpack/README.md](../nghttp3-qpack/README.md).
+
+## TLS flights, separate from this script
+
+`run.sh` above is cleartext `--http2-prior-knowledge`. It is not
+the TLS flights, and `run_all.sh` does not build those binaries.
+
+`h2_get_flight.dart` is curl 8.23.0, nghttp2 1.66.0, OpenSSL 3.5.9,
+`--http2` against `PqHttp2Session`. One GET, body `pq-h2`, ALPN
+`h2`, X25519MLKEM768, ML-DSA-65 verified by that curl.
+
+`h2connect.c` is libnghttp2 1.66.0, not the curl binary. It sends
+`CONNECT` with `:protocol websocket` and requires status 200 with
+END_STREAM clear.
+
+`wss:// --http2` on that curl sends `GET /tunnel HTTP/1.1` and
+`Upgrade: websocket`. It does not offer ALPN `h2` on that request
+and it does not send `:protocol`. That is not RFC 8441.
