@@ -16,9 +16,13 @@ if [[ ! -f "$prefix/src/quic-server.c" ]]; then
   trap 'rm -rf "$src"' EXIT
   url="https://codeload.github.com/openssl/openssl/tar.gz/refs/tags/openssl-${version}"
   curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" -o "$src/openssl.tar.gz"
-  member="$(tar -tzf "$src/openssl.tar.gz" | grep -E 'demos/quic/server\.c$' | head -n 1)"
+  # 3.5.9 nests the file. Older trees kept demos/quic/server.c.
+  member="$(tar -tzf "$src/openssl.tar.gz" | grep -E '/demos/quic/server/server\.c$' | head -n 1)"
   if [[ -z "$member" ]]; then
-    echo "demos/quic/server.c is not in the OpenSSL ${version} archive" >&2
+    member="$(tar -tzf "$src/openssl.tar.gz" | grep -E '/demos/quic/server\.c$' | head -n 1)"
+  fi
+  if [[ -z "$member" ]]; then
+    echo "demos/quic server.c is not in the OpenSSL ${version} archive" >&2
     exit 1
   fi
   tar -xzf "$src/openssl.tar.gz" -C "$src" "$member"
