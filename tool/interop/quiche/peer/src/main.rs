@@ -1,5 +1,8 @@
 //! quiche peer. Handshake modes are `client` and `server`.
 //! HTTP/3 modes are `h3-client` and `h3-server`.
+//! `h3-ext-client` and `h3-ext-server` speak extended CONNECT
+//! (RFC 9220), PRIORITY_UPDATE (RFC 9218), and an HTTP datagram
+//! (RFC 9297) carried in a QUIC DATAGRAM frame (RFC 9221).
 //!
 //! The only group is X25519MLKEM768. The only signature scheme is
 //! ML-DSA-65. The only TLS 1.3 suite requested is
@@ -34,12 +37,16 @@ fn main() -> ExitCode {
         "server" => server(args),
         "h3-client" => h3_client(args),
         "h3-server" => h3_server(args),
+        "h3-ext-client" => h3_ext_client(args),
+        "h3-ext-server" => h3_ext_server(args),
         _ => {
             eprintln!(
                 "usage: quiche_peer client <host:port> <ca.pem>\n       \
                  quiche_peer server <port> <cert.pem> <key.pem>\n       \
                  quiche_peer h3-client <host:port> <ca.pem>\n       \
-                 quiche_peer h3-server <port> <cert.pem> <key.pem>"
+                 quiche_peer h3-server <port> <cert.pem> <key.pem>\n       \
+                 quiche_peer h3-ext-client <host:port> <ca.pem>\n       \
+                 quiche_peer h3-ext-server <port> <cert.pem> <key.pem>"
             );
             ExitCode::from(64)
         }
@@ -640,4 +647,404 @@ fn h3_server(mut args: impl Iterator<Item = String>) -> ExitCode {
 fn die(message: &str) -> ! {
     eprintln!("{message}");
     std::process::exit(1);
+}
+
+fn ext_config() -> quiche::Config {
+    let mut config = config();
+    // RFC 9221. quiche advertises max_datagram_frame_size 65536.
+    config.enable_dgram(true, 32, 32);
+    config
+}
+
+fn h3_ext_config() -> quiche::h3::Config {
+    let mut config = h3_config();
+    // Server only. A client that sends this setting is rejected.
+    config.enable_extended_connect(true);
+    config
+}
+
+fn put_varint(out: &mut Vec<u8>, value: u64) {
+    if value < 64 {
+        out.push(value as u8);
+    } else if value < 16384 {
+        out.push(0x40 | ((value >> 8) as u8));
+        out.push((value & 0xff) as u8);
+    } else {
+        die("varint does not fit in two bytes");
+    }
+}
+
+fn get_varint(buf: &[u8]) -> Option<(u64, usize)> {
+    if buf.is_empty() {
+        return None;
+    }
+    let len = 1usize << (buf[0] >> 6);
+    if buf.len() < len {
+        return None;
+    }
+    let mut value = (buf[0] & 0x3f) as u64;
+    for byte in &buf[1..len] {
+        value = (value << 8) | *byte as u64;
+    }
+    Some((value, len))
+}
+
+fn send_flow_dgram(
+    conn: &mut quiche::Connection,
+    flow_id: u64,
+    payload: &[u8],
+) -> Result<(), quiche::Error> {
+    let mut body = Vec::with_capacity(payload.len() + 2);
+    put_varint(&mut body, flow_id);
+    body.extend_from_slice(payload);
+    conn.dgram_send(&body)
+}
+
+fn recv_flow_dgram(conn: &mut quiche::Connection) -> Result<Option<(u64, Vec<u8>)>, quiche::Error> {
+    let mut buf = [0u8; 65535];
+    match conn.dgram_recv(&mut buf) {
+        Ok(n) => {
+            let Some((flow, off)) = get_varint(&buf[..n]) else {
+                die("HTTP datagram is not a quarter stream id");
+            };
+            Ok(Some((flow, buf[off..n].to_vec())))
+        }
+        Err(quiche::Error::Done) => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+fn h3_ext_client(mut args: impl Iterator<Item = String>) -> ExitCode {
+    let peer_text = args.next().unwrap_or_default();
+    let ca = args.next().unwrap_or_default();
+    if peer_text.is_empty() || ca.is_empty() || args.next().is_some() {
+        eprintln!("usage: quiche_peer h3-ext-client <host:port> <ca.pem>");
+        return ExitCode::from(64);
+    }
+    let peer: SocketAddr = peer_text.parse().unwrap_or_else(|_| {
+        die(&format!("not a socket address: {peer_text}"));
+    });
+    let mut config = ext_config();
+    config
+        .load_verify_locations_from_file(&ca)
+        .unwrap_or_else(|err| die(&format!("ca: {err:?}")));
+    config.verify_peer(true);
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap_or_else(|err| die(&format!("bind: {err}")));
+    let local = socket.local_addr().unwrap();
+    let scid = random_cid();
+    let mut conn = quiche::connect(Some("localhost"), &scid, local, peer, &mut config)
+        .unwrap_or_else(|err| die(&format!("connect: {err:?}")));
+    let mut out = [0u8; 65535];
+    flush(&socket, &mut conn, &mut out);
+    if !drive(&socket, &mut conn, &mut out) {
+        explain(&conn);
+        return ExitCode::from(1);
+    }
+    let cert_len = conn.peer_cert().map(|cert| cert.len()).unwrap_or(0);
+    if cert_len == 0 {
+        eprintln!("established with no peer certificate");
+        return ExitCode::from(1);
+    }
+    // Do not enable_extended_connect here. RFC 9220: the client does
+    // not send SETTINGS_ENABLE_CONNECT_PROTOCOL.
+    let h3_config = h3_config();
+    let mut h3 = match quiche::h3::Connection::with_transport(&mut conn, &h3_config) {
+        Ok(http) => http,
+        Err(err) => {
+            eprintln!("h3: {err:?}");
+            explain(&conn);
+            return ExitCode::from(1);
+        }
+    };
+    let request = [
+        quiche::h3::Header::new(b":method", b"CONNECT"),
+        quiche::h3::Header::new(b":protocol", b"websocket"),
+        quiche::h3::Header::new(b":scheme", b"https"),
+        quiche::h3::Header::new(b":authority", b"localhost"),
+        quiche::h3::Header::new(b":path", b"/pq"),
+    ];
+    let mut sent = false;
+    let mut stream_id = 0u64;
+    let mut status = String::new();
+    let mut saw_echo = false;
+    let mut echo_at: Option<Instant> = None;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline && !conn.is_closed() {
+        loop {
+            match h3.poll(&mut conn) {
+                Ok((id, quiche::h3::Event::Headers { list, .. })) => {
+                    if sent && id == stream_id {
+                        if let Some(value) = header_value(&list, b":status") {
+                            status = String::from_utf8_lossy(value).into_owned();
+                        }
+                    }
+                }
+                Ok((id, quiche::h3::Event::Data)) => {
+                    let mut buf = [0u8; 4096];
+                    while h3.recv_body(&mut conn, id, &mut buf).is_ok() {}
+                }
+                Ok(_) => {}
+                Err(quiche::h3::Error::Done) => break,
+                Err(err) => {
+                    eprintln!("h3 poll: {err:?}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        loop {
+            match recv_flow_dgram(&mut conn) {
+                Ok(Some((_, payload))) => {
+                    if payload == b"qd-lost" {
+                        eprintln!("retransmitted datagram qd-lost");
+                        return ExitCode::from(1);
+                    }
+                    if payload == b"qd-pq" {
+                        saw_echo = true;
+                        echo_at.get_or_insert_with(Instant::now);
+                    }
+                }
+                Ok(None) => break,
+                Err(err) => {
+                    eprintln!("dgram: {err:?}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        if !sent
+            && h3.extended_connect_enabled_by_peer()
+            && h3.dgram_enabled_by_peer(&conn)
+        {
+            match h3.send_request(&mut conn, &request, false) {
+                Ok(id) => {
+                    stream_id = id;
+                    if let Err(err) = h3.send_priority_update_for_request(
+                        &mut conn,
+                        id,
+                        &quiche::h3::Priority::new(1, true),
+                    ) {
+                        eprintln!("priority: {err:?}");
+                        explain(&conn);
+                        return ExitCode::from(1);
+                    }
+                    if let Err(err) = send_flow_dgram(&mut conn, id / 4, b"qd-quiche") {
+                        eprintln!("dgram send: {err:?}");
+                        explain(&conn);
+                        return ExitCode::from(1);
+                    }
+                    sent = true;
+                }
+                Err(quiche::h3::Error::StreamBlocked) | Err(quiche::h3::Error::Done) => {}
+                Err(err) => {
+                    eprintln!("h3 send: {err:?}");
+                    explain(&conn);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        flush(&socket, &mut conn, &mut out);
+        if sent && status == "200" && saw_echo {
+            let since = echo_at.unwrap_or_else(Instant::now);
+            if since.elapsed() >= Duration::from_secs(2) {
+                println!(
+                    "h3-ext status=200 protocol=websocket dgram=qd-pq lost=0 peer_cert={cert_len}"
+                );
+                let _ = io::stdout().flush();
+                return ExitCode::SUCCESS;
+            }
+        }
+        let wait = conn
+            .timeout()
+            .unwrap_or(Duration::from_millis(50))
+            .min(Duration::from_millis(50));
+        pump_once(&socket, &mut conn, &mut out, wait);
+    }
+    eprintln!(
+        "h3-ext client timed out sent={sent} status={status} echo={saw_echo} connect={} dgram={}",
+        h3.extended_connect_enabled_by_peer(),
+        h3.dgram_enabled_by_peer(&conn)
+    );
+    explain(&conn);
+    ExitCode::from(1)
+}
+
+fn h3_ext_server(mut args: impl Iterator<Item = String>) -> ExitCode {
+    let port_text = args.next().unwrap_or_default();
+    let cert = args.next().unwrap_or_default();
+    let key = args.next().unwrap_or_default();
+    if port_text.is_empty() || cert.is_empty() || key.is_empty() || args.next().is_some() {
+        eprintln!("usage: quiche_peer h3-ext-server <port> <cert.pem> <key.pem>");
+        return ExitCode::from(64);
+    }
+    let port: u16 = port_text.parse().unwrap_or_else(|_| die(&format!("not a port: {port_text}")));
+    let mut config = ext_config();
+    config
+        .load_cert_chain_from_pem_file(&cert)
+        .unwrap_or_else(|err| die(&format!("cert: {err:?}")));
+    config
+        .load_priv_key_from_pem_file(&key)
+        .unwrap_or_else(|err| die(&format!("key: {err:?}")));
+    config.verify_peer(false);
+    let socket = UdpSocket::bind(("127.0.0.1", port))
+        .unwrap_or_else(|err| die(&format!("bind {port}: {err}")));
+    let local = socket.local_addr().unwrap();
+    println!("listening {local}");
+    let _ = io::stdout().flush();
+    let h3_config = h3_ext_config();
+    let mut buf = [0u8; 65535];
+    let mut out = [0u8; 65535];
+    let deadline = Instant::now() + Duration::from_secs(25);
+    let mut conn: Option<quiche::Connection> = None;
+    let mut http: Option<quiche::h3::Connection> = None;
+    let mut echo_at: Option<Instant> = None;
+    while Instant::now() < deadline {
+        let wait = Duration::from_millis(50);
+        socket
+            .set_read_timeout(Some(wait))
+            .unwrap_or_else(|err| die(&format!("timeout: {err}")));
+        match socket.recv_from(&mut buf) {
+            Ok((len, from)) => {
+                if conn.is_none() {
+                    let hdr = match quiche::Header::from_slice(&mut buf[..len], 8) {
+                        Ok(hdr) => hdr,
+                        Err(err) => {
+                            eprintln!("header: {err:?}");
+                            continue;
+                        }
+                    };
+                    if hdr.ty != quiche::Type::Initial {
+                        eprintln!("ignored {:?}", hdr.ty);
+                        continue;
+                    }
+                    let scid = random_cid();
+                    match quiche::accept(&scid, None, local, from, &mut config) {
+                        Ok(accepted) => conn = Some(accepted),
+                        Err(err) => {
+                            eprintln!("accept: {err:?}");
+                            continue;
+                        }
+                    }
+                }
+                let current = conn.as_mut().unwrap();
+                let info = quiche::RecvInfo { to: local, from };
+                match current.recv(&mut buf[..len], info) {
+                    Ok(_) => {}
+                    Err(quiche::Error::Done) => {}
+                    Err(err) => eprintln!("recv failed: {err:?}"),
+                }
+            }
+            Err(err)
+                if err.kind() == io::ErrorKind::WouldBlock
+                    || err.kind() == io::ErrorKind::TimedOut =>
+            {
+                if let Some(current) = conn.as_mut() {
+                    current.on_timeout();
+                }
+            }
+            Err(err) => die(&format!("udp: {err}")),
+        }
+        let Some(current) = conn.as_mut() else {
+            continue;
+        };
+        if current.is_established() && http.is_none() {
+            match quiche::h3::Connection::with_transport(current, &h3_config) {
+                Ok(created) => http = Some(created),
+                Err(err) => {
+                    eprintln!("h3: {err:?}");
+                    explain(current);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+        if let Some(session) = http.as_mut() {
+            loop {
+                match session.poll(current) {
+                    Ok((stream, quiche::h3::Event::Headers { list, .. })) => {
+                        let method = header_value(&list, b":method").unwrap_or(b"");
+                        let path = header_value(&list, b":path").unwrap_or(b"");
+                        let protocol = header_value(&list, b":protocol").unwrap_or(b"");
+                        println!(
+                            "h3-ext request method={} protocol={} path={}",
+                            String::from_utf8_lossy(method),
+                            String::from_utf8_lossy(protocol),
+                            String::from_utf8_lossy(path)
+                        );
+                        let _ = io::stdout().flush();
+                        if method != b"CONNECT" || protocol != b"websocket" || path != b"/pq" {
+                            eprintln!("unexpected extended CONNECT");
+                            return ExitCode::from(1);
+                        }
+                        let response = [quiche::h3::Header::new(b":status", b"200")];
+                        if let Err(err) = session.send_response(current, stream, &response, false) {
+                            eprintln!("h3 response: {err:?}");
+                            explain(current);
+                            return ExitCode::from(1);
+                        }
+                    }
+                    Ok((id, quiche::h3::Event::PriorityUpdate)) => {
+                        match session.take_last_priority_update(id) {
+                            Ok(value) => {
+                                println!("priority={}", String::from_utf8_lossy(&value));
+                                let _ = io::stdout().flush();
+                            }
+                            Err(quiche::h3::Error::Done) => {}
+                            Err(err) => {
+                                eprintln!("priority: {err:?}");
+                                return ExitCode::from(1);
+                            }
+                        }
+                    }
+                    Ok((stream, quiche::h3::Event::Data)) => {
+                        let mut discard = [0u8; 4096];
+                        while session.recv_body(current, stream, &mut discard).is_ok() {}
+                    }
+                    Ok(_) => {}
+                    Err(quiche::h3::Error::Done) => break,
+                    Err(err) => {
+                        eprintln!("h3 poll: {err:?}");
+                        explain(current);
+                        return ExitCode::from(1);
+                    }
+                }
+            }
+            loop {
+                match recv_flow_dgram(current) {
+                    Ok(Some((flow, payload))) => {
+                        if payload == b"qd-lost" {
+                            println!("dgram=qd-lost");
+                            let _ = io::stdout().flush();
+                            return ExitCode::from(1);
+                        }
+                        if payload == b"qd-pq" {
+                            println!("dgram=qd-pq");
+                            let _ = io::stdout().flush();
+                            if let Err(err) = send_flow_dgram(current, flow, b"qd-quiche") {
+                                eprintln!("dgram echo: {err:?}");
+                                return ExitCode::from(1);
+                            }
+                            echo_at.get_or_insert_with(Instant::now);
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(err) => {
+                        eprintln!("dgram: {err:?}");
+                        return ExitCode::from(1);
+                    }
+                }
+            }
+        }
+        flush(&socket, current, &mut out);
+        if let Some(since) = echo_at {
+            if since.elapsed() >= Duration::from_secs(2) {
+                return ExitCode::SUCCESS;
+            }
+        }
+        if current.is_closed() {
+            explain(current);
+            return ExitCode::from(1);
+        }
+    }
+    eprintln!("h3-ext server timed out");
+    ExitCode::from(1)
 }

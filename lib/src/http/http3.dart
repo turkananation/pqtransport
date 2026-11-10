@@ -11,6 +11,7 @@ import '../quic/packet.dart';
 import '../quic/stream.dart';
 import 'hpack.dart';
 import 'http2.dart';
+import 'capsule.dart';
 import 'pq_http_client.dart';
 import 'qpack.dart';
 
@@ -192,6 +193,9 @@ final class PqHttp3Session {
   var _advertisedHttpDatagrams = false;
   final Map<int, HttpPriority> priorities = {};
   final List<(int, Uint8List)> _httpDatagrams = [];
+  final Map<int, BytesBuilder> _capsuleBuf = {};
+  final Map<int, BytesBuilder> _capsuleFrames = {};
+  final Set<int> _capsuleStreams = {};
   var _dynamicStreams = 0;
   final Set<int> _cancelledPush = {};
   final Map<int, int> _uniTypes = {};
@@ -298,6 +302,24 @@ final class PqHttp3Session {
   Future<Result<PqHttpResponse, PqTransportError>> request(
     PqHttpRequest req, {
     Duration timeout = const Duration(seconds: 10),
+    bool fin = true,
+    bool untilFin = true,
+  }) async {
+    final opened = await beginRequest(req, fin: fin, timeout: timeout);
+    if (opened.isFailure) return Result.failure(opened.errorOrNull!);
+    return readResponse(
+      opened.valueOrNull!,
+      untilFin: untilFin,
+      timeout: timeout,
+    );
+  }
+
+  /// Sends the request headers. [fin] is false for an extended CONNECT
+  /// tunnel (RFC 9220): the stream stays open after the headers.
+  Future<Result<int, PqTransportError>> beginRequest(
+    PqHttpRequest req, {
+    bool fin = true,
+    Duration timeout = const Duration(seconds: 10),
   }) async {
     if (!isClient) {
       return Result.failure(
@@ -323,15 +345,28 @@ final class PqHttp3Session {
       await conn.resetStream(streamId, http3ErrorRequestRejected);
       return Result.failure(PqTransportError.closed('h3 goaway'));
     }
+    if (_capsuleProtocol(http3RequestHeaders(req))) {
+      _capsuleStreams.add(streamId);
+    }
     final encoded = await _writeMessage(
       streamId,
       http3RequestHeaders(req),
       req.body,
       req.trailers,
-      fin: true,
+      fin: fin,
     );
     if (encoded.isFailure) return Result.failure(encoded.errorOrNull!);
-    final assembled = await _collect(streamId, timeout);
+    return Result.success(streamId);
+  }
+
+  /// Reads the response. [untilFin] is false when the stream is a
+  /// tunnel and the headers are the whole HTTP message.
+  Future<Result<PqHttpResponse, PqTransportError>> readResponse(
+    int streamId, {
+    bool untilFin = true,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final assembled = await _collect(streamId, timeout, untilFin: untilFin);
     if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
     final (headers, body, trailers) = assembled.valueOrNull!;
     return http3ParseResponse(headers, body, trailers: trailers);
@@ -339,6 +374,7 @@ final class PqHttp3Session {
 
   Future<Result<(int, PqHttpRequest), PqTransportError>> accept({
     Duration timeout = const Duration(seconds: 10),
+    bool untilFin = true,
   }) async {
     if (isClient) {
       return Result.failure(
@@ -364,7 +400,7 @@ final class PqHttp3Session {
           return Result.failure(PqTransportError.closed('h3 cancelled'));
         }
         if (!conn.streamHasData(id) && !conn.streamFin(id)) continue;
-        final assembled = await _collect(id, timeout);
+        final assembled = await _collect(id, timeout, untilFin: untilFin);
         if (assembled.isFailure) return Result.failure(assembled.errorOrNull!);
         _accepted.add(id);
         final (headers, body, trailers) = assembled.valueOrNull!;
@@ -385,15 +421,70 @@ final class PqHttp3Session {
 
   Future<Result<void, PqTransportError>> respond(
     int streamId,
-    PqHttpResponse resp,
-  ) {
+    PqHttpResponse resp, {
+    bool fin = true,
+  }) {
     return _writeMessage(
       streamId,
       http3ResponseHeaders(resp),
       resp.body,
       resp.trailers,
-      fin: true,
+      fin: fin,
     );
+  }
+
+  /// Reads control streams and QUIC DATAGRAM frames without waiting
+  /// for a request or a response to finish.
+  Future<Result<void, PqTransportError>> receive() async {
+    await _poll();
+    if (_error != null) return Result.failure(_error!);
+    if (!_drainCapsuleStreams()) return Result.failure(_error!);
+    return const Result.success(null);
+  }
+
+  /// DATA after the headers of a capsule stream. [accept] and
+  /// [readResponse] own the stream until they return.
+  bool _drainCapsuleStreams() {
+    for (final id in _capsuleStreams.toList()) {
+      final chunk = conn.readStream(id);
+      final held = _capsuleFrames.remove(id);
+      if (chunk.isEmpty && (held == null || held.isEmpty)) {
+        if (conn.streamFin(id) && (_capsuleBuf[id]?.length ?? 0) > 0) {
+          _fail(http3ErrorDatagram, 'h3 capsule');
+          return false;
+        }
+        continue;
+      }
+      final wire = concatBytes([
+        if (held != null && held.isNotEmpty) held.takeBytes(),
+        chunk,
+      ]);
+      var off = 0;
+      while (off < wire.length) {
+        final one = Http3Frame.tryDecode(slice(wire, off, wire.length));
+        if (one.isFailure) break;
+        final (frame, n) = one.valueOrNull!;
+        if (_requestFrameForbidden(frame.type)) {
+          _fail(http3ErrorFrameUnexpected, 'h3 frame ${frame.type}');
+          return false;
+        }
+        if (frame.type == http3FrameData) {
+          if (!_feedCapsules(id, frame.payload)) return false;
+        }
+        off += n;
+      }
+      if (off < wire.length) {
+        _capsuleFrames[id] = BytesBuilder(copy: false)
+          ..add(slice(wire, off, wire.length));
+      }
+      if (conn.streamFin(id) &&
+          off == wire.length &&
+          (_capsuleBuf[id]?.length ?? 0) > 0) {
+        _fail(http3ErrorDatagram, 'h3 capsule');
+        return false;
+      }
+    }
+    return _error == null;
   }
 
   Future<Result<void, PqTransportError>> _writeMessage(
@@ -446,7 +537,7 @@ final class PqHttp3Session {
   Future<
     Result<(List<HpackHeader>, Uint8List, List<HpackHeader>), PqTransportError>
   >
-  _collect(int streamId, Duration timeout) async {
+  _collect(int streamId, Duration timeout, {bool untilFin = true}) async {
     final deadline = DateTime.now().add(timeout);
     final buf = BytesBuilder(copy: false);
     List<HpackHeader>? headers;
@@ -501,6 +592,7 @@ final class PqHttp3Session {
           off += n;
           if (headers == null) {
             headers = section;
+            if (_capsuleProtocol(section)) _capsuleStreams.add(streamId);
             continue;
           }
           if (trailers == null) {
@@ -514,10 +606,32 @@ final class PqHttp3Session {
           _fail(http3ErrorFrameUnexpected, 'h3 data');
           return Result.failure(_error!);
         }
-        body.add(frame.payload);
+        if (_capsuleStreams.contains(streamId)) {
+          final fed = _feedCapsules(streamId, frame.payload);
+          if (!fed) return Result.failure(_error!);
+        } else {
+          body.add(frame.payload);
+        }
         off += n;
       }
       if (off < wire.length) buf.add(slice(wire, off, wire.length));
+      if (_capsuleStreams.contains(streamId) &&
+          conn.streamFin(streamId) &&
+          (_capsuleBuf[streamId]?.length ?? 0) > 0) {
+        _fail(http3ErrorDatagram, 'h3 capsule');
+        return Result.failure(_error!);
+      }
+      if (!blocked &&
+          !untilFin &&
+          headers != null &&
+          buf.length == 0 &&
+          !conn.streamHasData(streamId)) {
+        return Result.success((
+          headers,
+          body.takeBytes(),
+          trailers ?? const [],
+        ));
+      }
       if (!blocked &&
           headers != null &&
           conn.streamFin(streamId) &&
@@ -806,6 +920,62 @@ final class PqHttp3Session {
     final out = List<(int, Uint8List)>.of(_httpDatagrams);
     _httpDatagrams.clear();
     return out;
+  }
+
+  /// RFC 9297 §3.5. One DATAGRAM capsule on the request stream.
+  /// Legal when HTTP datagrams were negotiated, including when the
+  /// QUIC DATAGRAM transport parameter is zero.
+  Future<Result<void, PqTransportError>> sendDatagramCapsule(
+    int streamId,
+    Uint8List payload,
+  ) {
+    if (!_peerHttpDatagrams || streamId < 0 || streamId % 4 != 0) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('h3 capsule')),
+      );
+    }
+    final frame = Http3Frame(
+      type: http3FrameData,
+      payload: HttpCapsule(type: HttpCapsule.datagram, value: payload).encode(),
+    );
+    return conn.writeStream(streamId, frame.encode());
+  }
+
+  bool _capsuleProtocol(List<HpackHeader> headers) {
+    for (final header in headers) {
+      if (header.name.toLowerCase() == 'capsule-protocol' &&
+          header.value.trim() == '?1') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _feedCapsules(int streamId, Uint8List data) {
+    final held = _capsuleBuf.remove(streamId);
+    final wire = concatBytes([
+      if (held != null && held.isNotEmpty) held.takeBytes(),
+      data,
+    ]);
+    var off = 0;
+    while (off < wire.length) {
+      final one = tryDecodeHttpCapsule(slice(wire, off, wire.length));
+      if (one == null) break;
+      off += one.consumed;
+      // RFC 9297 §3.3. An unknown type is skipped.
+      if (one.capsule.type == HttpCapsule.datagram) {
+        if (!_peerHttpDatagrams || !_advertisedHttpDatagrams) {
+          _fail(http3ErrorDatagram, 'h3 capsule');
+          return false;
+        }
+        _httpDatagrams.add((streamId, one.capsule.value));
+      }
+    }
+    if (off < wire.length) {
+      _capsuleBuf[streamId] = BytesBuilder(copy: false)
+        ..add(slice(wire, off, wire.length));
+    }
+    return true;
   }
 
   /// RFC 9218 §7.2. Clients only. Sent on the control stream.

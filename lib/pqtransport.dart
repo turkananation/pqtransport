@@ -24,6 +24,7 @@ export 'src/http/http1.dart';
 export 'src/http/hpack.dart';
 export 'src/http/http2.dart';
 export 'src/http/http3.dart';
+export 'src/http/capsule.dart';
 export 'src/http/qpack.dart';
 export 'src/mdns/pq_mdns.dart';
 export 'src/mdns/signed_record.dart';

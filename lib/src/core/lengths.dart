@@ -783,6 +783,10 @@ const int http3ErrorMessage = 0x010e;
 const int http3ErrorConnect = 0x010f;
 const int http3ErrorVersionFallback = 0x0110;
 
+/// RFC 9297. A capsule that ends before its length, or a DATAGRAM
+/// capsule the peer was not allowed to send.
+const int http3ErrorDatagram = 0x33;
+
 /// RFC 9204 §6.
 const int qpackErrorDecompressionFailed = 0x0200;
 const int qpackErrorEncoderStream = 0x0201;

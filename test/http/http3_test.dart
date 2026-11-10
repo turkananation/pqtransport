@@ -727,6 +727,51 @@ void main() {
       expect(accepted.errorOrNull!.message, contains('cancelled'));
     }, timeout: const Timeout(Duration(seconds: 40)));
 
+    test('DATAGRAM capsule on extended CONNECT is one HTTP datagram', () async {
+      final (client, server) = await _h3Pair(crypto);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final serving = () async {
+        final accepted = await h3s.accept(
+          untilFin: false,
+          timeout: const Duration(seconds: 10),
+        );
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (stream, request) = accepted.valueOrNull!;
+        expect(request.headers['capsule-protocol'], '?1');
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (DateTime.now().isBefore(deadline)) {
+          final pumped = await h3s.receive();
+          expect(pumped.isSuccess, isTrue, reason: '${pumped.errorOrNull}');
+          final datagrams = h3s.takeHttpDatagrams();
+          if (datagrams.isEmpty) {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            continue;
+          }
+          expect(datagrams.single.$1, stream);
+          expect(datagrams.single.$2, [4, 5, 6]);
+          return;
+        }
+        fail('no capsule');
+      }();
+      final opened = await h3c.beginRequest(
+        PqHttpRequest(
+          method: 'CONNECT',
+          uri: Uri.parse('https://localhost/pq'),
+          protocol: 'websocket',
+          headers: const {'capsule-protocol': '?1'},
+        ),
+        fin: false,
+      );
+      expect(opened.isSuccess, isTrue, reason: '${opened.errorOrNull}');
+      final sent = await h3c.sendDatagramCapsule(
+        opened.valueOrNull!,
+        Uint8List.fromList([4, 5, 6]),
+      );
+      expect(sent.isSuccess, isTrue, reason: '${sent.errorOrNull}');
+      await serving;
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
     test('HTTP/3 datagram, priority, and extended CONNECT', () async {
       final (client, server) = await _h3Pair(crypto);
       final h3c = PqHttp3Session.client(client);

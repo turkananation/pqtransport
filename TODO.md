@@ -139,8 +139,11 @@ Starts after section 1. The session speaks the QUIC from that section.
   sends `:scheme`, `:path`, and `:authority`. Classic CONNECT stays
   `:method` and `:authority`. The server sends
   SETTINGS_ENABLE_CONNECT_PROTOCOL=1 and rejects a later 0. The
-  client does not send that setting. In-memory only. Not a foreign
-  peer.
+  client does not send that setting. RFC 9220 is quiche 0.30.0
+  both ways: CONNECT with `:protocol websocket`, `:scheme https`,
+  `:path /pq`, `:authority localhost`, and a 200. The ML-DSA-65
+  certificate is checked. RFC 8441 is still in-memory. The curl
+  in this tree has no nghttp2.
 - [x] E2. QUIC DATAGRAM (RFC 9221) types 0x30 and 0x31. This stack
   advertises `max_datagram_frame_size` 65535. A frame larger than
   that, or a DATAGRAM outside 0-RTT/1-RTT, is PROTOCOL_VIOLATION.
@@ -149,8 +152,13 @@ Starts after section 1. The session speaks the QUIC from that section.
   SETTINGS_H3_DATAGRAM=1 is sent only after the peer's transport
   parameter is non-zero. A datagram for a stream past the local
   limit is H3_ID_ERROR. A datagram after FIN or RESET is dropped.
-  The Capsule Protocol is not implemented. In-memory only. The
-  quiche GET does not send a datagram.
+  quiche 0.30.0 both ways carries the quarter stream id. Payloads
+  are `qd-quiche` and `qd-pq`. A second datagram is not put on
+  the wire. The peer waits through loss detection and does not
+  receive it. The frame is ack-eliciting. The Capsule Protocol
+  parses a DATAGRAM capsule and skips an unknown type. A capsule
+  cut off by FIN is H3_DATAGRAM_ERROR. quiche does not parse
+  capsules, so that protocol is not claimed.
 - [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
   HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
   reserved bit, or a payload shorter than 4 octets is an error.
@@ -158,8 +166,10 @@ Starts after section 1. The session speaks the QUIC from that section.
   are legal only on the client control stream. On a request stream
   they are H3_FRAME_UNEXPECTED. Push ids are H3_ID_ERROR because
   push is off. The server sends SETTINGS_NO_RFC7540_PRIORITIES=1.
-  The old PRIORITY frame is ignored. In-memory only. Not a foreign
-  peer.
+  The old PRIORITY frame is ignored. HTTP/3 is quiche 0.30.0 both
+  ways. quiche sends `u=1,i`. This stack sends `u=1, i` and quiche
+  returns that field value. HTTP/2 PRIORITY_UPDATE is still
+  in-memory.
 - [x] E4. Server push stays off. The client sends ENABLE_PUSH=0.
   The server does not send that setting (RFC 9113); a client that
   receives it is a connection error. PUSH_PROMISE is a connection
@@ -168,8 +178,12 @@ Starts after section 1. The session speaks the QUIC from that section.
 - [x] E5. Multipath is RFC 10069, not RFC 9369. `initial_max_path_id`
   (0x3e) is stored when the value is at most 2^32-1. A larger value
   is a transport parameter error. This stack never sends 0x3e, so
-  multipath is not negotiated. Single-path migration stays in
-  section 1. Unknown multipath frames stay connection errors.
+  multipath is not negotiated and is not claimed. No peer in this
+  tree sends it. RFC 10069 was published 2026-11-07. A peer has to
+  send 0x3e and the path frames (PATH_ACK 0x3e–0x3f, PATH_ABANDON
+  0x3e75, and the rest of section 4) before this can be claimed.
+  Single-path migration stays in section 1. Unknown multipath
+  frames stay connection errors while the extension is off.
 
 ## Order
 
