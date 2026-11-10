@@ -41,11 +41,13 @@ QUIC flights are not HTTP/3. QUIC 0-RTT is sent to this stack only:
 a long header beside the Initial and the 1-RTT short header. A
 third-party HTTP/3 client has not completed that path. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
-are the quiche 0.30.0 flights, both ways. The Capsule Protocol is
-implemented and not claimed: quiche does not parse capsules.
-CONNECT-UDP (RFC 9298) and CONNECT-IP (RFC 9484) are implemented
-for context ID 0 and are not claimed. Multipath (RFC 10069) is
-off unless `initialMaxPathId` is set, and it is not claimed.
+are the quiche 0.30.0 flights, both ways. masque-go v0.6.0
+completed CONNECT-UDP, and connect-ip-go v0.6.0 completed
+CONNECT-IP, both as their client against this server, with the
+ML-DSA-65 leaf checked. The payloads are QUIC DATAGRAMs. The
+address and route capsules were parsed by connect-ip-go. Not the
+reverse direction. Multipath (RFC 10069) is off unless
+`initialMaxPathId` is set, and it is not claimed.
 
 ## Groups the TLS peers selected
 

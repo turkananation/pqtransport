@@ -158,11 +158,14 @@ Starts after section 1. The session speaks the QUIC from that section.
   receive it. The frame is ack-eliciting. The Capsule Protocol
   parses a DATAGRAM capsule and skips an unknown type. A capsule
   cut off by FIN is H3_DATAGRAM_ERROR. quiche does not parse
-  capsules, so that protocol is not claimed. CONNECT-UDP (RFC 9298)
-  and CONNECT-IP (RFC 9484) are implemented on top of it. Context
-  ID 0 only. No foreign MASQUE peer has completed, so neither is
-  claimed. Draft DNS/PREF64 capsules and CONNECT-ETHERNET are not
-  implemented.
+  capsules. connect-ip-go v0.6.0 (quic-go v0.63.0, Go 1.27.3)
+  parsed ADDRESS_ASSIGN and ROUTE_ADVERTISEMENT from this stack.
+  masque-go v0.6.0 completed CONNECT-UDP: one context-ID-0 payload
+  forwarded to a local UDP echo and returned. Both peers checked
+  the ML-DSA-65 leaf. Both are their client against our server.
+  The UDP and IP payloads are QUIC DATAGRAMs, not DATAGRAM
+  capsules. The reverse direction has not been run. Draft DNS
+  and PREF64 capsules are not implemented.
 - [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
   HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
   reserved bit, or a payload shorter than 4 octets is an error.

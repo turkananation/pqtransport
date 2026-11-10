@@ -463,5 +463,6 @@ one connection for two responses, a new connection after
 `Connection: close`). quiche 0.30.0 is the HTTP/3 peer for one GET
 both ways. That is not `curl --http3` and not a complete RFC 9114
 stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are
-the quiche flights. The Capsule Protocol, CONNECT-UDP, and
-CONNECT-IP are implemented and have no foreign peer.
+the quiche flights. CONNECT-UDP is masque-go v0.6.0 and CONNECT-IP
+is connect-ip-go v0.6.0, their clients only. Multipath is not
+claimed.

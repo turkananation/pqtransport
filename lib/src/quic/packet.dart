@@ -782,10 +782,16 @@ void writeQuicVarint(BytesBuilder b, int v) {
   } else if (v <= quicVarintMax4) {
     writeUint32(b, v | quicVarint4Prefix);
   } else {
-    b.addByte(quicVarint8Prefix | ((v >> 56) & quicVarintPrefixMask));
-    for (var i = 6; i >= 0; i--) {
-      b.addByte((v >> (8 * i)) & 0xff);
+    // `>>` is a signed int32 on dart2js, so 2^32 encoded as all zeros
+    // and the initial_max_path_id limit never fired in Chrome.
+    var rest = v;
+    final bytes = Uint8List(8);
+    for (var i = 7; i >= 0; i--) {
+      bytes[i] = rest % 256;
+      rest ~/= 256;
     }
+    bytes[0] = (bytes[0] & quicVarintPrefixMask) | quicVarint8Prefix;
+    b.add(bytes);
   }
 }
 
@@ -798,7 +804,9 @@ int readVarint(ByteReader r) {
   var v = first & quicVarintPrefixMask;
   r.offset++;
   for (var i = 1; i < len; i++) {
-    v = (v << 8) | r.bytes[r.offset++];
+    final byte = r.bytes[r.offset++];
+    // Eight-byte values pass 2^31. A shift would wrap them on dart2js.
+    v = len == 8 ? v * 256 + byte : (v << 8) | byte;
   }
   return v;
 }

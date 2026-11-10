@@ -148,10 +148,11 @@ above, plus one control stream (SETTINGS, then GOAWAY, MAX_PUSH_ID,
 and CANCEL_PUSH), QPACK limits, trailers, and request cancel.
 SETTINGS_H3_DATAGRAM=1 is sent only when the peer advertised
 `max_datagram_frame_size`. HTTP datagrams and PRIORITY_UPDATE are
-the same quiche flights. The Capsule Protocol parses a DATAGRAM
-capsule and skips an unknown type. CONNECT-UDP and CONNECT-IP use
-that codec. None of those three has a foreign peer, so none is
-claimed. Unknown
+the same quiche flights. connect-ip-go v0.6.0 parsed
+ADDRESS_ASSIGN and ROUTE_ADVERTISEMENT. masque-go v0.6.0
+completed one CONNECT-UDP echo. Both are their client, and both
+checked ML-DSA-65. The payloads are QUIC DATAGRAMs. Not the
+reverse. Unknown
 control-stream frames are ignored. Push is off. It is not a
 complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).
