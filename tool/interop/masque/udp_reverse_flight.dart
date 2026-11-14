@@ -106,10 +106,7 @@ Future<void> main(List<String> args) async {
       exitCode = 1;
       return;
     }
-    final opened = await session.beginRequest(
-      request.valueOrNull!,
-      fin: false,
-    );
+    final opened = await session.beginRequest(request.valueOrNull!, fin: false);
     if (opened.isFailure) {
       stderr.writeln('begin ${opened.errorOrNull}');
       exitCode = 1;
@@ -125,15 +122,14 @@ Future<void> main(List<String> args) async {
       return;
     }
     if (response.valueOrNull!.headers['capsule-protocol'] != '?1') {
-      // masque-go v0.6.0 calls HTTPStream (which flushes the field
-      // section) before Header.Set("Capsule-Protocol"). The header is
-      // not on the wire. The tunnel is still the thing under test.
-      stderr.writeln(
-        'capsule-protocol absent on the wire ${response.valueOrNull!.headers}',
-      );
+      stderr.writeln('capsule-protocol ${response.valueOrNull!.headers}');
+      exitCode = 1;
+      return;
     }
     final tunnel = PqConnectUdpTunnel(session, id);
-    final sent = await tunnel.send(Uint8List.fromList('ping-reverse'.codeUnits));
+    final sent = await tunnel.send(
+      Uint8List.fromList('ping-reverse'.codeUnits),
+    );
     if (sent.isFailure) {
       stderr.writeln('send ${sent.errorOrNull}');
       exitCode = 1;
@@ -158,7 +154,8 @@ Future<void> main(List<String> args) async {
       'reverse-udp leaf=${conn.peerLeafAlgorithm} group=$group '
       'echoed=$echoed quicDatagrams=${session.quicHttpDatagrams}',
     );
-    ok = echoed &&
+    ok =
+        echoed &&
         group == 'x25519MlKem768' &&
         session.quicHttpDatagrams &&
         output.toString().contains('connect-udp target=127.0.0.1:${echo.port}');

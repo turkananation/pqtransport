@@ -46,7 +46,9 @@ completed CONNECT-UDP, and connect-ip-go v0.6.0 completed
 CONNECT-IP, in both directions, with the ML-DSA-65 leaf checked
 by the side that did not mint it. The payloads are QUIC DATAGRAMs.
 The address and route capsules were parsed in both directions.
-The masque-go reverse response did not include `capsule-protocol`.
+The UDP proxy sets `Capsule-Protocol: ?1` before masque-go flushes,
+because v0.6.0 sets that field after `HTTPStream` and quic-go has
+already written the response. The reverse flight requires that field.
 curl 8.23.0 with nghttp2 1.66.0 completed one HTTP/2 GET. Its
 `wss://` request is HTTP/1.1 Upgrade, not extended CONNECT.
 libnghttp2 1.66.0 did complete extended CONNECT. Multipath
