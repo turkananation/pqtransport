@@ -134,6 +134,62 @@ void main() {
     await server.close();
   }, timeout: const Timeout(Duration(seconds: 40)));
 
+  test('HTTP/2 100 then the final response', () async {
+    final identity = PqTlsServerIdentity.generate(crypto);
+    final (clientSock, serverSock) = MemoryByteSocket.pair();
+    final client = PqTlsSocket.client(
+      clientSock,
+      crypto: crypto,
+      alpnProtocols: const [httpAlpnH2],
+    );
+    final server = PqTlsSocket.server(
+      serverSock,
+      crypto: crypto,
+      identity: identity,
+      alpnProtocols: const [httpAlpnH2],
+    );
+    final hs = await Future.wait([server.handshake(), client.handshake()]);
+    expect(hs[0].isSuccess && hs[1].isSuccess, isTrue);
+    final serverH2 = PqHttp2Session.server(server);
+    final serving = () async {
+      final accepted = await serverH2.accept(
+        timeout: const Duration(seconds: 20),
+      );
+      expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+      final (id, _) = accepted.valueOrNull!;
+      final early = await serverH2.respond(
+        id,
+        PqHttpResponse(
+          status: 100,
+          headers: const {},
+          body: Uint8List(0),
+          version: HttpVersion.h2,
+        ),
+      );
+      expect(early.isSuccess, isTrue, reason: '${early.errorOrNull}');
+      return serverH2.respond(
+        id,
+        PqHttpResponse(
+          status: 200,
+          headers: const {},
+          body: Uint8List.fromList('done'.codeUnits),
+          version: HttpVersion.h2,
+        ),
+      );
+    }();
+    final resp = await PqHttp2Session.client(client).request(
+      PqHttpRequest(method: 'GET', uri: Uri.parse('https://example.test/c')),
+      timeout: const Duration(seconds: 20),
+    );
+    expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+    expect(resp.valueOrNull!.status, 200);
+    expect(String.fromCharCodes(resp.valueOrNull!.body), 'done');
+    expect((await serving).isSuccess, isTrue);
+    await serverH2.close();
+    await client.close();
+    await server.close();
+  }, timeout: const Timeout(Duration(seconds: 40)));
+
   test('HTTP/2 POST with body over PqTlsSocket', () async {
     final identity = PqTlsServerIdentity.generate(crypto);
     final (clientSock, serverSock) = MemoryByteSocket.pair();

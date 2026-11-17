@@ -144,10 +144,13 @@ final class PqTlsSocket {
         _inbox = _inbox.then((_) => _onBytes(bytes));
       },
       onDone: () {
-        if (!isComplete) {
-          _finishHandshake(Result.failure(PqTransportError.closed('tcp')));
-        }
+        // The peer can close as soon as its last flight is written.
+        // That close must not fail the handshake before [_inbox]
+        // has applied those bytes.
         _inbox = _inbox.then((_) async {
+          if (!isComplete) {
+            _finishHandshake(Result.failure(PqTransportError.closed('tcp')));
+          }
           if (!_app.isClosed) await _app.close();
         });
       },
