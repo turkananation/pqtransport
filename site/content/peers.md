@@ -52,9 +52,9 @@ already written the response. The reverse flight requires that field.
 curl 8.23.0 with nghttp2 1.66.0 completed one HTTP/2 GET. Its
 `wss://` request is HTTP/1.1 Upgrade, not extended CONNECT.
 libnghttp2 1.66.0 did complete extended CONNECT. Multipath
-(RFC 10069) is off unless `initialMaxPathId` is set. picoquic
-1.1.54.0 was run and refused the ML-DSA-65 certificate. It is
-not claimed.
+(RFC 10069) is off unless `initialMaxPathId` is set. The interop
+job runs picoquic 1.1.54.0. It refused the ML-DSA-65 certificate
+and did not open a second path. It is not claimed.
 
 ## Groups the TLS peers selected
 

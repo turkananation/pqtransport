@@ -31,7 +31,8 @@ jobs:
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          # 3.14.1 cannot solve pqtransport_site.
+          sdk: 3.13.7
 
       - name: Stage agent files into the Jaspr web root
         run: cp llms.txt site/web/llms.txt

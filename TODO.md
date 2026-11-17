@@ -206,11 +206,11 @@ Starts after section 1. The session speaks the QUIC from that section.
   path-and-packet-number. Path 0 matches RFC 9001. A zero-length
   connection ID while both sides advertise the parameter is
   PROTOCOL_VIOLATION. Extra paths have their own packet numbers.
-  They do not have a separate PTO. picoquic 1.1.54.0 was run.
-  It did not offer ML-DSA-65, this server refused scheme 0x0905,
-  and `-M` printed `Enable multipath: Refused` on one path.
-  Multipath is not claimed. Single-path migration stays in
-  section 1.
+  They do not have a separate PTO. The interop job runs
+  picoquic 1.1.54.0. It did not offer ML-DSA-65, this server
+  refused scheme 0x0905, and `-M` printed `Enable multipath:
+  Refused` on one path. Multipath is not claimed. Single-path
+  migration stays in section 1.
 
 ## Order
 

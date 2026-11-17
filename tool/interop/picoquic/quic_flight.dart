@@ -8,15 +8,15 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 /// picoquic 1.1.54.0 client against [PqQuicConn.server].
 ///
-/// Observed result, not a claim. The demo's ClientHello offers
-/// ed25519, ECDSA, and RSA-PSS (0x0807, 0x0403, 0x0503, 0x0603,
-/// 0x0806, 0x0805, 0x0804). It does not offer ML-DSA-65 (0x0905).
-/// This server answers unsupported_certificate. With `-M` the demo
-/// prints `Enable multipath: Refused` and uses one client port.
-/// Exit 1 is that observation. The demo process status is not proof
-/// either way. Do not mint a classical certificate to force a
-/// handshake, and do not add this script to `run_all.sh`.
-/// Picotls in that tree has no ML-DSA.
+/// This script is `tool/interop/picoquic/run.sh`, which `run_all.sh`
+/// calls. Picotls in that tree advertises ed25519, ECDSA, and RSA-PSS.
+/// It does not advertise ML-DSA-65 (0x0905). This server answers
+/// unsupported_certificate. With `-M` the demo prints
+/// `Enable multipath: Refused` and uses one client port.
+///
+/// Exit 0 is that observation. Exit 1 means the peer did something
+/// else, including a completed handshake or a second path. Do not
+/// mint a classical certificate to force a handshake.
 Future<void> main(List<String> args) async {
   if (args.length != 1) {
     stderr.writeln(
@@ -48,16 +48,22 @@ Future<void> main(List<String> args) async {
   await dir.delete(recursive: true);
   stderr.writeln(
     'picoquic single complete=${single.complete} version=${single.sawVersion} '
-    'ports=${single.ports} errors=${single.errors}',
+    'ports=${single.ports} errors=${single.errors} '
+    'first=${single.firstError}',
   );
   stderr.writeln(
     'picoquic multi complete=${multi.complete} negotiated=${multi.negotiated} '
     'enable=${multi.enableLine} ports=${multi.ports} errors=${multi.errors}',
   );
-  if (!single.complete || !single.sawVersion) exitCode = 1;
-  if (!multi.complete || multi.enableLine != 'Success' || multi.ports < 2) {
-    exitCode = 1;
-  }
+  final refused =
+      !single.complete &&
+      !multi.complete &&
+      !multi.negotiated &&
+      single.sawVersion &&
+      multi.enableLine == 'Refused' &&
+      multi.ports < 2 &&
+      (single.firstError?.contains('unsupported_certificate') ?? false);
+  if (!refused) exitCode = 1;
 }
 
 class _Result {
@@ -67,6 +73,7 @@ class _Result {
   var ports = 0;
   var errors = 0;
   String? enableLine;
+  String? firstError;
 }
 
 Future<_Result> _flight({
@@ -101,6 +108,7 @@ Future<_Result> _flight({
       final got = await conn.ingestDatagram(datagram.data);
       if (got.isFailure) {
         result.errors++;
+        result.firstError ??= '${got.errorOrNull}';
         if (result.errors == 1) {
           stderr.writeln(
             'pico ingest ${got.errorOrNull} '
@@ -138,6 +146,10 @@ Future<_Result> _flight({
   final timer = Timer(const Duration(seconds: 8), process.kill);
   await process.exitCode;
   timer.cancel();
+  final until = DateTime.now().add(const Duration(seconds: 2));
+  while (result.errors == 0 && DateTime.now().isBefore(until)) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
   result.complete = conn.isComplete;
   result.negotiated = conn.multipathNegotiated;
   result.ports = ports.length;
