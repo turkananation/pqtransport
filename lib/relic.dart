@@ -27,12 +27,14 @@ final class PqRelicAdapter implements Adapter {
     int port, {
     required PqTlsServerIdentity identity,
     bool quic = false,
+    PqHttpServerConfig config = const PqHttpServerConfig(),
   }) async {
     final server = await PqHttpServer.bind(
       address,
       port,
       identity: identity,
       quic: quic,
+      config: config,
     );
     final adapter = PqRelicAdapter._(server);
     server.mount(adapter._handle);

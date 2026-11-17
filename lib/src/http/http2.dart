@@ -481,9 +481,13 @@ Uint8List encodeHttp2Goaway({
 
 /// HTTP/2 session over a completed [PqTlsSocket] (ALPN `h2`).
 final class PqHttp2Session {
-  PqHttp2Session._(this.tls, {required this.isClient})
-    : _encode = HpackCodec(),
-      _decode = HpackCodec() {
+  PqHttp2Session._(
+    this.tls, {
+    required this.isClient,
+    int maxConcurrentStreams = http2DefaultMaxConcurrentStreams,
+  }) : _encode = HpackCodec(),
+       _decode = HpackCodec(),
+       _localMaxConcurrent = maxConcurrentStreams {
     _sub = tls.applicationData.listen(
       _onBytes,
       onDone: () {
@@ -496,8 +500,14 @@ final class PqHttp2Session {
   factory PqHttp2Session.client(PqTlsSocket tls) =>
       PqHttp2Session._(tls, isClient: true);
 
-  factory PqHttp2Session.server(PqTlsSocket tls) =>
-      PqHttp2Session._(tls, isClient: false);
+  factory PqHttp2Session.server(
+    PqTlsSocket tls, {
+    int maxConcurrentStreams = http2DefaultMaxConcurrentStreams,
+  }) => PqHttp2Session._(
+    tls,
+    isClient: false,
+    maxConcurrentStreams: maxConcurrentStreams,
+  );
 
   final PqTlsSocket tls;
   final bool isClient;
@@ -520,7 +530,7 @@ final class PqHttp2Session {
   var _sendConnWindow = http2DefaultInitialWindowSize;
   var _recvConnWindow = http2DefaultInitialWindowSize;
   var _peerMaxConcurrent = http2DefaultMaxConcurrentStreams;
-  final int _localMaxConcurrent = http2DefaultMaxConcurrentStreams;
+  final int _localMaxConcurrent;
   int? _peerMaxHeaderList;
   final int _localMaxHeaderList = http2DefaultMaxHeaderListSize;
   var _expectContinuation = false;
@@ -560,7 +570,12 @@ final class PqHttp2Session {
       );
       if (sent.isFailure) return Result.failure(sent.errorOrNull!);
     } else {
-      final sent = await tls.send(encodeHttp2Settings(http2ServerSettings));
+      final sent = await tls.send(
+        encodeHttp2Settings({
+          ...http2ServerSettings,
+          http2SettingsMaxConcurrentStreams: _localMaxConcurrent,
+        }),
+      );
       if (sent.isFailure) return Result.failure(sent.errorOrNull!);
     }
     final ready = await _waitUntil(() => _sawPeerSettings, timeout);

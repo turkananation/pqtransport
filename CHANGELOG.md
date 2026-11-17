@@ -1,3 +1,21 @@
+## Unreleased
+
+### Added
+
+- HTTP/1.1 `Expect: 100-continue` (RFC 9110 §10.1.1). The server
+  sends `100 Continue` only when the body is not already buffered.
+  Any other Expect is 417. The client skips 1xx and reads the final
+  response. Not a complete RFC 9112 recipient.
+- Shelf HTTP/1.1 `Request.hijack`. The unread body is delivered on
+  the channel. HTTP/2 does not hijack. Relic still does not detach
+  the TLS stream.
+- ML-KEM and ML-DSA handshake work runs on one VM worker isolate.
+  The web path calls the same functions in-process. The worker wipes
+  its copies of secret inputs. That is not secure erasure.
+- `PqHttpServerConfig`: idle timeout, max connections, HTTP/2 max
+  concurrent streams, HTTP/1.1 max body. `close` sends GOAWAY on
+  HTTP/2 and HTTP/3 and waits only for handlers already running.
+
 ## 0.2.0
 
 DNSSEC from a caller-supplied trust anchor, an iterative resolver, and

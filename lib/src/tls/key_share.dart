@@ -7,6 +7,7 @@ import '../core/bytes.dart';
 import '../core/crypto.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
+import '../core/offload.dart';
 import '../core/zeroize.dart';
 import 'named_group.dart';
 
@@ -47,7 +48,7 @@ Future<Result<TlsLocalShare, PqTransportError>> mintTlsClientShare(
   if (hybrid != null) {
     final gate = crypto.requireGroup(hybrid);
     if (gate.isFailure) return Result.failure(gate.errorOrNull!);
-    final kem = crypto.kemKeyGen();
+    final kem = await offloadKemKeyGen(crypto.kem);
     final classical = await crypto.classicalKeyGen(hybrid);
     final wire = encodeClientShare(
       HybridClientShare(
@@ -139,7 +140,11 @@ Future<Result<Uint8List, PqTransportError>> deriveTlsSharedSecret(
       if (kemSecret == null || classicalSecret == null) {
         return Result.failure(PqTransportError.decryptError('missing share'));
       }
-      final ssKem = crypto.decapsulate(kemSecret, share.kemCiphertext);
+      final ssKem = await offloadKemDecapsulate(
+        crypto.kem,
+        kemSecret,
+        share.kemCiphertext,
+      );
       Uint8List? ssClassical;
       try {
         ssClassical = await crypto.classicalAgree(
@@ -196,7 +201,7 @@ Future<Result<Uint8List, PqTransportError>> deriveTlsSharedSecret(
           return Result.failure(PqTransportError.decryptError('missing share'));
         }
         return Result.success(
-          PqKemPrimitives.decapsulate(
+          await offloadKemDecapsulate(
             PqKemAlgorithm.mlKem1024,
             secretKey,
             serverShare,
@@ -245,7 +250,10 @@ acceptTlsClientShare(
     Uint8List? ssKem;
     Uint8List? ssClassical;
     try {
-      final enc = crypto.encapsulate(share.kemEncapsulationKey);
+      final enc = await offloadKemEncapsulate(
+        crypto.kem,
+        share.kemEncapsulationKey,
+      );
       ssKem = enc.sharedSecret;
       ssClassical = await crypto.classicalAgree(
         hybrid,
@@ -348,7 +356,7 @@ acceptTlsClientShare(
             PqTransportError.illegalKemKey(PqLengthLabel.mlKem1024PublicKey),
           );
         }
-        final enc = PqKemPrimitives.encapsulate(
+        final enc = await offloadKemEncapsulate(
           PqKemAlgorithm.mlKem1024,
           clientShare,
         );

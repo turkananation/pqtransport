@@ -80,6 +80,7 @@ this package's adapter to a Relic web server you build yourself is
 the path that exists. Inventing a `SecurityContext` that holds an
 ML-DSA handshake does not.
 
-`PqRelicAdapter` does not detach the TLS record stream and does not
-speak WebSocket. HTTP/3 on that adapter is the same `PqHttpServer`
+Shelf HTTP/1.1 `Request.hijack` takes that connection. The unread
+body is the first chunk. HTTP/2 does not hijack. `PqRelicAdapter`
+does not detach the TLS record stream and does not speak WebSocket. HTTP/3 on that adapter is the same `PqHttpServer`
 session the quiche row above talks to, not a second stack.

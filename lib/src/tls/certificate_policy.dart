@@ -109,6 +109,7 @@ Result<void, PqTransportError> verifyLeafSignature({
     required Uint8List signatureBytes,
   })
   mlDsaVerify,
+  bool? mlDsaOk,
 }) {
   final scheme = _schemeFor(leaf);
   if (scheme == null) {
@@ -122,11 +123,13 @@ Result<void, PqTransportError> verifyLeafSignature({
     );
   }
   final ok = switch (leaf.publicKey) {
-    final PqX509MlDsaKey key => mlDsaVerify(
-      publicKey: key.raw,
-      message: content,
-      signatureBytes: verify.signature,
-    ),
+    final PqX509MlDsaKey key =>
+      mlDsaOk ??
+          mlDsaVerify(
+            publicKey: key.raw,
+            message: content,
+            signatureBytes: verify.signature,
+          ),
     final PqX509EcdsaP256Key key => PqEcdsaP256.verify(
       publicKey: key.uncompressed,
       message: content,

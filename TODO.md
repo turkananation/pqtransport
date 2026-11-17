@@ -130,7 +130,8 @@ Starts after section 1. The session speaks the QUIC from that section.
   test. Split records are the OpenSSL `-max_send_frag` flight and
   the in-memory test in H1-3.
 
-100-continue, upgrade, and HTTP/1.0 are out of this list.
+HTTP/1.1 `Expect: 100-continue` and Shelf HTTP/1.1 hijack are in.
+HTTP/1.0 and a WebSocket protocol are not.
 
 ## 5. Extensions
 

@@ -43,6 +43,7 @@ final class PqHttpResponse {
     required this.body,
     required this.version,
     this.trailers = const {},
+    this.hijacked = false,
   });
 
   final int status;
@@ -50,6 +51,10 @@ final class PqHttpResponse {
   final Uint8List body;
   final HttpVersion version;
   final Map<String, String> trailers;
+
+  /// The HTTP/1.1 connection was taken by a Shelf hijack. No response
+  /// bytes are written by the server.
+  final bool hijacked;
 }
 
 /// HTTP/1.1 request encoder / response parser.
@@ -234,7 +239,17 @@ final class PqHttpClient {
       }
       final message = parsed.valueOrNull!;
       if (!message.incomplete && message.response != null) {
-        done.complete(Result.success(message.response!));
+        final response = message.response!;
+        if (response.status >= 100 && response.status < 200) {
+          final rest = Uint8List.sublistView(raw, message.consumed);
+          buf.clear();
+          if (rest.isNotEmpty) {
+            buf.add(rest);
+            consider(buf.toBytes(), closed: closed);
+          }
+          return;
+        }
+        done.complete(Result.success(response));
       } else if (closed) {
         done.complete(
           Result.failure(PqTransportError.decodeFailure('http1 headers')),

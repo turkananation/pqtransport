@@ -7,6 +7,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/bytes.dart';
 import '../core/crypto.dart';
+import '../core/offload.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
@@ -137,7 +138,7 @@ final class PqEncryptedUdpSocket {
     }
     final classical = await crypto.classicalKeyGen(group);
     try {
-      final enc = crypto.encapsulate(peerKemPublicKey);
+      final enc = await offloadKemEncapsulate(crypto.kem, peerKemPublicKey);
       _pendingInitiate = _PendingInitiate(
         classicalSecret: classical.secretKey,
         classicalPublic: classical.publicKey,
@@ -263,7 +264,7 @@ final class PqEncryptedUdpSocket {
     Uint8List? ssKem;
     Uint8List? ssClassical;
     try {
-      ssKem = crypto.decapsulate(kemSecretKey, ct);
+      ssKem = await offloadKemDecapsulate(crypto.kem, kemSecretKey, ct);
       ssClassical = await crypto.classicalAgree(
         group,
         secretKey: classical.secretKey,

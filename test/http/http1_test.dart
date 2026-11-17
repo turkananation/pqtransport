@@ -175,4 +175,44 @@ void main() {
       expect(String.fromCharCodes(shut.valueOrNull!.response!.body), 'hello');
     },
   );
+
+  test('100 Continue is headers only, then the final response', () {
+    final wire = ascii(
+      'HTTP/1.1 100 Continue\r\n\r\n'
+      'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok',
+    );
+    final first = tryParseHttp1Response(wire, closed: false);
+    expect(first.valueOrNull!.response!.status, 100);
+    expect(first.valueOrNull!.response!.body, isEmpty);
+    final rest = Uint8List.sublistView(wire, first.valueOrNull!.consumed);
+    final second = tryParseHttp1Response(rest, closed: false);
+    expect(second.valueOrNull!.response!.status, 200);
+    expect(String.fromCharCodes(second.valueOrNull!.response!.body), 'ok');
+  });
+
+  test('Expect 100-continue is Continue only before the body', () {
+    final headers = ascii(
+      'POST / HTTP/1.1\r\nHost: localhost\r\n'
+      'Content-Length: 5\r\nExpect: 100-continue\r\n\r\n',
+    );
+    final waiting = inspectHttp1Expect(headers);
+    expect(waiting.valueOrNull!.rejected, isFalse);
+    expect(waiting.valueOrNull!.sendContinue, isTrue);
+    final withBody = ascii(
+      'POST / HTTP/1.1\r\nHost: localhost\r\n'
+      'Content-Length: 5\r\nExpect: 100-continue\r\n\r\nHello',
+    );
+    final ready = inspectHttp1Expect(withBody);
+    expect(ready.valueOrNull!.sendContinue, isFalse);
+    final other = inspectHttp1Expect(
+      ascii(
+        'POST / HTTP/1.1\r\nHost: localhost\r\n'
+        'Content-Length: 5\r\nExpect: 102-processing\r\n\r\n',
+      ),
+    );
+    expect(other.valueOrNull!.rejected, isTrue);
+    final partial = inspectHttp1Expect(ascii('POST / HTTP/1.1\r\nHost: loc'));
+    expect(partial.isSuccess, isTrue);
+    expect(partial.valueOrNull, isNull);
+  });
 }
