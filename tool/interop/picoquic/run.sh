@@ -5,7 +5,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$root/../../.." && pwd)"
-demo="$(bash "$root/build.sh")"
+demo="$(bash "$root/build.sh" | tail -n 1)"
 openssl_lib="$(cd "$(dirname "$(bash "$repo/tool/interop/openssl/build.sh" | tail -n 1)")/../lib" && pwd)"
 export LD_LIBRARY_PATH="${openssl_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 cd "$repo"
