@@ -2,8 +2,8 @@
 # masque-go v0.6.0 and connect-ip-go v0.6.0, both on quic-go v0.63.0.
 # Both directions. ML-DSA-65 is checked by the side that did not
 # mint the leaf. Payloads are QUIC DATAGRAMs. ADDRESS_ASSIGN and
-# ROUTE_ADVERTISEMENT are Capsule Protocol TLVs. The masque-go
-# reverse response does not include capsule-protocol.
+# ROUTE_ADVERTISEMENT are Capsule Protocol TLVs. The UDP proxy sets
+# Capsule-Protocol before masque-go flushes the response.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$root/../../.." && pwd)"

@@ -170,7 +170,7 @@ Starts after section 1. The session speaks the QUIC from that section.
   the ML-DSA-65 leaf. The reverse was run. A masque-go v0.6.0
   proxy echoed `ping-reverse` (`reverse-udp leaf=mlDsa65
   group=x25519MlKem768 echoed=true quicDatagrams=true`). Its
-  response did not include `capsule-protocol`. A connect-ip-go
+  response includes `capsule-protocol: ?1`. A connect-ip-go
   v0.6.0 proxy logged `ip-got n=20 src=192.0.2.11
   dst=198.51.100.1 proto=17` and `ip-echo n=20`
   (`reverse-ip` with the same leaf and group). The UDP and IP
@@ -206,11 +206,11 @@ Starts after section 1. The session speaks the QUIC from that section.
   path-and-packet-number. Path 0 matches RFC 9001. A zero-length
   connection ID while both sides advertise the parameter is
   PROTOCOL_VIOLATION. Extra paths have their own packet numbers.
-  They do not have a separate PTO. picoquic 1.1.54.0 was run.
-  It did not offer ML-DSA-65, this server refused scheme 0x0905,
-  and `-M` printed `Enable multipath: Refused` on one path.
-  Multipath is not claimed. Single-path migration stays in
-  section 1.
+  They do not have a separate PTO. The interop job runs
+  picoquic 1.1.54.0. It did not offer ML-DSA-65, this server
+  refused scheme 0x0905, and `-M` printed `Enable multipath:
+  Refused` on one path. Multipath is not claimed. Single-path
+  migration stays in section 1.
 
 ## Order
 

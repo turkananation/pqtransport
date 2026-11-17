@@ -156,7 +156,7 @@ completed one CONNECT-UDP echo, and the reverse echoed
 `ping-reverse`. connect-ip-go did the same in both directions,
 including one 20-byte IPv4 packet to `198.51.100.1`. Both
 checked ML-DSA-65. The payloads are QUIC DATAGRAMs. The
-masque-go reverse response omitted `capsule-protocol`. Unknown
+UDP reverse response includes `capsule-protocol: ?1`. Unknown
 control-stream frames are ignored. Push is off. It is not a
 complete RFC 9114 stack and not `curl --http3`. Silent
 h2/h3→h1 downgrade is refused (`allowDowngrade: false`).

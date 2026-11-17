@@ -66,10 +66,13 @@ only argument to serve more.
   connection is enough to prove the frame and HPACK bytes.
 - HTTP/3. See [../nghttp3-qpack/README.md](../nghttp3-qpack/README.md).
 
-## TLS flights, separate from this script
+## TLS flights
 
 `run.sh` above is cleartext `--http2-prior-knowledge`. It is not
-the TLS flights, and `run_all.sh` does not build those binaries.
+the TLS flights. `run_tls.sh` builds curl 8.23.0 and libnghttp2
+1.66.0 against OpenSSL 3.5.9 and runs both of the flights below.
+`run_all.sh` calls `run_tls.sh`. That curl has HTTP/2. It does not
+have HTTP/3.
 
 `h2_get_flight.dart` is curl 8.23.0, nghttp2 1.66.0, OpenSSL 3.5.9,
 `--http2` against `PqHttp2Session`. One GET, body `pq-h2`, ALPN

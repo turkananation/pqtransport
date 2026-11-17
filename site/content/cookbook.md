@@ -466,5 +466,5 @@ stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are
 the quiche flights. CONNECT-UDP is masque-go v0.6.0 and CONNECT-IP
 is connect-ip-go v0.6.0, both directions. curl 8.23.0 with
 nghttp2 completes one HTTP/2 GET. libnghttp2 completes extended
-CONNECT. curl `wss://` does not. picoquic 1.1.54.0 was run and
-did not complete, so multipath is not claimed.
+CONNECT. curl `wss://` does not. The interop job runs picoquic
+1.1.54.0. It did not complete, so multipath is not claimed.

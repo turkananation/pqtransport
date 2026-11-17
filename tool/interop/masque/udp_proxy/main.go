@@ -55,6 +55,11 @@ func main() {
 			return
 		}
 		log.Printf("connect-udp target=%s", req.Target)
+		// masque-go v0.6.0 calls HTTPStream, which flushes, and only
+		// then sets Capsule-Protocol. quic-go ignores that later Set.
+		// RFC 9297 §3.4 says the response should carry it. Set it here,
+		// before Proxy, so the flush includes it.
+		w.Header().Set(http3.CapsuleProtocolHeader, "?1")
 		if err := proxy.Proxy(w, req); err != nil {
 			log.Printf("proxy %v", err)
 		}

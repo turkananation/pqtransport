@@ -102,10 +102,7 @@ Future<void> main(List<String> args) async {
       return;
     }
     stderr.writeln('path ${request.valueOrNull!.uri.path}');
-    final opened = await session.beginRequest(
-      request.valueOrNull!,
-      fin: false,
-    );
+    final opened = await session.beginRequest(request.valueOrNull!, fin: false);
     if (opened.isFailure) {
       stderr.writeln('begin ${opened.errorOrNull}');
       exitCode = 1;
@@ -120,10 +117,16 @@ Future<void> main(List<String> args) async {
       exitCode = 1;
       return;
     }
+    if (response.valueOrNull!.headers['capsule-protocol'] != '?1') {
+      stderr.writeln('capsule-protocol ${response.valueOrNull!.headers}');
+      exitCode = 1;
+      return;
+    }
     final until = DateTime.now().add(const Duration(seconds: 8));
     AssignedAddress? assigned;
     IpRange? route;
-    while (DateTime.now().isBefore(until) && (assigned == null || route == null)) {
+    while (DateTime.now().isBefore(until) &&
+        (assigned == null || route == null)) {
       final pumped = await session.receive();
       if (pumped.isFailure) {
         stderr.writeln('receive ${pumped.errorOrNull}');
@@ -186,7 +189,8 @@ Future<void> main(List<String> args) async {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
     final text = output.toString();
-    final echoed = reply != null &&
+    final echoed =
+        reply != null &&
         reply.length >= 20 &&
         _bytes(reply.sublist(12, 16), const [198, 51, 100, 1]) &&
         _bytes(reply.sublist(16, 20), const [192, 0, 2, 11]);
@@ -196,7 +200,9 @@ Future<void> main(List<String> args) async {
     );
     if (!echoed ||
         !session.quicHttpDatagrams ||
-        !text.contains('ip-got n=20 src=192.0.2.11 dst=198.51.100.1 proto=17') ||
+        !text.contains(
+          'ip-got n=20 src=192.0.2.11 dst=198.51.100.1 proto=17',
+        ) ||
         !text.contains('ip-echo n=20')) {
       exitCode = 1;
     }

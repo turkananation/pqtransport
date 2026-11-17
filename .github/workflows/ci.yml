@@ -33,7 +33,8 @@ jobs:
       - name: Set up Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          # 3.14.1 cannot solve pqtransport_site.
+          sdk: 3.13.7
 
       - name: Print Dart version
         run: dart --version
@@ -103,7 +104,8 @@ jobs:
       - name: Set up Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          # 3.14.1 cannot solve pqtransport_site.
+          sdk: 3.13.7
 
       - name: Install workspace dependencies
         run: dart pub get
@@ -134,7 +136,8 @@ jobs:
       - name: Set up Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          # 3.14.1 cannot solve pqtransport_site.
+          sdk: 3.13.7
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v2
@@ -158,7 +161,8 @@ jobs:
       - name: Set up Dart SDK
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          # 3.14.1 cannot solve pqtransport_site.
+          sdk: 3.13.7
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
