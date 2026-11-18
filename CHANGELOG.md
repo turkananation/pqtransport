@@ -1,5 +1,28 @@
 ## 0.2.1
 
+### Fixed
+
+- QUIC 0-RTT ClientHello sends `psk_key_exchange_modes` (extension 45)
+  with `psk_dhe_ke` before `pre_shared_key` (RFC 8446 §4.2.9). A
+  `pre_shared_key` without that extension is `illegal_parameter`.
+  `psk_ke` is not selected. The in-memory pair still accepts early
+  data once. Foreign QUIC 0-RTT was not run.
+- An ignored key share is the group's real client length. P-256 and
+  P-384 start with the uncompressed-point prefix. X448 is 56 bytes.
+  A codepoint with no fixed length is refused. The default hello
+  still sends no ignored share.
+- HTTP/2 and HTTP/3 inflate one request `Content-Encoding` before
+  the handler and encode one response coding from `Accept-Encoding`.
+  The HTTP/2 check is in-memory (`gzip` both ways). `PqHttpClient`
+  inflates HTTP/2 and HTTP/3 responses.
+- HTTP/1.1 `gzip` (RFC 1952). curl 8.16.0 linked to OpenSSL 3.5.9,
+  built without libz, saved `Content-Encoding: gzip`. CPython
+  `gzip.decompress` of that body is `pq-gzip`. Not `curl --compressed`.
+- Docs that name the current package say 0.2.1. ECH claims name
+  pqforge 0.4.14, which is the lock. HPKE arrived in 0.4.10.
+  SECURITY_AUDIT S10 matches opt-in X.509 and the raw public key
+  default. There is still no WebPKI, CT log, or system trust store.
+
 ### Added
 
 - HTTP/1.0 (RFC 9112). Host may be omitted. `Connection: close` is
@@ -61,8 +84,8 @@
   `Content-Encoding: deflate`. CPython `zlib.decompress` of that
   body is `pq-deflate`. CPython `zlib.compress` of `pq-in`, carried
   by the same curl as `Content-Encoding: deflate`, is the body the
-  handler sees. `gzip` uses the same `dart:io` encoder and was not
-  this flight. HTTP/2 and HTTP/3 do not decode content coding.
+  handler sees. `gzip` is the Fixed note above. HTTP/2 and HTTP/3
+  inflate and encode as that note says.
   This is not RFC 7692 permessage-deflate.
 - noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
   a QUICv1 handshake and establishes path 1 (RFC 10069). rustls

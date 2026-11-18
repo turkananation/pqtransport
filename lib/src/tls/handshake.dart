@@ -48,6 +48,7 @@ final class ClientHello {
     this.pskIdentity,
     this.pskObfuscatedAge,
     this.pskBinder,
+    this.pskKeyExchangeModes,
     this.quicTransportParameters,
   });
 
@@ -91,6 +92,11 @@ final class ClientHello {
   final Uint8List? pskIdentity;
   final int? pskObfuscatedAge;
   final Uint8List? pskBinder;
+
+  /// RFC 8446 `psk_key_exchange_modes`. Null means the extension was
+  /// omitted. This stack resumes only when the list contains
+  /// `psk_dhe_ke`.
+  final List<int>? pskKeyExchangeModes;
 
   /// RFC 9001 `quic_transport_parameters` (extension 57). Null omits it.
   final Uint8List? quicTransportParameters;
@@ -259,7 +265,15 @@ final class ClientHello {
     }
     final psk = _parsePreSharedKey(map, extBlock.valueOrNull!);
     if (psk.isFailure) return Result.failure(psk.errorOrNull!);
+    final modes = _parsePskKeyExchangeModes(map);
+    if (modes.isFailure) return Result.failure(modes.errorOrNull!);
     final pskOffered = psk.valueOrNull;
+    final modeList = modes.valueOrNull;
+    if (pskOffered != null && modeList == null) {
+      return Result.failure(
+        PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+      );
+    }
     if (early && pskOffered == null) {
       return Result.failure(
         PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
@@ -283,6 +297,7 @@ final class ClientHello {
         pskIdentity: pskOffered?.identity,
         pskObfuscatedAge: pskOffered?.age,
         pskBinder: pskOffered?.binder,
+        pskKeyExchangeModes: modeList,
         quicTransportParameters: map[tlsExtQuicTransportParameters],
       ),
     );
@@ -1007,7 +1022,7 @@ Uint8List _extKeyShareClients(
   final list = BytesBuilder(copy: false);
   for (final code in ignoredGroups) {
     writeUint16(list, code);
-    writeOpaque16(list, Uint8List(32));
+    writeOpaque16(list, tlsIgnoredKeyShare(code));
   }
   for (final entry in shares) {
     writeUint16(list, entry.group.codepoint);
@@ -1423,6 +1438,38 @@ Uint8List encodePreSharedKeyExtension({
 }
 
 Uint8List encodeEarlyDataExtension() => _ext(tlsExtEarlyData, Uint8List(0));
+
+/// RFC 8446 §4.2.9. [modes] defaults to `psk_dhe_ke`, the only mode
+/// this stack will resume.
+Uint8List encodePskKeyExchangeModesExtension({
+  List<int> modes = const [tlsPskDheKe],
+}) {
+  final body = BytesBuilder(copy: false);
+  writeOpaque8(body, Uint8List.fromList(modes));
+  return _ext(tlsExtPskKeyExchangeModes, body.takeBytes());
+}
+
+Result<List<int>?, PqTransportError> _parsePskKeyExchangeModes(
+  Map<int, Uint8List> exts,
+) {
+  final data = exts[tlsExtPskKeyExchangeModes];
+  if (data == null) return const Result.success(null);
+  final r = ByteReader(data);
+  final list = r.opaque8(PqLengthLabel.tlsExtension);
+  if (list.isFailure) return Result.failure(list.errorOrNull!);
+  if (!r.isDone) {
+    return Result.failure(
+      PqTransportError.decodeFailure('psk_key_exchange_modes'),
+    );
+  }
+  final raw = list.valueOrNull!;
+  if (raw.isEmpty) {
+    return Result.failure(
+      PqTransportError.decodeFailure('empty psk_key_exchange_modes'),
+    );
+  }
+  return Result.success(List<int>.from(raw));
+}
 
 bool _extensionIsLast(Uint8List extBlock, int type) {
   final r = ByteReader(extBlock);

@@ -410,13 +410,7 @@ final class PqHttpServer {
         final accepted = await session.accept(timeout: config.idleTimeout);
         if (accepted.isFailure || _closed) return;
         final (id, request) = accepted.valueOrNull!;
-        _inFlight++;
-        final PqHttpResponse response;
-        try {
-          response = await handler(request);
-        } finally {
-          _inFlight--;
-        }
+        final response = await _answer(request, handler, HttpVersion.h2);
         if (_closed && response.hijacked) return;
         final sent = await session.respond(id, response);
         if (sent.isFailure) return;
@@ -469,13 +463,7 @@ final class PqHttpServer {
         final accepted = await session.accept(timeout: config.idleTimeout);
         if (accepted.isFailure || _closed) return;
         final (id, request) = accepted.valueOrNull!;
-        _inFlight++;
-        final PqHttpResponse response;
-        try {
-          response = await handler(request);
-        } finally {
-          _inFlight--;
-        }
+        final response = await _answer(request, handler, HttpVersion.h3);
         final sent = await session.respond(id, response);
         if (sent.isFailure) return;
       }
@@ -490,6 +478,31 @@ final class PqHttpServer {
         .map((entry) => entry.value)
         .join(',');
     return value.toLowerCase().split(',').any((part) => part.trim() == 'close');
+  }
+
+  Future<PqHttpResponse> _answer(
+    PqHttpRequest request,
+    PqHttpHandler handler,
+    HttpVersion version,
+  ) async {
+    final decoded = _inflateRequest(request);
+    if (decoded.isFailure) {
+      return PqHttpResponse(
+        status: 400,
+        headers: const {},
+        body: Uint8List(0),
+        version: version,
+      );
+    }
+    final inbound = decoded.valueOrNull!;
+    _inFlight++;
+    final PqHttpResponse response;
+    try {
+      response = await handler(inbound);
+    } finally {
+      _inFlight--;
+    }
+    return _applyAcceptedCoding(inbound, response);
   }
 }
 
@@ -514,14 +527,40 @@ PqHttpResponse _http1Response(
           : '$connection, close';
     }
   }
+  return _applyAcceptedCoding(
+    request,
+    PqHttpResponse(
+      status: response.status,
+      headers: headers,
+      body: response.body,
+      version: HttpVersion.h1,
+      trailers: response.trailers,
+      hijacked: response.hijacked,
+      httpMinor: request.httpMinor,
+    ),
+  );
+}
+
+PqHttpResponse _applyAcceptedCoding(
+  PqHttpRequest request,
+  PqHttpResponse response,
+) {
+  if (response.hijacked) return response;
+  final headers = <String, String>{
+    for (final entry in response.headers.entries)
+      entry.key.toLowerCase(): entry.value,
+  };
   var body = response.body;
   final coding = headers['content-encoding'];
-  final accept = request.headers['accept-encoding'];
+  final accept = request.headers.entries
+      .where((entry) => entry.key.toLowerCase() == 'accept-encoding')
+      .map((entry) => entry.value)
+      .join(',');
   final head = request.method.toUpperCase() == 'HEAD';
   if (!head &&
       body.isNotEmpty &&
-      coding == null &&
-      accept != null &&
+      (coding == null || coding.isEmpty) &&
+      accept.isNotEmpty &&
       response.status >= 200 &&
       response.status != 204 &&
       response.status != 304) {
@@ -542,10 +581,10 @@ PqHttpResponse _http1Response(
     status: response.status,
     headers: headers,
     body: body,
-    version: HttpVersion.h1,
+    version: response.version,
     trailers: response.trailers,
     hijacked: response.hijacked,
-    httpMinor: request.httpMinor,
+    httpMinor: response.httpMinor,
   );
 }
 
@@ -554,8 +593,11 @@ bool _omitMessageBody(PqHttpRequest request, PqHttpResponse response) {
 }
 
 Result<PqHttpRequest, PqTransportError> _inflateRequest(PqHttpRequest request) {
-  final coding = request.headers['content-encoding'];
-  if (coding == null || coding.isEmpty || request.body.isEmpty) {
+  final coding = request.headers.entries
+      .where((entry) => entry.key.toLowerCase() == 'content-encoding')
+      .map((entry) => entry.value)
+      .join(',');
+  if (coding.isEmpty || request.body.isEmpty) {
     return Result.success(request);
   }
   final decoded = decodeContentCodingHeader(
@@ -563,8 +605,10 @@ Result<PqHttpRequest, PqTransportError> _inflateRequest(PqHttpRequest request) {
     Uint8List.fromList(request.body),
   );
   if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
-  final headers = <String, String>{...request.headers}
-    ..remove('content-encoding');
+  final headers = <String, String>{
+    for (final entry in request.headers.entries)
+      if (entry.key.toLowerCase() != 'content-encoding') entry.key: entry.value,
+  };
   headers['content-length'] = '${decoded.valueOrNull!.length}';
   return Result.success(
     PqHttpRequest(

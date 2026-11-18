@@ -170,7 +170,10 @@ decodeNewSessionTicket(Uint8List handshake) {
   final age = ticket.obfuscatedAge(now);
   final placeholder = Uint8List(schedule.hashLen);
   final hello = appendHandshakeExtension(
-    appendHandshakeExtension(baseHello, encodeEarlyDataExtension()),
+    appendHandshakeExtension(
+      appendHandshakeExtension(baseHello, encodeEarlyDataExtension()),
+      encodePskKeyExchangeModesExtension(),
+    ),
     encodePreSharedKeyExtension(
       identity: ticket.identity,
       obfuscatedAge: age,

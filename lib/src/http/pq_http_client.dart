@@ -249,7 +249,9 @@ final class PqHttpClient {
     _h2 ??= PqHttp2Session.client(tls);
     final started = await _h2!.ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
-    return _h2!.request(request, timeout: timeout);
+    final done = await _h2!.request(request, timeout: timeout);
+    if (done.isFailure) return done;
+    return _inflateResponse(done.valueOrNull!);
   }
 
   Future<Result<PqHttpResponse, PqTransportError>> roundTripH3({
@@ -270,7 +272,9 @@ final class PqHttpClient {
     _h3 ??= PqHttp3Session.client(conn);
     final started = await _h3!.ensureStarted(timeout: timeout);
     if (started.isFailure) return Result.failure(started.errorOrNull!);
-    return _h3!.request(request, timeout: timeout);
+    final done = await _h3!.request(request, timeout: timeout);
+    if (done.isFailure) return done;
+    return _inflateResponse(done.valueOrNull!);
   }
 
   Future<Result<PqHttpResponse, PqTransportError>> roundTripH1({

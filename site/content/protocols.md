@@ -1,6 +1,6 @@
 ---
 title: Protocols
-description: UDP, TLS 1.3, DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP in pqtransport 0.2.0.
+description: UDP, TLS 1.3, DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP in pqtransport 0.2.1.
 ---
 
 Status vocabulary matches [`doc/FEATURES.md`](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md):
@@ -52,7 +52,7 @@ does HTTP/1.1 GETs with `--cacert`, including a reused connection and
 
 ECH (RFC 9849) is self-interop and one BoringSSL flight. The suite is
 DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
-(pqforge 0.4.10). Inner name `localhost`, public name `public.example`.
+(pqforge 0.4.14, HPKE since 0.4.10). Inner name `localhost`, public name `public.example`.
 A client with an `EchConfig` does not send a cleartext second hello.
 Not an OpenSSL flight. Not GREASE. Not DNS. Not a browser.
 

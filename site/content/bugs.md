@@ -1,6 +1,6 @@
 ---
 title: Bugs
-description: Open, blocked, limited, and fixed defects in pqtransport 0.2.0.
+description: Open, blocked, limited, and fixed defects in pqtransport 0.2.1.
 ---
 
 Canonical tracker:

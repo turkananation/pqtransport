@@ -181,6 +181,86 @@ void main() {
     expect(decoded.errorOrNull!.alert, tlsAlertIllegalParameter);
   });
 
+  test('ignored P-256 key share is the uncompressed point length', () async {
+    final group = HybridGroup.x25519MlKem768;
+    final share = await _realShare(crypto, group);
+    final hello = ClientHello(
+      random: _random(5),
+      group: group.named,
+      share: share,
+      ignoredKeyShareGroups: const [namedGroupSecp256r1],
+      supportedGroups: [namedGroupSecp256r1, group.codepoint],
+    );
+    final decoded = ClientHello.decode(hello.encode());
+    expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
+    final p256 = decoded.valueOrNull!.offeredKeyShares
+        .where((entry) => entry.group == TlsNamedGroup.secp256r1)
+        .single;
+    expect(p256.share.length, secp256r1UncompressedBytes);
+    expect(p256.share[0], uncompressedPointPrefix);
+    expect(tlsIgnoredKeyShare(0x001e).length, 56);
+  });
+
+  test('an ignored group with no fixed share length is refused', () {
+    final hello = ClientHello(
+      random: _random(6),
+      group: TlsNamedGroup.x25519,
+      share: Uint8List(x25519ShareBytes),
+      ignoredKeyShareGroups: const [0x0a0a],
+      supportedGroups: const [0x0a0a, namedGroupX25519],
+    );
+    expect(hello.encode, throwsArgumentError);
+  });
+
+  test('pre_shared_key without psk_key_exchange_modes is illegal', () async {
+    final group = HybridGroup.x25519MlKem768;
+    final share = await _realShare(crypto, group);
+    final wire = appendHandshakeExtension(
+      ClientHello(
+        random: _random(7),
+        group: group.named,
+        share: share,
+      ).encode(),
+      encodePreSharedKeyExtension(
+        identity: Uint8List(32),
+        obfuscatedAge: 1,
+        binder: Uint8List(48),
+      ),
+    );
+    final decoded = ClientHello.decode(wire);
+    expect(decoded.isFailure, isTrue);
+    expect(decoded.errorOrNull!.code, PqTransportErrorCode.illegalParameter);
+  });
+
+  test('psk_ke is parsed and is not a resumed handshake', () async {
+    final group = HybridGroup.x25519MlKem768;
+    final share = await _realShare(crypto, group);
+    final wire = appendHandshakeExtension(
+      appendHandshakeExtension(
+        ClientHello(
+          random: _random(8),
+          group: group.named,
+          share: share,
+          certificateTypes: const [TlsCertificateType.x509],
+          signatureSchemes: const [tlsSignatureMldsa65],
+        ).encode(),
+        encodePskKeyExchangeModesExtension(modes: const [tlsPskKe]),
+      ),
+      encodePreSharedKeyExtension(
+        identity: Uint8List(32),
+        obfuscatedAge: 1,
+        binder: Uint8List(48),
+      ),
+    );
+    final decoded = ClientHello.decode(wire);
+    expect(decoded.isSuccess, isTrue, reason: '${decoded.errorOrNull}');
+    expect(decoded.valueOrNull!.pskKeyExchangeModes, [tlsPskKe]);
+    final server = PqTlsServer(crypto: crypto, identity: _leaf(crypto));
+    final flight = await server.ingest(wrapHandshake(wire, quic: false));
+    expect(flight.isSuccess, isTrue, reason: '${flight.errorOrNull}');
+    expect(server.earlyDataAccepted, isFalse);
+  });
+
   test('ClientHello split across two records is reassembled', () async {
     final client = PqTlsClient(crypto: crypto);
     final server = PqTlsServer(crypto: crypto);

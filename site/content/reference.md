@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: Every public call in pqtransport 0.2.0. Constructors and fields are the ones in the library.
+description: Every public call in pqtransport 0.2.1. Constructors and fields are the ones in the library.
 ---
 
 The web-safe import is `package:pqtransport/pqtransport.dart`.

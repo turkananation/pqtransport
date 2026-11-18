@@ -1,11 +1,11 @@
 # pqtransport
 
-Pure-Dart post-quantum transport, 0.2.0. TLS 1.3 (RFC 10024 hybrids, plus X25519, secp256r1, secp384r1, and ML-KEM-1024), DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP/1.1–3. Cryptography is pqforge. No FFI.
+Pure-Dart post-quantum transport, 0.2.1. TLS 1.3 (RFC 10024 hybrids, plus X25519, secp256r1, secp384r1, and ML-KEM-1024), DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP/1.1–3. Cryptography is pqforge. No FFI.
 
 ## Project signals
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
-[![version](https://img.shields.io/badge/version-0.2.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
+[![version](https://img.shields.io/badge/version-0.2.1-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
 [![Yardenah PQ](https://img.shields.io/badge/Lab-Yardenah_PQ-b6f25c?style=for-the-badge)](https://yardenah.com)
 [![API](https://img.shields.io/badge/API-doc%2FAPI.md-0ea5e9?style=for-the-badge&logo=dart&logoColor=white)](doc/API.md)
 [![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
@@ -91,7 +91,7 @@ Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Not a browser. Not WebPKI.
 
 ```yaml
 dependencies:
-  pqtransport: ^0.2.0
+  pqtransport: ^0.2.1
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```

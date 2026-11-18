@@ -405,6 +405,15 @@ final class PqTlsServer {
     if (ech != null) {
       return Result.failure(PqTransportError.unsupported('0-rtt with ech'));
     }
+    final modes = hello.pskKeyExchangeModes;
+    if (modes == null || !modes.contains(tlsPskDheKe)) {
+      if (modes == null) {
+        return Result.failure(
+          PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
+        );
+      }
+      return const Result.success(null);
+    }
     final store = earlyData;
     final binder = hello.pskBinder;
     if (store == null || binder == null) return const Result.success(null);

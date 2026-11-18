@@ -20,20 +20,20 @@ Infrastructure is exclusively
 There is no `dart:ffi` and no platform TLS (`SecureSocket`) on the PQ path.
 
 <Info>
-  v0.2.0. Live handshake is **all three RFC 10024 groups**, plus
+  v0.2.1. Live handshake is **all three RFC 10024 groups**, plus
   X25519, secp256r1, secp384r1, and ML-KEM-1024.
   RFC 8446-shaped hellos (IANA `0x1302` SHA-384 default, `0x1303` ChaCha).
   OpenSSL 3.5.9 and BoringSSL 0.20261020.0: hybrid groups, plus X25519,
   secp256r1, secp384r1, and MLKEM1024. Auth is raw public key by default,
   or an opt-in ML-DSA-65 X.509 chain of 1 to 8. ECH is one BoringSSL
-  flight (RFC 9849, pqforge 0.4.10 HPKE). DNSSEC verifies algorithms
+  flight (RFC 9849, pqforge 0.4.14 HPKE). DNSSEC verifies algorithms
   5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli are 1024, 2048, 3072, and
   4096 bits. Ed448 verifies with an empty context. The iterative resolver returns
   secure, insecure, or bogus, with NSEC and NSEC3 denial. Not a browser. Not WebPKI. Not a FIPS 140 module.
 </Info>
 
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
-[![version](https://img.shields.io/badge/version-0.2.0-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport)
+[![version](https://img.shields.io/badge/version-0.2.1-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport)
 [![Yardenah PQ](https://img.shields.io/badge/Lab-Yardenah_PQ-b6f25c?style=for-the-badge)](https://yardenah.com)
 [![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
 [![CI](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/ci.yml)
@@ -63,7 +63,7 @@ final key = client.exporter('app', Uint8List(0), 32);
 
 | Gate | Value |
 | --- | --- |
-| Version | 0.2.0 |
+| Version | 0.2.1 |
 | SDK | `>=3.12.0 <4.0.0` |
 | pqforge | `^0.4.13` |
 | Hybrid groups | 3 RFC 10024 codecs + live KEX |
@@ -138,7 +138,7 @@ Full wording: [Claim Boundary](claim-boundary).
 
 ```yaml
 dependencies:
-  pqtransport: ^0.2.0
+  pqtransport: ^0.2.1
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```

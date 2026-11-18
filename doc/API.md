@@ -2,14 +2,14 @@
 
 Last updated: 2026-11-08
 
-Public names for 0.2.0. Adding a symbol to the web barrel requires a test that
+Public names for 0.2.1. Adding a symbol to the web barrel requires a test that
 imports only `package:pqtransport/pqtransport.dart`.
 
 ## Install
 
 ```yaml
 dependencies:
-  pqtransport: ^0.2.0
+  pqtransport: ^0.2.1
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```

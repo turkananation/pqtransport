@@ -3,7 +3,7 @@ title: Roadmap
 description: What has landed on pqtransport main, and what is next. Order is not optional.
 ---
 
-0.2.0 is the 0.1.0 slice plus what landed after it: X.509, the four
+0.2.1 is the current package. 0.2.0 is the 0.1.0 slice plus what landed after it: X.509, the four
 non-hybrid groups, BoringSSL, ECH, UDP loss recovery, and DNSSEC.
 0.1.0 remains the self-interop vertical slice plus live NIST groups.
 
@@ -25,7 +25,7 @@ on the PQ path. ML-DSA DNSSEC. An authoritative DNS server.
 | 0.3 | Live KEX on all three RFC 10024 groups. SHA-384 schedule for `0x1302` |
 | 0.4 | OpenSSL 3.5.9, raw-pk and X.509, both directions. BoringSSL 0.20261020.0 on X25519MLKEM768 and X25519, secp256r1, secp384r1, MLKEM1024. Not the two NIST hybrids on BoringSSL. curl is HTTP/1.1: one GET against `s_server`, one against `PqTlsSocket`, and against `PqHttpServer` a chunked body, keep-alive, and `Connection: close`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not `curl --http3` |
 | 0.5 | DoH, DoT, HTTP/2, HTTP/3+QPACK, QUIC loss recovery |
-| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.10 HPKE. DNSSEC is algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli 1024 through 4096. Ed448 verifies. Iterative resolver, NSEC and NSEC3. QUIC 0-RTT shares the Application Data space with 1-RTT. Optional mDNS TXT is SLH-DSA-SHA2-128f |
+| 0.6 | Opt-in X.509 chain of 1 to 8. ECH, one BoringSSL flight, pqforge 0.4.14 HPKE (since 0.4.10). DNSSEC is algorithms 5, 7, 8, 10, 13, 14, 15, and 16. RSA moduli 1024 through 4096. Ed448 verifies. Iterative resolver, NSEC and NSEC3. QUIC 0-RTT shares the Application Data space with 1-RTT and sends `psk_dhe_ke`. Optional mDNS TXT is SLH-DSA-SHA2-128f |
 
 ## Next
 

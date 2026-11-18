@@ -1,6 +1,6 @@
 ---
 title: Peers
-description: What OpenSSL, BoringSSL, quiche, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.0.
+description: What OpenSSL, BoringSSL, quiche, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.1.
 ---
 
 These are the peers CI runs. None of them is a browser, and none of
@@ -38,8 +38,9 @@ ML-DSA-65 localhost certificate. The reverse also completes:
 handshake both ways and one HTTP/3 GET both ways on
 X25519MLKEM768 with an ML-DSA-65 certificate checked. The OpenSSL
 QUIC flights are not HTTP/3. QUIC 0-RTT is sent to this stack only:
-a long header beside the Initial and the 1-RTT short header. A
-third-party HTTP/3 client has not completed that path. Early data is
+a long header beside the Initial and the 1-RTT short header. The
+ClientHello includes `psk_key_exchange_modes` with `psk_dhe_ke`.
+A third-party HTTP/3 client has not completed that path. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
 are the quiche 0.30.0 flights, both ways. masque-go v0.6.0
 completed CONNECT-UDP, and connect-ip-go v0.6.0 completed

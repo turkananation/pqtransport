@@ -317,6 +317,9 @@ const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
 const int tlsExtPreSharedKey = 41;
 const int tlsExtEarlyData = 42;
+const int tlsExtPskKeyExchangeModes = 45;
+const int tlsPskKe = 0;
+const int tlsPskDheKe = 1;
 const int tlsExtQuicTransportParameters = 57;
 
 /// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.

@@ -12,6 +12,8 @@ SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`.
 BoringSSL verifies the OpenSSL leaf. curl does HTTP/1.1 GETs,
 including keep-alive and `Connection: close` against `PqHttpServer`.
 `Content-Encoding: deflate` on that server is the zlib wrapper.
+`Content-Encoding: gzip` is RFC 1952. CPython checks both. The
+curl binary has no libz, so this is not `curl --compressed`.
 CPython `zlib` checks both directions. This curl was built without
 libz, so the claim is not `curl --compressed`.
 `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not a browser.
@@ -27,7 +29,7 @@ libz, so the claim is not `curl --compressed`.
 | Auth, X.509 server | `s_client -verify_return_error` against `PqTlsSocket`. ML-DSA-65, chain length 1 on all three groups, chain length 2 on X25519MLKEM768, one P-256 leaf on X25519MLKEM768. |
 | BoringSSL | This script: 0.20261020.0 `X509_verify_cert` on the leaf OpenSSL minted. The TLS peer is `tool/interop/boringssl`. |
 | Classical / pure | X25519, secp256r1, secp384r1, and MLKEM1024, both directions, ML-DSA-65 chain length 1. Hybrid stays first. `x25519:secp256r1` finishes on X25519. The other three are HelloRetryRequest. Not MLKEM512. Not MLKEM768. Not TLS 1.2. |
-| curl | HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`, and against `PqHttpServer` a chunked body, a reused connection, a new connection after `Connection: close`, and `deflate` (CPython `zlib`, not `curl --compressed`). Not a browser. Not `curl --http3`. |
+| curl | HTTPS GETs on X25519MLKEM768 with `--cacert` and `--http1.1`. One against `s_server`, one against `PqTlsSocket`, and against `PqHttpServer` a chunked body, a reused connection, a new connection after `Connection: close`, `deflate` (CPython `zlib`), and `gzip` (CPython `gzip`). Not `curl --compressed`. Not a browser. Not `curl --http3`. |
 | HTTP/1.1 records | `s_server -max_send_frag 512` serves a 2048-octet body. `PqHttpClient` reassembles it. ServerHello is fragmented on that flight and buffered until complete. |
 | Finished | Each raw-pk and X.509 client group: OpenSSL logs `read finished` and `peerAuthenticated` is true. Each server group: `s_client` exits 0 and prints `Verify return code: 0`. |
 

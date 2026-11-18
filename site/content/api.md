@@ -1,6 +1,6 @@
 ---
 title: API Guide
-description: Public types in pqtransport 0.2.0. Web barrel and IO barrel.
+description: Public types in pqtransport 0.2.1. Web barrel and IO barrel.
 ---
 
 Adding a symbol to the web barrel requires a test that imports only
@@ -12,7 +12,7 @@ The field-by-field constructors are the [Reference](reference).
 
 ```yaml
 dependencies:
-  pqtransport: ^0.2.0
+  pqtransport: ^0.2.1
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```

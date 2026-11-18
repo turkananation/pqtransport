@@ -75,8 +75,11 @@ foundational packages publish `sdk: ^3.12.0`. Do not lower the floor.
   CPython `zlib.decompress` of that body is `pq-deflate`, and
   CPython `zlib.compress` of `pq-in` is what the handler receives.
   That curl is 8.16.0 and was built without libz, so this is not
-  `curl --compressed`. `gzip` was not this flight. HTTP/2 and
-  HTTP/3 do not decode content coding. `PqHttpClient`
+  `curl --compressed`. The same curl saved `Content-Encoding: gzip`.
+  CPython `gzip.decompress` of that body is `pq-gzip`. HTTP/2 and
+  HTTP/3 inflate one request content coding and may encode one
+  response coding from `Accept-Encoding`. The HTTP/2 check is
+  in-memory. `PqHttpClient`
   reads a 2048-octet body from `s_server -max_send_frag 512`. That
   ServerHello is fragmented and reassembled (RFC 8446 §5.1). Not a
   browser. Not WebPKI.
@@ -89,7 +92,8 @@ is what the X.509 mode sends. A live Chrome handshake is not claimed.
 
 ECH (RFC 9849) is self-interop, and one BoringSSL 0.20261020.0
 flight (2026-11-01). The suite is DHKEM(X25519, HKDF-SHA256),
-HKDF-SHA256, and AES-128-GCM, via `PqHpke` (pqforge 0.4.10). Both
+HKDF-SHA256, and AES-128-GCM, via `PqHpke` (pqforge 0.4.14; HPKE
+since 0.4.10). Both
 directions, group X25519MLKEM768, suite `TLS_AES_256_GCM_SHA384`,
 ML-DSA-65 chain length 1. The inner name is `localhost`. The public
 name is `public.example`. A client given an `EchConfig` fails closed:
