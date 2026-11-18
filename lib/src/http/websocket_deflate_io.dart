@@ -55,15 +55,17 @@ final class _IoWebSocketDeflate implements WebSocketDeflate {
   }
 
   /// A raw filter's first call can fail when another isolate is inside
-  /// dart:io. That filter is discarded. This is not a claim that the
+  /// dart:io. That filter is discarded. A tight retry stays inside the
+  /// same window, so the next try waits. This is not a claim that the
   /// VM's zlib is isolated.
   Uint8List _attempt(Uint8List Function() body) {
     FormatException? last;
-    for (var attempt = 0; attempt < 4; attempt++) {
+    for (var attempt = 0; attempt < 8; attempt++) {
       try {
         return body();
       } on FormatException catch (error) {
         last = error;
+        if (attempt < 7) sleep(Duration(milliseconds: 1 << attempt));
       }
     }
     final error = last;
@@ -73,6 +75,11 @@ final class _IoWebSocketDeflate implements WebSocketDeflate {
 
   Uint8List _compress(Uint8List message) {
     final finish = serverNoContextTakeover;
+    // An empty message with no context is the sync-flush trailer and
+    // nothing else. Stripping that trailer leaves an empty payload.
+    // Flushing a filter that was never given input is the call that
+    // throws "bad data" on some VM builds.
+    if (finish && message.isEmpty) return Uint8List(0);
     final filter = finish
         ? RawZLibFilter.deflateFilter(raw: true, windowBits: serverWindowBits)
         : (_deflate ??= RawZLibFilter.deflateFilter(
