@@ -5,8 +5,9 @@ import '../core/lengths.dart';
 
 /// RFC 9002 Section 7 congestion controller: NewReno (Appendix B).
 ///
-/// This is the controller named by the RFC. It is not CUBIC and it does not
-/// react to ECN. The window is in bytes. Slow start grows by the bytes just
+/// This is the controller named by the RFC. It is not CUBIC. An ECN-CE
+/// increase is the same congestion event as loss (RFC 9002). It does not
+/// mark packets lost. The window is in bytes. Slow start grows by the bytes just
 /// acknowledged. Congestion avoidance grows by at most one maximum datagram
 /// per window of acknowledged bytes (integer division, Appendix B.5).
 ///
@@ -107,6 +108,10 @@ final class QuicNewReno {
       congestionWindow += maxDatagramSize;
     }
   }
+
+  /// RFC 9000 §13.4.2.2 / RFC 9002. One congestion event. A later mark
+  /// in the same recovery round does not cut the window again.
+  bool onEcnCongestion() => _onCongestionEvent(_now());
 
   /// Appendix B.8 byte accounting and the congestion event. Persistent
   /// congestion is decided by loss detection, which then calls

@@ -119,6 +119,7 @@ final class PqQuicConn {
     int flowWindow = 0,
     Duration? idleTimeout,
     QuicResumptionTicket? ticket,
+    List<QuicResumptionTicket> moreTickets = const [],
     List<TlsCertificateType>? certificateTypes,
     List<Uint8List> trustAnchors = const [],
     String? serverName,
@@ -143,6 +144,7 @@ final class PqQuicConn {
         group: group,
         alpnProtocols: alpnProtocols,
         ticket: ticket,
+        moreTickets: moreTickets,
         transportParameters: quicEndpointParameters(
           server: false,
           localCid: local,
@@ -254,7 +256,9 @@ final class PqQuicConn {
     int flowWindow = 0,
     Duration? idleTimeout,
     QuicResumptionTicket? ticket,
+    List<QuicResumptionTicket> moreTickets = const [],
     QuicEarlyDataStore? earlyData,
+    int? initialMaxPathId,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final id = identity ?? PqTlsServerIdentity.generate(c);
@@ -276,6 +280,8 @@ final class PqQuicConn {
       flowWindow: flowWindow,
       idleTimeout: idleTimeout,
       ticket: ticket,
+      moreTickets: moreTickets,
+      initialMaxPathId: initialMaxPathId,
     );
     server = PqQuicConn.server(
       crypto: c,
@@ -292,6 +298,7 @@ final class PqQuicConn {
       maxStreamData: maxStreamData,
       flowWindow: flowWindow,
       idleTimeout: idleTimeout,
+      initialMaxPathId: initialMaxPathId,
     );
     return (client, server);
   }
@@ -381,6 +388,7 @@ final class PqQuicConn {
   int? _peerInitialMaxPathId;
   QuicMultipath? _multipath;
   final Map<int, int> _pathNextPn = {};
+  final Map<int, QuicPathPto> _pathPto = {};
   final Map<int, Set<int>> _pathReceived = {};
   var _pathCidsIssued = false;
   final List<Uint8List> _datagramOut = [];
@@ -394,6 +402,7 @@ final class PqQuicConn {
   final Map<int, int> _stopped = {};
   Uint8List? _pathChallenge;
   var pathResponseMatched = false;
+  var _migrated = false;
   List<Uint8List>? _coalesce;
   var _openedBidi = 0;
   var _openedUni = 0;
@@ -415,6 +424,9 @@ final class PqQuicConn {
 
   bool get isComplete => _tls.isComplete;
   bool get earlyDataAccepted => _tls.earlyDataAccepted;
+
+  /// PSK identity the peer selected. Zero when this handshake did not resume.
+  int get selectedPskIndex => _tls.selectedPskIndex;
   String? get alpn => _tls.alpn;
 
   /// True when this client checked CertificateVerify.
@@ -882,6 +894,19 @@ final class PqQuicConn {
 
   int get peerMaxDatagramFrameSize => _peerMaxDatagramFrameSize;
 
+  /// True after [commitMigration] switched the destination connection ID.
+  /// `preferred_address` is not sent. The spin bit stays clear.
+  bool get migrated => _migrated;
+
+  /// Destination connection ID on the next 1-RTT packet.
+  Uint8List get destinationConnectionId => _dcid;
+
+  /// RFC 10069. Null when [pathId] has no ack-eliciting packet outstanding.
+  /// Path 0 uses [lossRecovery].
+  DateTime? pathPtoDeadline(int pathId) => _pathPto[pathId]?.deadline;
+
+  int pathPtoCount(int pathId) => _pathPto[pathId]?.ptoCount ?? 0;
+
   /// RFC 10069. True only after both endpoints sent `initial_max_path_id`.
   bool get multipathNegotiated => _multipath != null;
 
@@ -1312,8 +1337,26 @@ final class PqQuicConn {
     final event = lossRecovery.onLossDetectionTimeout();
     if (event.isFailure) return Result.failure(event.errorOrNull!);
     final applied = await _apply(event.valueOrNull!);
+    if (applied.isFailure) return applied;
+    final paths = await _drivePathPtos();
     _armBoundTimers();
-    return applied;
+    return paths;
+  }
+
+  Future<Result<void, PqTransportError>> _drivePathPtos() async {
+    for (final entry in _pathPto.entries.toList()) {
+      if (!entry.value.onTimeout()) continue;
+      final challenge = QuicPathChallengeFrame(
+        crypto.randomBytes(quicPathChallengeBytes),
+      );
+      final sent = await sendOnPath(
+        entry.key,
+        challenge.encode(),
+        ackEliciting: true,
+      );
+      if (sent.isFailure) return sent;
+    }
+    return const Result.success(null);
   }
 
   Future<Result<void, PqTransportError>> _ingest(Uint8List wire) async {
@@ -2192,8 +2235,12 @@ final class PqQuicConn {
           datagram.isNotEmpty &&
           (datagram.first[0] & 0xF0) == 0xC0 &&
           used >= quicMinClientInitialUdpBytes;
+      // RFC 9000 §12.2. A short header has no length, so it ends the
+      // datagram. Two of them are not one datagram.
+      final alreadyShort =
+          datagram.isNotEmpty && (datagram.last[0] & 0x80) == 0;
       if (datagram.isNotEmpty &&
-          (used + packet.length > limit || initialFull)) {
+          (used + packet.length > limit || initialFull || alreadyShort)) {
         final sent = await _deliverDatagram(concatBytes(datagram));
         if (sent.isFailure) return sent;
         datagram.clear();
@@ -2586,6 +2633,12 @@ final class PqQuicConn {
         if (event.isFailure) return Result.failure(event.errorOrNull!);
         final done = await _apply(event.valueOrNull!);
         if (done.isFailure) return done;
+      } else if (frame is QuicPathAckFrame) {
+        final pto = _pathPto[frame.pathId];
+        if (pto != null) {
+          final acked = pto.onAck(frame.packetNumbers());
+          if (acked.isFailure) return Result.failure(acked.errorOrNull!);
+        }
       }
     }
     return const Result.success(null);
@@ -2635,7 +2688,7 @@ final class PqQuicConn {
       b.add(QuicPathResponseFrame(challenge).encode());
     }
     if (b.isEmpty) return Future.value(const Result.success(null));
-    return sendOnPath(pathId, b.takeBytes());
+    return sendOnPath(pathId, b.takeBytes(), ackEliciting: challenge != null);
   }
 
   /// Sends one RFC 10069 frame on path 0. Refused when multipath is off.
@@ -2688,11 +2741,12 @@ final class PqQuicConn {
 
   /// 1-RTT packet on a non-zero path. Uses that path's packet number
   /// space and the peer connection ID from PATH_NEW_CONNECTION_ID.
-  /// Path 0 stays on [lossRecovery]. This does not run a separate PTO.
+  /// Path 0 stays on [lossRecovery]. This path has its own PTO.
   Future<Result<void, PqTransportError>> sendOnPath(
     int pathId,
-    Uint8List payload,
-  ) async {
+    Uint8List payload, {
+    bool ackEliciting = true,
+  }) async {
     final paths = _multipath;
     if (paths == null || pathId <= 0 || !paths.pathAllowed(pathId)) {
       return Result.failure(PqTransportError.decodeFailure('multipath path'));
@@ -2715,6 +2769,11 @@ final class PqQuicConn {
       pathId: pathId,
     );
     if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
+    final pto = _pathPto.putIfAbsent(
+      pathId,
+      () => QuicPathPto(clock: lossRecovery.clock),
+    );
+    pto.onSent(packetNumber: pn, ackEliciting: ackEliciting);
     _pathNextPn[pathId] = pn + 1;
     return _deliverDatagram(sealed.valueOrNull!, pathId: pathId);
   }
@@ -2836,6 +2895,47 @@ final class PqQuicConn {
       } on Object catch (e) {
         done.complete(
           Result.failure(PqTransportError.internalError('path $e')),
+        );
+        _wake();
+      }
+    });
+    return done.future;
+  }
+
+  /// RFC 9000 §9. After [pathResponseMatched], send on a connection ID
+  /// that is not the one used before the probe. `preferred_address` is
+  /// not sent. The spin bit stays clear. ACK frequency is not sent.
+  Future<Result<void, PqTransportError>> commitMigration() {
+    final done = Completer<Result<void, PqTransportError>>();
+    _inFlight = _inFlight.then((_) async {
+      try {
+        if (!pathResponseMatched) {
+          done.complete(
+            Result.failure(
+              PqTransportError.decodeFailure('path not validated'),
+            ),
+          );
+        } else {
+          Uint8List? next;
+          for (final cid in _peerCids.values) {
+            if (!_sameBytes(cid, _dcid)) next = cid;
+          }
+          if (next == null) {
+            done.complete(
+              Result.failure(
+                PqTransportError.decodeFailure('no connection id'),
+              ),
+            );
+          } else {
+            _dcid = Uint8List.fromList(next);
+            _migrated = true;
+            done.complete(const Result.success(null));
+          }
+        }
+        _wake();
+      } on Object catch (e) {
+        done.complete(
+          Result.failure(PqTransportError.internalError('migrate $e')),
         );
         _wake();
       }

@@ -881,6 +881,69 @@ void main() {
       },
     );
   });
+
+  group('ECN and per-path PTO', () {
+    test('ECN-CE halves the window once and does not declare loss', () {
+      final clock = QuicManualClock();
+      final loss = recovery(clock);
+      send(loss, app, 0, [
+        streamFrame(0, [1]),
+      ]);
+      final before = loss.congestionWindow;
+      final first = loss.onAck(
+        app,
+        const QuicAckFrame(
+          largest: 0,
+          delay: 0,
+          firstRange: 0,
+          ecn: true,
+          ce: 1,
+        ),
+      );
+      expect(first.isSuccess, isTrue, reason: '${first.errorOrNull}');
+      expect(first.valueOrNull!.ecnCongestion, isTrue);
+      expect(first.valueOrNull!.lost, isEmpty);
+      // Slow start counts the acknowledged datagram, then CE halves that.
+      expect(
+        loss.congestionWindow,
+        (before + quicMinClientInitialUdpBytes) ~/ 2,
+      );
+      final again = loss.onAck(
+        app,
+        const QuicAckFrame(
+          largest: 0,
+          delay: 0,
+          firstRange: 0,
+          ecn: true,
+          ce: 2,
+        ),
+      );
+      expect(again.isSuccess, isTrue, reason: '${again.errorOrNull}');
+      expect(again.valueOrNull!.ecnCongestion, isFalse);
+      expect(again.valueOrNull!.lost, isEmpty);
+      expect(
+        loss.congestionWindow,
+        (before + quicMinClientInitialUdpBytes) ~/ 2,
+      );
+    });
+
+    test('path 1 keeps its own PTO and does not declare packets lost', () {
+      final clock = QuicManualClock();
+      final pto = QuicPathPto(clock: clock);
+      expect(pto.onTimeout(), isFalse);
+      pto.onSent(packetNumber: 3, ackEliciting: true);
+      expect(pto.deadline, isNotNull);
+      expect(pto.onAck([9]).isFailure, isTrue);
+      clock.advance(const Duration(seconds: 2));
+      expect(pto.onTimeout(), isTrue);
+      expect(pto.ptoCount, 1);
+      expect(pto.onTimeout(), isFalse);
+      final acked = pto.onAck([3]);
+      expect(acked.isSuccess, isTrue, reason: '${acked.errorOrNull}');
+      expect(pto.ptoCount, 0);
+      expect(pto.deadline, isNull);
+    });
+  });
 }
 
 Future<void> _pump() async {

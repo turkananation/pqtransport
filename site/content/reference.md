@@ -252,6 +252,10 @@ The server calls `sendNewSessionTicket` after the handshake, into a
 `QuicEarlyDataStore`. The next `pair` takes that ticket. A second
 use of the same ticket completes and accepts no early data. 0-RTT
 shares the Application Data packet number space with 1-RTT.
+`moreTickets` offers more identities. Early data is index 0 only.
+`QuicEarlyDataStore(ticketKey:)` lets a later store resume and
+refuse 0-RTT. Not an external PSK. `commitMigration` runs after
+PATH_RESPONSE. `driveLossRecovery` also fires a path PTO.
 
 ## HTTP
 

@@ -64,6 +64,10 @@ final class PqTlsClient {
     /// RFC 8446 resumption ticket. QUIC only. Sends early_data and a PSK.
     this.ticket,
 
+    /// Identities offered after [ticket]. The binder list covers one
+    /// Truncate(ClientHello). Early data is the first identity only.
+    this.moreTickets = const [],
+
     /// RFC 9001 transport parameters. Sent when QUIC and non-null.
     this.quicTransportParameters,
   }) : crypto = crypto ?? const PqTransportCrypto(),
@@ -116,6 +120,9 @@ final class PqTlsClient {
   /// Set only for a QUIC resumption. Null is a full handshake.
   final QuicResumptionTicket? ticket;
 
+  /// Offered after [ticket]. Empty is the single-identity hello.
+  final List<QuicResumptionTicket> moreTickets;
+
   /// Local `quic_transport_parameters` extension body.
   final Uint8List? quicTransportParameters;
 
@@ -124,6 +131,9 @@ final class PqTlsClient {
 
   Uint8List? earlyTrafficSecret;
   bool earlyDataAccepted = false;
+
+  /// Identity the server selected. Meaningful when the handshake resumed.
+  int selectedPskIndex = 0;
 
   /// RFC 9001: handshake messages without the TLS record layer.
   final bool quic;
@@ -218,6 +228,7 @@ final class PqTlsClient {
         baseHello: encoded,
         schedule: schedule,
         ticket: resumed,
+        more: moreTickets,
         now: now == null ? DateTime.now().toUtc() : now!(),
       );
       encoded = built.hello;
@@ -357,11 +368,14 @@ final class PqTlsClient {
       return Result.failure(secret.errorOrNull!);
     }
     _hybridSs = secret.valueOrNull!;
-    final resumed = ticket;
+    final offered = <QuicResumptionTicket>[?ticket, ...moreTickets];
     _resumed = sh.valueOrNull!.selectedPsk;
+    selectedPskIndex = sh.valueOrNull!.selectedPskIndex;
     if (_resumed) {
-      if (resumed == null) return _fail('psk not offered');
-      schedule.usePsk(resumed.psk);
+      if (selectedPskIndex >= offered.length) return _fail('psk index');
+      schedule.usePsk(offered[selectedPskIndex].psk);
+      // Early keys belong to identity 0. A later selection discards them.
+      if (selectedPskIndex != 0) earlyTrafficSecret = null;
     } else {
       schedule.clearPsk();
       earlyTrafficSecret = null;
@@ -422,7 +436,9 @@ final class PqTlsClient {
         selectedAlpn = selected;
         peerQuicTransportParameters = ee.valueOrNull!.quicTransportParameters;
         if (ee.valueOrNull!.earlyData) {
-          if (ticket == null) return _fail('early_data not offered');
+          if (ticket == null || selectedPskIndex != 0) {
+            return _fail('early_data not offered');
+          }
           earlyDataAccepted = true;
         }
         if (!_resumed) {

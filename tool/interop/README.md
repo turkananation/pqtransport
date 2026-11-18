@@ -32,8 +32,9 @@ exits 0 only when 1.1.54.0 refuses ML-DSA-65 and does not open a
 second path. That refusal is not the multipath claim. The multipath
 peer is noq 1.5.0 (`bb1c63ee`): rustls 0.23.46 on aws-lc-rs checks
 the ML-DSA-65 chain, the group is X25519MLKEM768 after
-HelloRetryRequest, and path 1 is established. Not every RFC 10069
-frame. Extra paths have no separate PTO.
+HelloRetryRequest, and path 1 is established. A path id above 0 has
+its own PTO in memory. That timer was not part of the noq flight.
+Not every RFC 10069 frame.
 
 HTTP/3 against quiche is one GET in each direction
 (`tool/interop/quiche/run.sh`), plus extended CONNECT, PRIORITY_UPDATE,

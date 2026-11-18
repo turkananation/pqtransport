@@ -95,7 +95,15 @@ and accepts no early data. Rejected early data is sent again as
 1-RTT, including FIN on a client-initiated unidirectional stream.
 One HTTP/3 request on the early bidirectional stream uses the QPACK
 static table only. The control stream is still 1-RTT. A 0-RTT
-DATAGRAM is delivered once and is not sent again on replay. ECH and
+DATAGRAM is delivered once and is not sent again on replay. A
+ClientHello may carry more than one PSK identity. The server
+selects the first identity it recognizes whose binder matches a
+single Truncate(ClientHello). A bad binder on a known identity is
+`decrypt_error`, and a later identity is not tried. Early data is
+accepted only for index 0. `ticketKey` seals the PSK into the
+identity. A store that did not issue the ticket can resume and
+must not accept 0-RTT. That seal is not an external PSK (RFC 9258)
+and it is not a cross-process anti-replay cache. ECH and
 0-RTT together are refused. CRYPTO frames carry a
 live encapsulate. quiche 0.30.0 sent `pq-0rtt` on stream 4 once
 (`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then

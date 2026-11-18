@@ -86,6 +86,7 @@ final class QuicTlsHandshake {
     HybridGroup group = HybridGroup.x25519MlKem768,
     List<String>? alpnProtocols,
     QuicResumptionTicket? ticket,
+    List<QuicResumptionTicket> moreTickets = const [],
     Uint8List? transportParameters,
     List<TlsCertificateType>? certificateTypes,
     List<Uint8List> trustAnchors = const [],
@@ -97,6 +98,7 @@ final class QuicTlsHandshake {
          quic: true,
          alpnProtocols: alpnProtocols,
          ticket: ticket,
+         moreTickets: moreTickets,
          quicTransportParameters: transportParameters,
          certificateTypes:
              certificateTypes ?? const [TlsCertificateType.rawPublicKey],
@@ -143,6 +145,10 @@ final class QuicTlsHandshake {
   bool get earlyDataAccepted =>
       (_client?.earlyDataAccepted ?? false) ||
       (_server?.earlyDataAccepted ?? false);
+
+  /// Index of the selected PSK. Zero when the handshake did not resume.
+  int get selectedPskIndex =>
+      _client?.selectedPskIndex ?? _server?.selectedPskIndex ?? 0;
 
   bool get peerAuthenticated => _client?.peerAuthenticated ?? false;
 

@@ -62,8 +62,8 @@ and did not open a second path. That refusal is not the claim.
 noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
 the handshake and establishes path 1. rustls checks the ML-DSA-65
 chain. The group is X25519MLKEM768 after HelloRetryRequest. That
-is one path, not every RFC 10069 frame. Extra paths have no
-separate PTO.
+is one path, not every RFC 10069 frame. A path id above 0 has its
+own PTO in memory. The noq flight does not prove that timer.
 
 ## Groups the TLS peers selected
 

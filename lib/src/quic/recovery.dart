@@ -179,6 +179,7 @@ final class QuicRecoveryEvent {
     this.probeSpace,
     this.persistentCongestion = false,
     this.congestionProbe = false,
+    this.ecnCongestion = false,
   });
 
   final List<QuicSentPacket> newlyAcked;
@@ -197,6 +198,10 @@ final class QuicRecoveryEvent {
 
   /// One packet may ignore the congestion window (§7.3.2).
   final bool congestionProbe;
+
+  /// True when this acknowledgement's ECN-CE count rose and NewReno
+  /// cut the window. Packets are not declared lost.
+  final bool ecnCongestion;
 
   static const empty = QuicRecoveryEvent();
 }
@@ -221,7 +226,9 @@ final class QuicRecoveryEvent {
 /// 5. Seal [QuicRecoveryEvent.retransmit] under a new packet number.
 ///    A lost number stays retired (RFC 9000 §12.3, §13.3).
 ///
-/// ECN, connection migration, and multipath are not implemented.
+/// ECN-CE is a NewReno congestion event on this object. It does not
+/// declare packets lost and it is not CUBIC. Connection migration and
+/// per-path PTO are [PqQuicConn], not this object.
 /// The anti-amplification limit (RFC 9000 §8.1, RFC 9002 §6.2.2.1) is
 /// applied by [PqQuicConn], not by this object. A flight that does not
 /// fit in three times the bytes received stays queued until the client
@@ -301,6 +308,7 @@ final class QuicLossRecovery {
   DateTime? _firstRttSample;
   var _ptoCount = 0;
   var _ptoBudgetExhausted = false;
+  var _ecnCe = 0;
   var _handshakeConfirmed = false;
   var _hasHandshakeKeys = false;
   var _peerAddressValidated = false;
@@ -542,6 +550,11 @@ final class QuicLossRecovery {
       newly.add(packet);
     }
     if (newly.isEmpty && !largestIncreased) {
+      if (ack.ecn && ack.ce > _ecnCe) {
+        _ecnCe = ack.ce;
+        final reacted = controller.onEcnCongestion();
+        return Result.success(QuicRecoveryEvent(ecnCongestion: reacted));
+      }
       return const Result.success(QuicRecoveryEvent.empty);
     }
 
@@ -575,6 +588,11 @@ final class QuicLossRecovery {
     if (newly.isNotEmpty && _peerCompletedAddressValidation()) {
       _ptoCount = 0;
     }
+    var ecnCongestion = false;
+    if (ack.ecn && ack.ce > _ecnCe) {
+      _ecnCe = ack.ce;
+      ecnCongestion = controller.onEcnCongestion();
+    }
     _setLossDetectionTimer();
     return Result.success(
       QuicRecoveryEvent(
@@ -583,6 +601,7 @@ final class QuicLossRecovery {
         retransmit: _retransmitOf(loss.lost),
         persistentCongestion: loss.persistent,
         congestionProbe: loss.congestionProbe,
+        ecnCongestion: ecnCongestion,
       ),
     );
   }
@@ -977,5 +996,125 @@ final class QuicLossRecovery {
       if (best == null || when.isBefore(best)) best = when;
     }
     _deadline = best;
+  }
+}
+
+/// RFC 10069 loss timer for one path other than path 0.
+///
+/// Path 0 stays on [QuicLossRecovery]. This object has its own RTT, PTO
+/// count, and deadline. A timeout asks for one probe. It does not declare
+/// packets lost. Not every RFC 10069 frame is tracked here.
+final class QuicPathPto {
+  QuicPathPto({required this.clock, this.maxPtoCount = quicMaxPtoCount});
+
+  final QuicClock clock;
+  final int maxPtoCount;
+
+  final Map<int, DateTime> _sent = {};
+  final Set<int> _eliciting = {};
+  final Set<int> _ever = {};
+  var _ptoCount = 0;
+  var _smoothed = quicInitialRttMicros;
+  var _rttvar = quicInitialRttMicros ~/ 2;
+  var _hasSample = false;
+  DateTime? _lastEliciting;
+  DateTime? _deadline;
+  var _exhausted = false;
+
+  int get ptoCount => _ptoCount;
+  DateTime? get deadline => _deadline;
+  bool get exhausted => _exhausted;
+  bool get hasOutstanding => _eliciting.isNotEmpty;
+
+  void onSent({required int packetNumber, required bool ackEliciting}) {
+    final now = clock.now();
+    _ever.add(packetNumber);
+    _sent[packetNumber] = now;
+    if (!ackEliciting) return;
+    _eliciting.add(packetNumber);
+    _lastEliciting = now;
+    _arm();
+  }
+
+  /// Retires acknowledged packet numbers. An unsent number fails.
+  Result<void, PqTransportError> onAck(List<int> packetNumbers) {
+    for (final pn in packetNumbers) {
+      if (!_ever.contains(pn)) {
+        return Result.failure(
+          PqTransportError.unexpectedMessage('ack for unsent packet'),
+        );
+      }
+    }
+    DateTime? newest;
+    for (final pn in packetNumbers) {
+      final sent = _sent.remove(pn);
+      final eliciting = _eliciting.remove(pn);
+      if (eliciting &&
+          sent != null &&
+          (newest == null || sent.isAfter(newest))) {
+        newest = sent;
+      }
+    }
+    if (newest != null) {
+      final sample = clock.now().difference(newest).inMicroseconds;
+      _sample(sample < 0 ? 0 : sample);
+      _ptoCount = 0;
+    }
+    _arm();
+    return const Result.success(null);
+  }
+
+  /// True when the caller should send one ack-eliciting probe on this path.
+  bool onTimeout() {
+    final when = _deadline;
+    if (_exhausted || when == null || when.isAfter(clock.now())) return false;
+    if (_ptoCount >= maxPtoCount) {
+      _exhausted = true;
+      _deadline = null;
+      return false;
+    }
+    _ptoCount++;
+    _arm();
+    return true;
+  }
+
+  void _sample(int sample) {
+    if (!_hasSample) {
+      _smoothed = sample;
+      _rttvar = sample ~/ 2;
+      _hasSample = true;
+      return;
+    }
+    final delta = sample > _smoothed ? sample - _smoothed : _smoothed - sample;
+    _rttvar = (3 * _rttvar + delta) ~/ 4;
+    _smoothed = (7 * _smoothed + sample) ~/ 8;
+  }
+
+  int _duration() {
+    final variation = quicRttVarPtoMultiplier * _rttvar;
+    final granularity = variation > quicGranularityMicros
+        ? variation
+        : quicGranularityMicros;
+    var backoff = 1;
+    for (var i = 0; i < _ptoCount; i++) {
+      backoff *= 2;
+    }
+    var duration = (_smoothed + granularity) * backoff;
+    duration += quicMaxAckDelayMicros * backoff;
+    if (duration < quicGranularityMicros) return quicGranularityMicros;
+    return duration;
+  }
+
+  void _arm() {
+    if (_exhausted) {
+      _deadline = null;
+      return;
+    }
+    final last = _lastEliciting;
+    if (last == null || _eliciting.isEmpty) {
+      _deadline = null;
+      return;
+    }
+    _deadline = last.add(Duration(microseconds: _duration()));
   }
 }

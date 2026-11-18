@@ -125,9 +125,11 @@ Recorded so achievements cannot be misread:
 
 - BoringSSL on SecP256r1MLKEM768 or SecP384r1MLKEM1024. Those groups are not in BoringSSL 0.20261020.0. The X25519MLKEM768 handshake is a separate row above. `X509_verify_cert` on one OpenSSL leaf is not that handshake.
 - Not `curl --http3`.
-- ECN does not move the congestion window. Connection migration past
-  PATH_CHALLENGE / PATH_RESPONSE is not done. Multipath is one second
-  path with noq 1.5.0, and extra paths have no separate PTO. Handshake
-  packet protection, anti-amplification, ChaCha header protection, and
-  DoH/DoT are in this tree.
+- Per-path PTO, `commitMigration`, and ECN-CE are in-memory only.
+  A path id above 0 sends one PATH_CHALLENGE on timeout and does not
+  declare packets lost. Not every RFC 10069 frame. No new per-path
+  PTO peer flight. `preferred_address` is not sent. The spin bit
+  stays clear. ACK frequency is not sent. ECN-CE is a NewReno event,
+  not CUBIC. Handshake packet protection, anti-amplification, ChaCha
+  header protection, and DoH/DoT are in this tree.
 - CMVP / FIPS 140 module validation.

@@ -260,23 +260,39 @@ are non-goals from [ROADMAP.md](doc/ROADMAP.md) and
   `openUni` continues at the next id. A server-initiated id is refused.
   A stream past the ticket's `initial_max_streams_uni` is refused.
   Rejected bytes are sent again as 1-RTT, and FIN is kept.
+- [x] G5. Per-path PTO (RFC 10069). Path 0 stays on `QuicLossRecovery`.
+  A path id above 0 has its own RTT, PTO count, and deadline
+  (`QuicPathPto`). A timeout sends one PATH_CHALLENGE and does not
+  declare packets lost. Not time-threshold loss. Not every RFC 10069
+  frame. No new per-path PTO peer flight. A short header ends a
+  datagram (RFC 9000 §12.2), so two 1-RTT packets are not coalesced.
+  `test/quic/recovery_test.dart`, `test/quic/resume_gap_test.dart`.
+- [x] G6. `commitMigration` after PATH_RESPONSE switches the
+  destination connection ID to a peer CID that is not the current
+  one. `preferred_address` is not sent. The spin bit stays clear.
+  ACK frequency is not sent. `QuicLossRecovery` does not move to the
+  new path. `test/quic/resume_gap_test.dart`.
+- [x] G7. An ACK whose ECN-CE count rose is a NewReno congestion
+  event (RFC 9002). The same recovery round does not cut the window
+  again. Packets are not declared lost. Not CUBIC (RFC 9438).
+  `test/quic/recovery_test.dart`.
+- [x] G8. `QuicEarlyDataStore(ticketKey:)` seals the PSK and the
+  limits into the ticket identity (AES-256-GCM). The issuing store
+  still accepts 0-RTT once. A new store with the same key resumes
+  and refuses 0-RTT. A wrong key does not resume. Not an external
+  PSK (RFC 9258). A sealed ticket is not a cross-process anti-replay
+  cache: the same blob can resume again. `test/quic/resume_gap_test.dart`.
+- [x] G9. More than one PSK identity in `pre_shared_key`. Every binder
+  covers one Truncate(ClientHello). The server selects the first
+  identity it recognizes whose binder matches. A bad binder on a
+  known identity is `decrypt_error`; later identities are not tried.
+  Early data is accepted only for index 0, and only when
+  `allowEarlyData` is set. `test/quic/resume_gap_test.dart`.
 
 ### QUIC, this tree can still do the work
 
-- [ ] G5. Per-path PTO (RFC 10069). Path 1 exists with noq 1.5.0.
-  Extra paths share path 0's timer. Not every RFC 10069 frame has
-  a peer flight.
-- [ ] G6. Connection migration past PATH_CHALLENGE / PATH_RESPONSE.
-  `preferred_address` is not sent. `QuicLossRecovery` does not
-  migrate. The spin bit and ACK frequency (RFC 9000 extension) are
-  absent.
-- [ ] G7. ECN as a congestion signal (RFC 9002). Counts are parsed.
-  `QuicNewReno` does not change the window. Not CUBIC (RFC 9438).
-  NewReno stays the controller RFC 9002 names.
-- [ ] G8. Stateless resumption tickets. The store is in-memory and
-  single-use. A process restart cannot resume. Not an external PSK
-  (RFC 9258).
-- [ ] G9. More than one PSK identity in `pre_shared_key`.
+Nothing in this list is still a coding turn. G10 is the next gap,
+and it is blocked on a peer.
 
 ### Blocked on a peer that does not speak the bytes
 
@@ -341,11 +357,11 @@ are non-goals from [ROADMAP.md](doc/ROADMAP.md) and
 - CMVP / FIPS 140. Hard constant-time execution. Hard erasure.
 - `dart:ffi` or `SecureSocket` on the PQ path.
 - A classical-only handshake after a PQ ClientHello.
-- `doc/ACHIEVEMENTS.md` still lists handshake protection,
-  anti-amplification, ChaCha header protection, and DoH/DoT as
-  missing. Those are in this tree. Do not reopen them from that
-  paragraph. ECN, migration, and multipath in that paragraph are
-  G5, G6, and G7, not "absent".
+- `doc/ACHIEVEMENTS.md` must not list handshake protection,
+  anti-amplification, ChaCha header protection, or DoH/DoT as
+  missing. Those are in this tree. G5, G6, and G7 are in this tree
+  with the limits above. Do not restore "ECN does not move the
+  window" or "extra paths have no separate PTO".
 
 ## Order
 

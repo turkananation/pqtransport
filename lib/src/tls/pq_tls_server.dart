@@ -231,6 +231,11 @@ final class PqTlsServer {
   var helloRetryCount = 0;
   String? selectedAlpn;
   var _pskSelected = false;
+  var _selectedPskIndex = 0;
+
+  /// Index into the ClientHello identity list. Zero when no PSK was
+  /// selected. Early data is accepted only for index 0.
+  int get selectedPskIndex => _selectedPskIndex;
 
   /// Group this server put in ServerHello. Null until that choice is made.
   TlsNamedGroup? negotiatedGroup;
@@ -392,9 +397,21 @@ final class PqTlsServer {
     Uint8List helloBytes,
   ) {
     _pskSelected = false;
+    _selectedPskIndex = 0;
     earlyDataAccepted = false;
     earlyTrafficSecret = null;
-    if (hello.pskIdentity == null) {
+    final identities = hello.pskIdentities.isNotEmpty
+        ? hello.pskIdentities
+        : hello.pskIdentity != null && hello.pskBinder != null
+        ? [
+            (
+              identity: hello.pskIdentity!,
+              age: hello.pskObfuscatedAge ?? 0,
+              binder: hello.pskBinder!,
+            ),
+          ]
+        : const <({Uint8List identity, int age, Uint8List binder})>[];
+    if (identities.isEmpty) {
       if (hello.earlyData) {
         return Result.failure(
           PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
@@ -415,33 +432,41 @@ final class PqTlsServer {
       return const Result.success(null);
     }
     final store = earlyData;
-    final binder = hello.pskBinder;
-    if (store == null || binder == null) return const Result.success(null);
-    final ticket = store.find(hello.pskIdentity!);
-    if (ticket == null || ticket.cipherSuite != _suite.codepoint) {
+    if (store == null) return const Result.success(null);
+    var bindersContent = 0;
+    for (final one in identities) {
+      bindersContent += 1 + one.binder.length;
+    }
+    final truncated = truncatePskBinderList(helloBytes, bindersContent);
+    final binderHash = schedule.transcriptHash(truncated);
+    for (var index = 0; index < identities.length; index++) {
+      final offered = identities[index];
+      final ticket = store.find(offered.identity);
+      if (ticket == null || ticket.cipherSuite != _suite.codepoint) continue;
+      schedule.usePsk(ticket.psk);
+      final binderKey = schedule.resumptionBinderKey();
+      final expected = schedule.binderVerifyData(binderKey, binderHash);
+      zeroize(binderKey);
+      if (!PqBytes.constantTimeEquals(expected, offered.binder)) {
+        schedule.clearPsk();
+        store.take(offered.identity);
+        return Result.failure(PqTransportError.decryptError('psk binder'));
+      }
+      store.take(offered.identity);
+      _pskSelected = true;
+      _selectedPskIndex = index;
+      // RFC 8446 §4.2.10. Early data is the first identity only, and
+      // only when this store issued the ticket. A sealed ticket opened
+      // by another store resumes and refuses 0-RTT.
+      if (index == 0 && hello.earlyData && ticket.allowEarlyData) {
+        earlyDataAccepted = true;
+        earlyTrafficSecret = schedule.clientEarlyTraffic(
+          schedule.transcriptHash(helloBytes),
+        );
+      }
       return const Result.success(null);
     }
-    schedule.usePsk(ticket.psk);
-    final truncated = truncatePskBinders(helloBytes, binder.length);
-    final binderKey = schedule.resumptionBinderKey();
-    final expected = schedule.binderVerifyData(
-      binderKey,
-      schedule.transcriptHash(truncated),
-    );
-    zeroize(binderKey);
-    if (!PqBytes.constantTimeEquals(expected, binder)) {
-      schedule.clearPsk();
-      store.take(hello.pskIdentity!);
-      return Result.failure(PqTransportError.decryptError('psk binder'));
-    }
-    store.take(hello.pskIdentity!);
-    _pskSelected = true;
-    if (hello.earlyData) {
-      earlyDataAccepted = true;
-      earlyTrafficSecret = schedule.clientEarlyTraffic(
-        schedule.transcriptHash(helloBytes),
-      );
-    }
+    schedule.clearPsk();
     return const Result.success(null);
   }
 
@@ -488,6 +513,7 @@ final class PqTlsServer {
       legacySessionId: hello.legacySessionId,
       cipherSuite: _suite.codepoint,
       selectedPsk: _pskSelected,
+      selectedPskIndex: _selectedPskIndex,
     );
     final shBytes = ech == null
         ? sh.encode()

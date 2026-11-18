@@ -16,6 +16,21 @@
   `pq-0rtt` on stream 4 once
   (`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then
   completed and accepted none.
+- A path id above 0 has its own PTO. A timeout sends one
+  PATH_CHALLENGE and does not declare packets lost. Path 0 stays on
+  `QuicLossRecovery`. Not every RFC 10069 frame, and not a new peer
+  flight. A short header ends a UDP datagram (RFC 9000 §12.2).
+  `commitMigration` switches the destination connection ID after
+  PATH_RESPONSE. `preferred_address` is not sent. The spin bit stays
+  clear. ACK frequency is not sent. An ACK whose ECN-CE count rose
+  is a NewReno congestion event and does not mark packets lost. Not
+  CUBIC. `QuicEarlyDataStore(ticketKey:)` seals the PSK into the
+  ticket identity. The issuing store accepts 0-RTT once. A store
+  that did not issue the ticket resumes and refuses 0-RTT. Not an
+  external PSK (RFC 9258). A ClientHello may offer more than one PSK
+  identity. The server selects the first known identity whose binder
+  matches. A bad binder on a known identity is `decrypt_error`.
+  Early data is accepted only for index 0.
 - An ignored key share is the group's real client length. P-256 and
   P-384 start with the uncompressed-point prefix. X448 is 56 bytes.
   A codepoint with no fixed length is refused. The default hello
