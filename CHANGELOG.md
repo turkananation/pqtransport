@@ -1,20 +1,91 @@
-## Unreleased
+## 0.2.1
 
 ### Added
 
+- HTTP/1.0 (RFC 9112). Host may be omitted. `Connection: close` is
+  the default unless the request says `keep-alive`. Chunked
+  transfer-encoding on HTTP/1.0 fails. The response status line is
+  `HTTP/1.0`. HEAD, 204, and 304 end at the header block.
+  `CONNECT` is authority-form, including `[IPv6]:port`. A forbidden
+  trailer fails. Two requests in one buffer are parsed in order.
+  This is the parser and `PqHttpServer`, not a separate foreign
+  HTTP/1.0 client.
 - HTTP/1.1 `Expect: 100-continue` (RFC 9110 §10.1.1). The server
   sends `100 Continue` only when the body is not already buffered.
   Any other Expect is 417. The client skips 1xx and reads the final
-  response. Not a complete RFC 9112 recipient.
+  response.
 - Shelf HTTP/1.1 `Request.hijack`. The unread body is delivered on
-  the channel. HTTP/2 does not hijack. Relic still does not detach
-  the TLS stream.
+  the channel. HTTP/2 does not hijack.
+- Relic HTTP/1.1 `Hijack` and `WebSocketUpgrade` on
+  `PqRelicAdapter`. Serverpod's API server and insights server still
+  construct a `SecurityContext` inside Serverpod. This does not
+  change that.
+- RFC 6455 framing. Client frames are masked. Server frames are not.
+  Control frames are not fragmented and are at most 125 bytes.
+  Close codes 1005, 1006, and 1015 are rejected on the wire. UTF-8
+  is checked on the assembled text message. A non-minimal length
+  fails. RSV bits fail unless permessage-deflate was negotiated.
+  The opening handshake accept value is
+  `base64(SHA-1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))`
+  from `PqBytes.sha1`.
+- RFC 7692 permessage-deflate on the VM, raw DEFLATE, with the
+  `00 00 ff ff` trailer removed by the sender. The response always
+  includes `server_no_context_takeover`. The web compilation has no
+  raw DEFLATE and does not accept the extension. `dart:ffi` is not
+  used.
+- The Relic carriage test writes the RFC 6455 101 and echoes one
+  masked text frame. That client is this package. It is not
+  Autobahn, not a browser, and not `curl wss://`. HTTP/2 and HTTP/3
+  extended CONNECT stay a byte pipe. They do not run this codec.
+- HTTP/2 `PRIORITY_UPDATE` (RFC 9218) from libnghttp2 1.66.0.
+  `h2connect` calls `nghttp2_submit_priority_update` with `u=1, i`
+  after the peer's `SETTINGS_NO_RFC7540_PRIORITIES`. The server
+  recorded urgency 1, incremental, on the same flight that checks
+  ML-DSA-65, X25519MLKEM768, ALPN `h2`, and a 200 that does not end
+  the stream. curl 8.23.0 does not send this frame.
+- QPACK dynamic table against libnghttp3 1.11.0 at capacity 4096,
+  both directions. The encoder stream was not empty, and the field
+  section referenced the table. quiche 0.30.0 still rejects a
+  dynamic-table reference, so that flight stays at capacity 0.
 - ML-KEM and ML-DSA handshake work runs on one VM worker isolate.
   The web path calls the same functions in-process. The worker wipes
   its copies of secret inputs. That is not secure erasure.
 - `PqHttpServerConfig`: idle timeout, max connections, HTTP/2 max
   concurrent streams, HTTP/1.1 max body. `close` sends GOAWAY on
   HTTP/2 and HTTP/3 and waits only for handlers already running.
+- HTTP/1.1 content coding `deflate` (RFC 9110 §8.4.1.2). That
+  coding is the zlib wrapper (RFC 1950), not raw DEFLATE. curl
+  8.16.0 linked to OpenSSL 3.5.9 was built without libz, so
+  `--compressed` is not this peer. The flight sends
+  `Accept-Encoding: deflate`. curl records
+  `Content-Encoding: deflate`. CPython `zlib.decompress` of that
+  body is `pq-deflate`. CPython `zlib.compress` of `pq-in`, carried
+  by the same curl as `Content-Encoding: deflate`, is the body the
+  handler sees. `gzip` uses the same `dart:io` encoder and was not
+  this flight. HTTP/2 and HTTP/3 do not decode content coding.
+  This is not RFC 7692 permessage-deflate.
+- noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
+  a QUICv1 handshake and establishes path 1 (RFC 10069). rustls
+  checks the ML-DSA-65 chain. The group is X25519MLKEM768 after
+  HelloRetryRequest, because that ClientHello's first flight offers
+  only an X25519 share. ALPN is `h3`. The client sends
+  `initial_max_path_id` 1 and prints
+  `noq-mp handshake=ok multipath=1 path=1`. A short-header packet
+  that arrives before 1-RTT keys exist is discarded. This is one
+  second path. It is not every RFC 10069 frame. Extra paths have
+  no separate PTO.
+
+### Not in this version
+
+- picoquic 1.1.54.0 is still a refusal. It has the multipath
+  frames and does not offer ML-DSA-65. This server sends
+  `unsupported_certificate`. `-M` prints `Enable multipath: Refused`
+  on one path. A classical certificate was not minted. quiche
+  0.30.0 has ML-DSA and only RFC 9000 path migration.
+- Foreign QUIC 0-RTT was not run. OpenSSL 3.5.9 `s_client -quic
+  -early_data` can emit early data. The flight in this tree is still
+  one handshake. The in-memory 0-RTT test is not that peer.
+- Not `curl --http3`. Not WebPKI. Not a browser. Not FIPS. Not CMVP.
 
 ## 0.2.0
 

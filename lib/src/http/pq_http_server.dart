@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:stream_channel/stream_channel.dart';
+import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/crypto.dart';
 import '../core/errors.dart';
@@ -16,6 +17,7 @@ import '../tls/pq_tls_socket.dart';
 import 'http1.dart';
 import 'http2.dart';
 import 'http3.dart';
+import 'content_coding.dart';
 import 'pq_http_client.dart';
 
 typedef PqHttpHandler = Future<PqHttpResponse> Function(PqHttpRequest request);
@@ -270,12 +272,18 @@ final class PqHttpServer {
         final rest = Uint8List.sublistView(raw, message.consumed);
         buf.clear();
         if (rest.isNotEmpty) buf.add(rest);
+        final decoded = _inflateRequest(message.request!);
+        if (decoded.isFailure) {
+          await _sendStatus(tls, 400);
+          return;
+        }
+        final request = decoded.valueOrNull!;
         final slot = PqHttpHijackSlot();
         _inFlight++;
         final PqHttpResponse response;
         try {
           response = await runZoned(
-            () => handler(message.request!),
+            () => handler(request),
             zoneValues: {pqHttpHijackSlotKey: slot},
           );
         } finally {
@@ -287,10 +295,15 @@ final class PqHttpServer {
             return;
           }
           took = true;
-          await _hijack(tls, sub, pending, buf, message.request!, slot);
+          await _hijack(tls, sub, pending, buf, request, slot);
           return;
         }
-        final sent = await tls.send(encodeHttp1Response(response));
+        final sent = await tls.send(
+          encodeHttp1Response(
+            _http1Response(request, response, close: message.close),
+            omitBody: _omitMessageBody(request, response),
+          ),
+        );
         if (sent.isFailure ||
             message.close ||
             _wantsClose(response) ||
@@ -478,4 +491,90 @@ final class PqHttpServer {
         .join(',');
     return value.toLowerCase().split(',').any((part) => part.trim() == 'close');
   }
+}
+
+PqHttpResponse _http1Response(
+  PqHttpRequest request,
+  PqHttpResponse response, {
+  required bool close,
+}) {
+  final headers = <String, String>{
+    for (final entry in response.headers.entries)
+      entry.key.toLowerCase(): entry.value,
+  };
+  if (close) {
+    final connection = headers['connection'] ?? '';
+    final already = connection
+        .toLowerCase()
+        .split(',')
+        .any((part) => part.trim() == 'close');
+    if (!already) {
+      headers['connection'] = connection.isEmpty
+          ? 'close'
+          : '$connection, close';
+    }
+  }
+  var body = response.body;
+  final coding = headers['content-encoding'];
+  final accept = request.headers['accept-encoding'];
+  final head = request.method.toUpperCase() == 'HEAD';
+  if (!head &&
+      body.isNotEmpty &&
+      coding == null &&
+      accept != null &&
+      response.status >= 200 &&
+      response.status != 204 &&
+      response.status != 304) {
+    final picked = selectContentCoding(accept);
+    if (picked != null) {
+      final encoded = encodeContentCoding(picked, body);
+      if (encoded.isSuccess) {
+        body = encoded.valueOrNull!;
+        headers['content-encoding'] = picked;
+        final vary = headers['vary'];
+        if (vary == null || vary.isEmpty) {
+          headers['vary'] = 'accept-encoding';
+        }
+      }
+    }
+  }
+  return PqHttpResponse(
+    status: response.status,
+    headers: headers,
+    body: body,
+    version: HttpVersion.h1,
+    trailers: response.trailers,
+    hijacked: response.hijacked,
+    httpMinor: request.httpMinor,
+  );
+}
+
+bool _omitMessageBody(PqHttpRequest request, PqHttpResponse response) {
+  return request.method.toUpperCase() == 'HEAD';
+}
+
+Result<PqHttpRequest, PqTransportError> _inflateRequest(PqHttpRequest request) {
+  final coding = request.headers['content-encoding'];
+  if (coding == null || coding.isEmpty || request.body.isEmpty) {
+    return Result.success(request);
+  }
+  final decoded = decodeContentCodingHeader(
+    coding,
+    Uint8List.fromList(request.body),
+  );
+  if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+  final headers = <String, String>{...request.headers}
+    ..remove('content-encoding');
+  headers['content-length'] = '${decoded.valueOrNull!.length}';
+  return Result.success(
+    PqHttpRequest(
+      method: request.method,
+      uri: request.uri,
+      headers: headers,
+      body: decoded.valueOrNull!,
+      trailers: request.trailers,
+      protocol: request.protocol,
+      httpMinor: request.httpMinor,
+    ),
+  );
 }

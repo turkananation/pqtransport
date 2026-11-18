@@ -31,3 +31,18 @@ dart run tool/interop/nghttp3-qpack/roundtrip.dart decode \
   "$work/theirs.bin" "$work/encoder.bin" >"$work/back.txt"
 cmp -s "$work/expect.txt" "$work/back.txt"
 echo "nghttp3 QPACK round trip ok ($(wc -c <"$work/ours.bin") byte section)"
+
+# Capacity stays 0 above. This flight requires a non-empty encoder
+# stream and a field section that references the dynamic table.
+dart run tool/interop/nghttp3-qpack/roundtrip.dart encode-dynamic \
+  "$work/dyn.bin" "$work/dyn.enc"
+test -s "$work/dyn.enc"
+"$bin" decode-dynamic "$work/dyn.bin" "$work/dyn.enc" >"$work/dyn.txt"
+cmp -s "$work/expect.txt" "$work/dyn.txt"
+
+"$bin" encode-dynamic "$work/expect.txt" "$work/theirs-dyn.bin" "$work/theirs-dyn.enc"
+test -s "$work/theirs-dyn.enc"
+dart run tool/interop/nghttp3-qpack/roundtrip.dart decode-dynamic \
+  "$work/theirs-dyn.bin" "$work/theirs-dyn.enc" >"$work/back-dyn.txt"
+cmp -s "$work/expect.txt" "$work/back-dyn.txt"
+echo "nghttp3 QPACK dynamic table round trip ok ($(wc -c <"$work/dyn.enc") byte encoder stream)"

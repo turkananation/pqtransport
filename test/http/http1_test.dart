@@ -116,6 +116,12 @@ void main() {
     expect(controls.errorOrNull!.message, contains('host'));
     final http10 = tryParseHttp1Request(ascii('GET /pq HTTP/1.0\r\n\r\n'));
     expect(http10.isSuccess, isTrue, reason: '${http10.errorOrNull}');
+    expect(http10.valueOrNull!.request!.httpMinor, 0);
+    expect(http10.valueOrNull!.close, isTrue);
+    final kept = tryParseHttp1Request(
+      ascii('GET /pq HTTP/1.0\r\nConnection: keep-alive\r\n\r\n'),
+    );
+    expect(kept.valueOrNull!.close, isFalse);
     final absolute = tryParseHttp1Request(
       ascii('GET https://example.test/pq HTTP/1.1\r\n\r\n'),
     );
@@ -214,5 +220,107 @@ void main() {
     final partial = inspectHttp1Expect(ascii('POST / HTTP/1.1\r\nHost: loc'));
     expect(partial.isSuccess, isTrue);
     expect(partial.valueOrNull, isNull);
+  });
+
+  test('HTTP/1.0, HEAD, 204, CONNECT, and a forbidden trailer', () {
+    final chunked = tryParseHttp1Request(
+      ascii('POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n'),
+    );
+    expect(chunked.errorOrNull!.message, contains('transfer-encoding'));
+
+    final two = ascii(
+      'GET /a HTTP/1.1\r\nHost: localhost\r\n\r\n'
+      'GET /b HTTP/1.1\r\nHost: localhost\r\n\r\n',
+    );
+    final first = tryParseHttp1Request(two);
+    expect(first.valueOrNull!.request!.uri.path, '/a');
+    final second = tryParseHttp1Request(
+      Uint8List.sublistView(two, first.valueOrNull!.consumed),
+    );
+    expect(second.valueOrNull!.request!.uri.path, '/b');
+
+    final noBody = ascii(
+      'HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\n'
+      'HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nZ',
+    );
+    final gone = tryParseHttp1Response(noBody, closed: false);
+    expect(gone.valueOrNull!.response!.status, 204);
+    expect(gone.valueOrNull!.response!.body, isEmpty);
+    expect(gone.valueOrNull!.consumed, lessThan(noBody.length));
+    final after = tryParseHttp1Response(
+      Uint8List.sublistView(noBody, gone.valueOrNull!.consumed),
+      closed: false,
+    );
+    expect(String.fromCharCodes(after.valueOrNull!.response!.body), 'Z');
+
+    final headWire = ascii(
+      'HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n'
+      'HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nQ',
+    );
+    final head = tryParseHttp1Response(headWire, closed: false, head: true);
+    expect(head.valueOrNull!.response!.body, isEmpty);
+    final next = tryParseHttp1Response(
+      Uint8List.sublistView(headWire, head.valueOrNull!.consumed),
+      closed: false,
+    );
+    expect(String.fromCharCodes(next.valueOrNull!.response!.body), 'Q');
+
+    final connect = tryParseHttp1Request(
+      ascii(
+        'CONNECT example.com:443 HTTP/1.1\r\n'
+        'Host: example.com:443\r\n\r\n',
+      ),
+    );
+    expect(connect.isSuccess, isTrue, reason: '${connect.errorOrNull}');
+    expect(connect.valueOrNull!.request!.uri.host, 'example.com');
+    expect(connect.valueOrNull!.request!.uri.port, 443);
+    expect(
+      tryParseHttp1Request(
+        ascii('CONNECT / HTTP/1.1\r\nHost: localhost\r\n\r\n'),
+      ).errorOrNull!.message,
+      contains('connect'),
+    );
+    final v6 = tryParseHttp1Request(
+      ascii('CONNECT [::1]:443 HTTP/1.1\r\nHost: [::1]:443\r\n\r\n'),
+    );
+    expect(v6.valueOrNull!.request!.uri.host, '::1');
+
+    final trailer = tryParseHttp1Request(
+      ascii(
+        'POST / HTTP/1.1\r\nHost: localhost\r\n'
+        'Transfer-Encoding: chunked\r\n\r\n'
+        '0\r\nTransfer-Encoding: chunked\r\n\r\n',
+      ),
+    );
+    expect(trailer.errorOrNull!.message, contains('trailer'));
+
+    final encoded = String.fromCharCodes(
+      encodeHttp1Response(
+        PqHttpResponse(
+          status: 200,
+          headers: const {},
+          body: Uint8List.fromList('abc'.codeUnits),
+          version: HttpVersion.h1,
+          httpMinor: 0,
+        ),
+        omitBody: true,
+      ),
+    );
+    expect(encoded, startsWith('HTTP/1.0 200 OK\r\n'));
+    expect(encoded, contains('content-length: 3\r\n'));
+    expect(encoded, isNot(contains('abc')));
+    final empty = String.fromCharCodes(
+      encodeHttp1Response(
+        PqHttpResponse(
+          status: 204,
+          headers: const {},
+          body: Uint8List.fromList('nope'.codeUnits),
+          version: HttpVersion.h1,
+        ),
+      ),
+    );
+    expect(empty, startsWith('HTTP/1.1 204 No Content\r\n'));
+    expect(empty, isNot(contains('content-length')));
+    expect(empty, isNot(contains('nope')));
   });
 }

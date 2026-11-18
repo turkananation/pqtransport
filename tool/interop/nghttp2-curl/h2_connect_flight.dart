@@ -52,9 +52,11 @@ Future<void> main(List<String> args) async {
         'nghttp2-connect status=200 end_stream=0 alpn=h2 '
         'group=X25519MLKEM768 sig=id-ml-dsa-65',
       ) ||
+      !text.contains('priority=1') ||
       !saw.connect ||
       saw.protocol != 'websocket' ||
-      saw.status != 200) {
+      saw.status != 200 ||
+      !saw.priority) {
     exitCode = 1;
   }
 }
@@ -63,6 +65,7 @@ class _Saw {
   var connect = false;
   String? protocol;
   var status = 0;
+  var priority = false;
 }
 
 Future<_Saw> _serve(
@@ -129,6 +132,12 @@ Future<_Saw> _serve(
     }
     saw.status = 200;
     await Future<void>.delayed(const Duration(seconds: 2));
+    final priority = session.priorities[id];
+    saw.priority =
+        priority != null && priority.urgency == 1 && priority.incremental;
+    stderr.writeln(
+      'priority urgency=${priority?.urgency} incremental=${priority?.incremental}',
+    );
     await session.close();
     await tls.close();
   } on Object catch (error) {

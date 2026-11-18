@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -31,7 +32,9 @@ Future<void> main(List<String> args) async {
       crypto: crypto,
     );
     server.mount((request) async {
-      if (request.method != 'GET') {
+      final method = request.method.toUpperCase();
+      final echo = method == 'POST' && request.uri.path == '/echo';
+      if (method != 'GET' && !echo) {
         return PqHttpResponse(
           status: 404,
           headers: const {'connection': 'close'},
@@ -62,6 +65,20 @@ Future<void> main(List<String> args) async {
             body: Uint8List.fromList('pq-bye'.codeUnits),
             version: HttpVersion.h1,
           );
+        case '/deflate':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {'connection': 'close'},
+            body: Uint8List.fromList('pq-deflate'.codeUnits),
+            version: HttpVersion.h1,
+          );
+        case '/echo':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {'connection': 'close'},
+            body: Uint8List.fromList(request.body),
+            version: HttpVersion.h1,
+          );
         default:
           return PqHttpResponse(
             status: 404,
@@ -73,24 +90,33 @@ Future<void> main(List<String> args) async {
     });
     final port = server.port;
     Future<ProcessResult> runCurl(List<String> urls, {bool verbose = false}) {
-      return Process.run(curl, [
-        '--http1.1',
-        if (verbose) '-v',
-        '--cacert',
-        caPath,
-        '--curves',
-        'X25519MLKEM768',
-        '--tlsv1.3',
-        '--tls-max',
-        '1.3',
-        '--tls13-ciphers',
-        'TLS_AES_256_GCM_SHA384',
-        '--resolve',
-        'localhost:$port:127.0.0.1',
-        '--max-time',
-        '20',
-        ...urls,
-      ], environment: Platform.environment);
+      return Process.run(
+        curl,
+        [
+          '--http1.1',
+          if (verbose) '-v',
+          '--cacert',
+          caPath,
+          '--curves',
+          'X25519MLKEM768',
+          '--tlsv1.3',
+          '--tls-max',
+          '1.3',
+          '--tls13-ciphers',
+          'TLS_AES_256_GCM_SHA384',
+          '--resolve',
+          'localhost:$port:127.0.0.1',
+          '--max-time',
+          '20',
+          ...urls,
+        ],
+        stdoutEncoding: utf8,
+        stderrEncoding: latin1,
+        environment: {
+          ...Platform.environment,
+          'LD_LIBRARY_PATH': _curlLibPath(curl),
+        },
+      );
     }
 
     final once = await runCurl(['https://localhost:$port/pq']);
@@ -143,10 +169,96 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       'curl --http1.1 opened a new connection after Connection: close',
     );
+    // This curl is 8.16.0 linked to OpenSSL 3.5.9 and was built without
+    // libz, so --compressed is not a peer. curl carries the HTTP/1.1
+    // bytes. CPython zlib is the codec.
+    final deflateHeaders = '${dir.path}/deflate.headers';
+    final deflateBody = '${dir.path}/deflate.body';
+    final deflated = await runCurl([
+      '-D',
+      deflateHeaders,
+      '-o',
+      deflateBody,
+      '-H',
+      'Accept-Encoding: deflate',
+      'https://localhost:$port/deflate',
+    ]);
+    final deflateHead = File(deflateHeaders).existsSync()
+        ? await File(deflateHeaders).readAsString()
+        : '';
+    final inflated = await Process.run('python3', [
+      '-c',
+      'import pathlib,sys,zlib\n'
+          'raw=pathlib.Path(sys.argv[1]).read_bytes()\n'
+          'assert raw[:1]==bytes([0x78])\n'
+          'sys.stdout.buffer.write(zlib.decompress(raw))\n',
+      deflateBody,
+    ]);
+    if (deflated.exitCode != 0 ||
+        inflated.exitCode != 0 ||
+        inflated.stdout.toString() != 'pq-deflate' ||
+        !deflateHead.toLowerCase().contains('content-encoding: deflate')) {
+      stderr.writeln(deflated.stderr);
+      stderr.writeln(inflated.stderr);
+      stderr.writeln(deflateHead);
+      stderr.writeln(
+        'curl deflate exit ${deflated.exitCode} '
+        'zlib ${inflated.exitCode} body=${inflated.stdout}',
+      );
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln(
+      'curl saved Content-Encoding: deflate; zlib.decompress yielded pq-deflate',
+    );
+    final raw = await Process.run('python3', [
+      '-c',
+      'import zlib,sys; sys.stdout.buffer.write(zlib.compress(b"pq-in"))',
+    ], stdoutEncoding: null);
+    if (raw.exitCode != 0) {
+      stderr.writeln('python zlib failed');
+      exitCode = 1;
+      return;
+    }
+    final bodyPath = '${dir.path}/body.deflate';
+    await File(bodyPath).writeAsBytes(raw.stdout as List<int>);
+    final echoBody = '${dir.path}/echo.body';
+    final echoed = await runCurl([
+      '-H',
+      'Accept-Encoding:',
+      '-H',
+      'Content-Encoding: deflate',
+      '--data-binary',
+      '@$bodyPath',
+      '-o',
+      echoBody,
+      'https://localhost:$port/echo',
+    ]);
+    final echoBytes = File(echoBody).existsSync()
+        ? await File(echoBody).readAsBytes()
+        : Uint8List(0);
+    if (echoed.exitCode != 0 || String.fromCharCodes(echoBytes) != 'pq-in') {
+      stderr.writeln(echoed.stderr);
+      stderr.writeln(
+        'curl echo exit ${echoed.exitCode} '
+        'body=${echoBytes.length} '
+        '${echoBytes.take(8).toList()}',
+      );
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln('zlib request body was inflated before the handler');
   } finally {
     await server?.close();
     await dir.delete(recursive: true);
   }
+}
+
+String _curlLibPath(String curl) {
+  final lib = Directory('${File(curl).parent.parent.parent.path}/lib');
+  final extra = Platform.environment['LD_LIBRARY_PATH'];
+  if (!lib.existsSync()) return extra ?? '';
+  return extra == null || extra.isEmpty ? lib.path : '${lib.path}:$extra';
 }
 
 ({PqTlsServerIdentity identity, String caPem}) _mint(PqTransportCrypto crypto) {

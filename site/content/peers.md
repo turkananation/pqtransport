@@ -54,7 +54,12 @@ curl 8.23.0 with nghttp2 1.66.0 completed one HTTP/2 GET. Its
 libnghttp2 1.66.0 did complete extended CONNECT. Multipath
 (RFC 10069) is off unless `initialMaxPathId` is set. The interop
 job runs picoquic 1.1.54.0. It refused the ML-DSA-65 certificate
-and did not open a second path. It is not claimed.
+and did not open a second path. That refusal is not the claim.
+noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
+the handshake and establishes path 1. rustls checks the ML-DSA-65
+chain. The group is X25519MLKEM768 after HelloRetryRequest. That
+is one path, not every RFC 10069 frame. Extra paths have no
+separate PTO.
 
 ## Groups the TLS peers selected
 
@@ -82,5 +87,8 @@ ML-DSA handshake does not.
 
 Shelf HTTP/1.1 `Request.hijack` takes that connection. The unread
 body is the first chunk. HTTP/2 does not hijack. `PqRelicAdapter`
-does not detach the TLS record stream and does not speak WebSocket. HTTP/3 on that adapter is the same `PqHttpServer`
+detaches HTTP/1.1 and speaks RFC 6455 on that carriage, including
+permessage-deflate where raw DEFLATE exists. The carriage test is
+this package, not a browser and not `curl wss://`. HTTP/2 and HTTP/3
+extended CONNECT are not that codec. HTTP/3 on that adapter is the same `PqHttpServer`
 session the quiche row above talks to, not a second stack.

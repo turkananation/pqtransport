@@ -12,6 +12,7 @@ import 'package:relic_core/relic_core.dart' hide Result;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:swissarmyknife/swissarmyknife.dart';
 import 'package:test/test.dart';
+import 'package:web_socket/web_socket.dart';
 
 void main() {
   test('a Shelf handler replaces SecurityContext', () async {
@@ -218,6 +219,130 @@ void main() {
       final watch = Stopwatch()..start();
       await server.close();
       expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    },
+  );
+
+  test('an HTTP/1.0 request is answered as HTTP/1.0 and closed', () async {
+    final crypto = PqTransportCrypto();
+    final identity = PqTlsServerIdentity.generate(crypto);
+    final server = await PqHttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+      identity: identity,
+    );
+    addTearDown(server.close);
+    server.mount((request) async {
+      return PqHttpResponse(
+        status: 200,
+        headers: const {},
+        body: Uint8List.fromList('${request.httpMinor}'.codeUnits),
+        version: HttpVersion.h1,
+      );
+    });
+    final tls = await _tls(crypto, server.port);
+    addTearDown(tls.close);
+    final app = _App(tls);
+    addTearDown(app.close);
+    await tls.send(Uint8List.fromList('GET / HTTP/1.0\r\n\r\n'.codeUnits));
+    final raw = await app.until((bytes) {
+      final parsed = tryParseHttp1Response(bytes, closed: false);
+      return parsed.isSuccess &&
+          parsed.valueOrNull!.response?.status == 200 &&
+          !parsed.valueOrNull!.incomplete;
+    });
+    final parsed = tryParseHttp1Response(raw, closed: false);
+    final response = parsed.valueOrNull!.response!;
+    expect(response.httpMinor, 0);
+    expect(response.headers['connection'], contains('close'));
+    expect(String.fromCharCodes(response.body), '0');
+  });
+
+  test(
+    'Relic hijack detaches HTTP/1.1 and WebSocketUpgrade speaks RFC 6455',
+    () async {
+      final crypto = PqTransportCrypto();
+      final identity = PqTlsServerIdentity.generate(crypto);
+      final adapter = await PqRelicAdapter.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+        identity: identity,
+      );
+      final relic = RelicServer(() => adapter);
+      await relic.mountAndStart((request) {
+        if (request.url.path == '/raw') {
+          return Hijack((channel) {
+            channel.sink.add('hijacked'.codeUnits);
+            unawaited(channel.sink.close());
+          });
+        }
+        return WebSocketUpgrade((socket) {
+          socket.events.listen((event) {
+            if (event is TextDataReceived) {
+              socket.sendText('echo:${event.text}');
+            }
+          });
+        });
+      });
+      addTearDown(relic.close);
+
+      final rawTls = await _tls(crypto, adapter.port);
+      addTearDown(rawTls.close);
+      final rawApp = _App(rawTls);
+      addTearDown(rawApp.close);
+      await rawTls.send(
+        Uint8List.fromList(
+          'GET /raw HTTP/1.1\r\nHost: localhost\r\n\r\n'.codeUnits,
+        ),
+      );
+      final raw = await rawApp.until(
+        (bytes) => String.fromCharCodes(bytes).contains('hijacked'),
+      );
+      expect(String.fromCharCodes(raw), 'hijacked');
+
+      final tls = await _tls(crypto, adapter.port);
+      addTearDown(tls.close);
+      final app = _App(tls);
+      addTearDown(app.close);
+      await tls.send(
+        Uint8List.fromList(
+          'GET /chat HTTP/1.1\r\n'
+                  'Host: localhost\r\n'
+                  'Upgrade: websocket\r\n'
+                  'Connection: Upgrade\r\n'
+                  'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+                  'Sec-WebSocket-Version: 13\r\n'
+                  '\r\n'
+              .codeUnits,
+        ),
+      );
+      final opened = await app.until(
+        (bytes) => String.fromCharCodes(bytes).contains('\r\n\r\n'),
+      );
+      final text = String.fromCharCodes(opened);
+      expect(text, startsWith('HTTP/1.1 101 Switching Protocols\r\n'));
+      expect(
+        text,
+        contains('Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo='),
+      );
+      final headerEnd = text.indexOf('\r\n\r\n') + 4;
+      app.consume(headerEnd);
+      await tls.send(
+        encodeWebSocketFrame(
+          fromClient: true,
+          fin: true,
+          opcode: wsOpText,
+          payload: Uint8List.fromList('Hello'.codeUnits),
+          maskingKey: Uint8List.fromList([9, 8, 7, 6]),
+        ),
+      );
+      final framed = await app.until((bytes) {
+        final parsed = WebSocketDecoder(expectMasked: false).add(bytes);
+        return parsed.isSuccess && (parsed.valueOrNull?.isNotEmpty ?? false);
+      });
+      final message =
+          WebSocketDecoder(expectMasked: false).add(framed).valueOrNull!.single
+              as WebSocketInboundData;
+      expect(String.fromCharCodes(message.data), 'echo:Hello');
     },
   );
 }

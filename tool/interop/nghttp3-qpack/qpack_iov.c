@@ -152,14 +152,145 @@ static int cmd_encode(const char *headers, const char *section_path,
   return 0;
 }
 
+static int decode_section(nghttp3_qpack_decoder *dec, const uint8_t *src,
+                         size_t srclen) {
+  const nghttp3_mem *mem = nghttp3_mem_default();
+  nghttp3_qpack_stream_context *sctx = NULL;
+  int rv = nghttp3_qpack_stream_context_new(&sctx, 0, mem);
+  if (rv != 0) die("sctx", rv);
+  const uint8_t *p = src;
+  size_t left = srclen;
+  int final_seen = 0;
+  while (!final_seen) {
+    nghttp3_qpack_nv nv;
+    uint8_t flags = 0;
+    nghttp3_ssize nread =
+        nghttp3_qpack_decoder_read_request(dec, sctx, &nv, &flags, p, left, 1);
+    if (nread < 0) die("read_request", (int)nread);
+    if ((size_t)nread > left) die("read_request overshoot", 0);
+    p += (size_t)nread;
+    left -= (size_t)nread;
+    if (flags & NGHTTP3_QPACK_DECODE_FLAG_EMIT) {
+      nghttp3_vec name = nghttp3_rcbuf_get_buf(nv.name);
+      nghttp3_vec value = nghttp3_rcbuf_get_buf(nv.value);
+      fwrite(name.base, 1, name.len, stdout);
+      fputc('\t', stdout);
+      fwrite(value.base, 1, value.len, stdout);
+      fputc('\n', stdout);
+      nghttp3_rcbuf_decref(nv.name);
+      nghttp3_rcbuf_decref(nv.value);
+    }
+    if (flags & NGHTTP3_QPACK_DECODE_FLAG_BLOCKED) die("blocked", 0);
+    if (flags & NGHTTP3_QPACK_DECODE_FLAG_FINAL) final_seen = 1;
+    if (nread == 0 && !final_seen) die("decode stalled", 0);
+  }
+  nghttp3_qpack_stream_context_del(sctx);
+  return 0;
+}
+
+static int cmd_decode_dynamic(const char *section_path, const char *encoder_path) {
+  size_t srclen = 0;
+  uint8_t *src = read_file(section_path, &srclen);
+  size_t enclen = 0;
+  uint8_t *enc = read_file(encoder_path, &enclen);
+  if (enclen == 0) die("encoder stream empty", 0);
+  const nghttp3_mem *mem = nghttp3_mem_default();
+  nghttp3_qpack_decoder *dec = NULL;
+  int rv = nghttp3_qpack_decoder_new(&dec, 4096, 100, mem);
+  if (rv != 0) die("decoder_new", rv);
+  rv = nghttp3_qpack_decoder_set_max_dtable_capacity(dec, 4096);
+  if (rv != 0) die("set_max", rv);
+  const uint8_t *ep = enc;
+  size_t left = enclen;
+  while (left > 0) {
+    nghttp3_ssize nread = nghttp3_qpack_decoder_read_encoder(dec, ep, left);
+    if (nread < 0) die("read_encoder", (int)nread);
+    if (nread == 0) die("encoder stalled", 0);
+    ep += (size_t)nread;
+    left -= (size_t)nread;
+  }
+  decode_section(dec, src, srclen);
+  nghttp3_qpack_decoder_del(dec);
+  free(src);
+  free(enc);
+  const nghttp3_info *info = nghttp3_version(0);
+  fprintf(stderr, "nghttp3 %s decode-dynamic ok encoder=%zu\n",
+          info->version_str, enclen);
+  return 0;
+}
+
+static int cmd_encode_dynamic(const char *headers, const char *section_path,
+                              const char *encoder_path) {
+  size_t text_len = 0;
+  char *text = (char *)read_file(headers, &text_len);
+  nghttp3_nv nva[64];
+  size_t nvlen = 0;
+  char *cursor = text;
+  while (*cursor) {
+    char *nl = strchr(cursor, '\n');
+    if (nl) *nl = 0;
+    if (cursor[0] != 0) {
+      char *tab = strchr(cursor, '\t');
+      if (!tab) die("header line missing tab", 0);
+      *tab = 0;
+      if (nvlen == 64) die("too many fields", 0);
+      size_t i = nvlen++;
+      nva[i].name = (uint8_t *)cursor;
+      nva[i].namelen = strlen(cursor);
+      nva[i].value = (uint8_t *)(tab + 1);
+      nva[i].valuelen = strlen(tab + 1);
+      nva[i].flags = NGHTTP3_NV_FLAG_NONE;
+    }
+    if (!nl) break;
+    cursor = nl + 1;
+  }
+  const nghttp3_mem *mem = nghttp3_mem_default();
+  nghttp3_qpack_encoder *enc = NULL;
+  int rv = nghttp3_qpack_encoder_new(&enc, 4096, mem);
+  if (rv != 0) die("encoder_new", rv);
+  nghttp3_qpack_encoder_set_max_dtable_capacity(enc, 4096);
+  nghttp3_qpack_encoder_set_max_blocked_streams(enc, 1);
+  nghttp3_buf pbuf, rbuf, ebuf;
+  nghttp3_buf_init(&pbuf);
+  nghttp3_buf_init(&rbuf);
+  nghttp3_buf_init(&ebuf);
+  rv = nghttp3_qpack_encoder_encode(enc, &pbuf, &rbuf, &ebuf, 0, nva, nvlen);
+  if (rv != 0) die("encode", rv);
+  size_t plen = nghttp3_buf_len(&pbuf);
+  size_t rlen = nghttp3_buf_len(&rbuf);
+  size_t elen = nghttp3_buf_len(&ebuf);
+  if (elen == 0) die("encoder stream empty", 0);
+  uint8_t *section = malloc(plen + rlen);
+  if (!section) die("malloc", 0);
+  if (plen) memcpy(section, pbuf.pos, plen);
+  if (rlen) memcpy(section + plen, rbuf.pos, rlen);
+  write_file(section_path, section, plen + rlen);
+  write_file(encoder_path, ebuf.pos, elen);
+  free(section);
+  nghttp3_qpack_encoder_del(enc);
+  free(text);
+  const nghttp3_info *info = nghttp3_version(0);
+  fprintf(stderr, "nghttp3 %s encode-dynamic ok section=%zu encoder=%zu\n",
+          info->version_str, plen + rlen, elen);
+  return 0;
+}
+
 int main(int argc, char **argv) {
   if (argc == 3 && strcmp(argv[1], "decode") == 0) return cmd_decode(argv[2]);
   if (argc == 5 && strcmp(argv[1], "encode") == 0) {
     return cmd_encode(argv[2], argv[3], argv[4]);
   }
+  if (argc == 4 && strcmp(argv[1], "decode-dynamic") == 0) {
+    return cmd_decode_dynamic(argv[2], argv[3]);
+  }
+  if (argc == 5 && strcmp(argv[1], "encode-dynamic") == 0) {
+    return cmd_encode_dynamic(argv[2], argv[3], argv[4]);
+  }
   fprintf(stderr,
           "usage:\n"
           "  qpack_iov decode <section.bin>\n"
-          "  qpack_iov encode <headers.txt> <section.bin> <encoder.bin>\n");
+          "  qpack_iov encode <headers.txt> <section.bin> <encoder.bin>\n"
+          "  qpack_iov decode-dynamic <section.bin> <encoder.bin>\n"
+          "  qpack_iov encode-dynamic <headers.txt> <section.bin> <encoder.bin>\n");
   return 2;
 }

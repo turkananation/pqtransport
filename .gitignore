@@ -18,6 +18,7 @@ tool/interop/quiche/.build/
 tool/interop/masque/.build/
 tool/interop/nghttp2-curl/.build/
 tool/interop/picoquic/.build/
+tool/interop/noq/peer/target/
 
 # local demo stores
 demo_ticket_store.bin

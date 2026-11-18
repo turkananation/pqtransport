@@ -1,0 +1,15 @@
+[package]
+name = "pq_noq_client"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# noq 1.5.0 (bb1c63ee) speaks RFC 10069 frame numbers and rustls 0.23.46
+# with aws-lc-rs, which verifies ML-DSA certificates. ring is off: when
+# both providers are enabled, noq uses ring, and ring has no ML-DSA.
+[dependencies]
+noq = { git = "https://github.com/n0-computer/noq", rev = "bb1c63ee620b622281bfad8330b9a5a14e73372a", default-features = false, features = ["runtime-tokio", "rustls-aws-lc-rs"] }
+rustls = { version = "0.23.46", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

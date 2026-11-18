@@ -19,6 +19,8 @@ static int g_end_stream = -1;
 static int32_t g_stream = -1;
 static int g_bytes;
 static int g_frames;
+static int g_peer_settings;
+static int g_priority;
 
 static ssize_t send_cb(nghttp2_session *session, const uint8_t *data,
                         size_t length, int flags, void *user_data) {
@@ -78,6 +80,10 @@ static int on_frame(nghttp2_session *session, const nghttp2_frame *frame,
   g_frames++;
   fprintf(stderr, "frame type=%u stream=%d flags=0x%x\n", frame->hd.type,
           frame->hd.stream_id, frame->hd.flags);
+  if (frame->hd.type == NGHTTP2_SETTINGS &&
+      (frame->hd.flags & NGHTTP2_FLAG_ACK) == 0) {
+    g_peer_settings = 1;
+  }
   if (frame->hd.stream_id == g_stream && frame->hd.type == NGHTTP2_HEADERS) {
     g_end_stream = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) != 0;
   }
@@ -190,26 +196,39 @@ int main(int argc, char **argv) {
     fprintf(stderr, "submit %s\n", nghttp2_strerror(g_stream));
     return 1;
   }
-  for (int i = 0; i < 40 && g_status == 0; i++) {
+  for (int i = 0; i < 40 && (g_status == 0 || !g_priority); i++) {
     int rv = nghttp2_session_send(session);
     if (rv != 0 && rv != NGHTTP2_ERR_WOULDBLOCK) {
       fprintf(stderr, "send %s\n", nghttp2_strerror(rv));
       return 1;
     }
     rv = nghttp2_session_recv(session);
-    if (rv == NGHTTP2_ERR_WOULDBLOCK) {
-      continue;
-    }
-    if (rv != 0) {
+    if (rv != 0 && rv != NGHTTP2_ERR_WOULDBLOCK) {
       fprintf(stderr, "recv %s status=%d\n", nghttp2_strerror(rv), g_status);
       break;
     }
+    /* RFC 9218. A no-op until the peer's SETTINGS_NO_RFC7540_PRIORITIES
+     * is 1, which this server sends. The frame is type 0x10. */
+    if (g_peer_settings && !g_priority && g_stream > 0) {
+      int pr = nghttp2_submit_priority_update(
+          session, NGHTTP2_FLAG_NONE, g_stream, (const uint8_t *)"u=1, i", 6);
+      fprintf(stderr, "priority_update submit=%d\n", pr);
+      if (pr == 0) {
+        g_priority = 1;
+        rv = nghttp2_session_send(session);
+        if (rv != 0 && rv != NGHTTP2_ERR_WOULDBLOCK) {
+          fprintf(stderr, "priority send %s\n", nghttp2_strerror(rv));
+          return 1;
+        }
+      }
+    }
   }
   printf(
-      "nghttp2-connect status=%d end_stream=%d alpn=%.*s group=%s sig=%s bytes=%d frames=%d\n",
+      "nghttp2-connect status=%d end_stream=%d alpn=%.*s group=%s sig=%s "
+      "bytes=%d frames=%d priority=%d\n",
       g_status, g_end_stream, (int)alpn_len,
       alpn == NULL ? "" : (const char *)alpn, group == NULL ? "" : group,
-      sig == NULL ? "" : sig, g_bytes, g_frames);
+      sig == NULL ? "" : sig, g_bytes, g_frames, g_priority);
   int ok = g_status == 200 && g_end_stream == 0 && alpn_len == 2 &&
            memcmp(alpn, "h2", 2) == 0 && group != NULL &&
            strcmp(group, "X25519MLKEM768") == 0 && mldsa65 && leaf_mldsa;

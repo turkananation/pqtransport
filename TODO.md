@@ -65,6 +65,8 @@ QUIC handshake both ways and one HTTP/3 GET both ways
 `TLS_AES_256_GCM_SHA384`, ALPN `h3`, ML-DSA-65 checked. The quiche
 client checks the peer certificate. quiche 0.30 encodes static and
 literal QPACK only, so that flight leaves the table capacity at 0.
+libnghttp3 1.11.0 at capacity 4096 completed a dynamic-table section
+both ways. The encoder stream was not empty. quiche stays at 0.
 Not `curl --http3`. Not a complete RFC 9114 stack.
 
 ## 2. HTTP/2 (RFC 9113, RFC 7541)
@@ -130,8 +132,11 @@ Starts after section 1. The session speaks the QUIC from that section.
   test. Split records are the OpenSSL `-max_send_frag` flight and
   the in-memory test in H1-3.
 
-HTTP/1.1 `Expect: 100-continue` and Shelf HTTP/1.1 hijack are in.
-HTTP/1.0 and a WebSocket protocol are not.
+HTTP/1.0 is parsed and answered by `PqHttpServer` (close unless
+`keep-alive`, no chunked, Host optional). RFC 6455 and RFC 7692 run
+on the Relic HTTP/1.1 carriage. That test is this package's client.
+HTTP/2 and HTTP/3 extended CONNECT are not that codec. Autobahn,
+browsers, and `curl wss://` are not peers here.
 
 ## 5. Extensions
 
@@ -149,7 +154,7 @@ HTTP/1.0 and a WebSocket protocol are not.
   curl 8.23.0 linked to that same nghttp2 and to OpenSSL 3.5.9
   completed one HTTP/2 GET (body `pq-h2`). Its `wss:// --http2`
   sent `GET /tunnel HTTP/1.1` and `Upgrade: websocket`. That is
-  not RFC 8441. HTTP/2 PRIORITY_UPDATE is still in-memory.
+  not RFC 8441. `h2connect` also sends PRIORITY_UPDATE. See E3.
 - [x] E2. QUIC DATAGRAM (RFC 9221) types 0x30 and 0x31. This stack
   advertises `max_datagram_frame_size` 65535. A frame larger than
   that, or a DATAGRAM outside 0-RTT/1-RTT, is PROTOCOL_VIOLATION.
@@ -186,8 +191,10 @@ HTTP/1.0 and a WebSocket protocol are not.
   push is off. The server sends SETTINGS_NO_RFC7540_PRIORITIES=1.
   The old PRIORITY frame is ignored. HTTP/3 is quiche 0.30.0 both
   ways. quiche sends `u=1,i`. This stack sends `u=1, i` and quiche
-  returns that field value. HTTP/2 PRIORITY_UPDATE is still
-  in-memory.
+  returns that field value. HTTP/2 PRIORITY_UPDATE is libnghttp2
+  1.66.0 on the extended CONNECT flight:
+  `nghttp2_submit_priority_update` with `u=1, i`. This server
+  recorded urgency 1, incremental. curl 8.23.0 does not send it.
 - [x] E4. Server push stays off. The client sends ENABLE_PUSH=0.
   The server does not send that setting (RFC 9113); a client that
   receives it is a connection error. PUSH_PROMISE is a connection
@@ -210,8 +217,17 @@ HTTP/1.0 and a WebSocket protocol are not.
   They do not have a separate PTO. The interop job runs
   picoquic 1.1.54.0. It did not offer ML-DSA-65, this server
   refused scheme 0x0905, and `-M` printed `Enable multipath:
-  Refused` on one path. Multipath is not claimed. Single-path
-  migration stays in section 1.
+  Refused` on one path. That peer is not a completed handshake.
+  quiche 0.30.0 has ML-DSA and only RFC 9000 path
+  migration. quic-go in the masque tree is RFC 9000 path probing,
+  not `initial_max_path_id`. msquic has no multipath release. A
+  classical leaf was not minted. noq 1.5.0 (`bb1c63ee`), rustls
+  0.23.46 on aws-lc-rs, completed the handshake and established
+  path 1. rustls checked the ML-DSA-65 chain. The group is
+  X25519MLKEM768 after HelloRetryRequest, because the first
+  ClientHello has only an X25519 share. ALPN is `h3`. The client
+  sends `initial_max_path_id` 1. This is not every RFC 10069 frame.
+  Single-path migration stays in section 1.
 
 ## Order
 
