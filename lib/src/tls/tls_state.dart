@@ -22,6 +22,7 @@ enum TlsEvent {
   receiveEncryptedExtensions,
   receiveCertificate,
   receiveCertVerify,
+  resumeWithPsk,
   receiveFinished,
   receiveAppData,
   fatal,

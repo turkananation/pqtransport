@@ -205,9 +205,16 @@ final class TlsKeySchedule {
     );
   }
 
+  /// RFC 8446 §7.1.
+  ///
+  /// [applicationTranscriptHash] is Hash(ClientHello..server Finished).
+  /// [resumptionTranscriptHash] is Hash(ClientHello..client Finished).
+  /// Those are not the same hash. A peer that resumes with the
+  /// application hash will reject the PSK binder.
   void deriveApplication({
     required Uint8List hybridSharedSecret,
     required Uint8List applicationTranscriptHash,
+    required Uint8List resumptionTranscriptHash,
   }) {
     final zeros = Uint8List(hashLen);
     final emptyTranscript = transcriptHash(Uint8List(0));
@@ -234,7 +241,7 @@ final class TlsKeySchedule {
     resumptionMaster = deriveSecret(
       master,
       tlsLabelResMaster,
-      applicationTranscriptHash,
+      resumptionTranscriptHash,
     );
     clientApplicationIv = expandLabel(
       clientApplicationTraffic,

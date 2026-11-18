@@ -23,6 +23,9 @@ final class QuicResumptionTicket {
     this.lifetimeSeconds = 86400,
     this.maxEarlyData = quicMaxDataDefault,
     this.maxEarlyStreamData = quicMaxStreamDataDefault,
+    this.maxEarlyDatagram = 0,
+    this.maxEarlyStreamsBidi = quicInitialMaxStreams,
+    this.maxEarlyStreamsUni = quicInitialMaxStreams,
   });
 
   final Uint8List identity;
@@ -36,6 +39,14 @@ final class QuicResumptionTicket {
   /// Server receive limits remembered for 0-RTT (RFC 9000 §7.4.1).
   final int maxEarlyData;
   final int maxEarlyStreamData;
+
+  /// RFC 9221. Zero means the ticket did not remember a datagram limit,
+  /// so 0-RTT DATAGRAM is refused.
+  final int maxEarlyDatagram;
+
+  /// RFC 9000 §18.2. `initial_max_streams_*` from the ticket.
+  final int maxEarlyStreamsBidi;
+  final int maxEarlyStreamsUni;
 
   int obfuscatedAge(DateTime now) {
     final age = now.toUtc().difference(issuedAt.toUtc()).inMilliseconds;
@@ -101,8 +112,14 @@ final class QuicEarlyDataStore {
   }
 }
 
-/// RFC 8446 NewSessionTicket plus the QUIC early_data max.
-Uint8List encodeNewSessionTicket(QuicResumptionTicket ticket) {
+/// RFC 8446 NewSessionTicket plus the QUIC early_data sentinel.
+///
+/// [transportParameters] is the server's remembered flow-control set
+/// (RFC 9001 extension 57). Without it a peer will not send 0-RTT.
+Uint8List encodeNewSessionTicket(
+  QuicResumptionTicket ticket, {
+  Uint8List? transportParameters,
+}) {
   final body = BytesBuilder(copy: false);
   writeUint32(body, ticket.lifetimeSeconds);
   writeUint32(body, ticket.ageAdd);
@@ -113,12 +130,23 @@ Uint8List encodeNewSessionTicket(QuicResumptionTicket ticket) {
   final one = BytesBuilder(copy: false);
   writeUint16(one, tlsExtEarlyData);
   writeOpaque16(one, early.takeBytes());
+  final params = transportParameters;
+  if (params != null) {
+    writeUint16(one, tlsExtQuicTransportParameters);
+    writeOpaque16(one, params);
+  }
   writeOpaque16(body, one.takeBytes());
   return encodeHandshake(tlsHsNewSessionTicket, body.takeBytes());
 }
 
 Result<
-  ({Uint8List identity, Uint8List nonce, int ageAdd, int lifetimeSeconds}),
+  ({
+    Uint8List identity,
+    Uint8List nonce,
+    int ageAdd,
+    int lifetimeSeconds,
+    Uint8List? transportParameters,
+  }),
   PqTransportError
 >
 decodeNewSessionTicket(Uint8List handshake) {
@@ -146,11 +174,24 @@ decodeNewSessionTicket(Uint8List handshake) {
       PqTransportError.decodeFailure('trailing new_session_ticket'),
     );
   }
+  final extBytes = exts.valueOrNull!;
+  final extensions = ByteReader(extBytes);
+  Uint8List? transportParameters;
+  while (extensions.remaining > 0) {
+    final type = extensions.u16();
+    if (type.isFailure) return Result.failure(type.errorOrNull!);
+    final extBody = extensions.opaque16(PqLengthLabel.tlsExtension);
+    if (extBody.isFailure) return Result.failure(extBody.errorOrNull!);
+    if (type.valueOrNull == tlsExtQuicTransportParameters) {
+      transportParameters = extBody.valueOrNull;
+    }
+  }
   return Result.success((
     identity: identity.valueOrNull!,
     nonce: nonce.valueOrNull!,
     ageAdd: ageAdd.valueOrNull!,
     lifetimeSeconds: life.valueOrNull!,
+    transportParameters: transportParameters,
   ));
 }
 

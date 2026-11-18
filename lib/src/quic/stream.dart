@@ -184,6 +184,19 @@ final class QuicStreamMap {
     return id;
   }
 
+  /// Remember a stream this endpoint already sent on, including one
+  /// opened by [PqQuicConn.writeEarly]. A later [openBidi] or [openUni]
+  /// does not reuse that id.
+  void reserveOutbound(int id) {
+    streams.putIfAbsent(id, () => QuicStreamReassembler(id));
+    final uni = (id & 0x02) != 0;
+    if (uni) {
+      if (_nextUni <= id) _nextUni = id + quicStreamIdIncrement;
+    } else if (_nextBidi <= id) {
+      _nextBidi = id + quicStreamIdIncrement;
+    }
+  }
+
   Result<QuicStreamReassembler, PqTransportError> ingest(
     QuicStreamFrame frame,
   ) {

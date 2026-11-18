@@ -37,10 +37,13 @@ ML-DSA-65 localhost certificate. The reverse also completes:
 0.30.0, linked to BoringSSL 0.20261020.0, completes a QUICv1
 handshake both ways and one HTTP/3 GET both ways on
 X25519MLKEM768 with an ML-DSA-65 certificate checked. The OpenSSL
-QUIC flights are not HTTP/3. QUIC 0-RTT is sent to this stack only:
-a long header beside the Initial and the 1-RTT short header. The
-ClientHello includes `psk_key_exchange_modes` with `psk_dhe_ke`.
-A third-party HTTP/3 client has not completed that path. Early data is
+QUIC flights are not HTTP/3. quiche 0.30.0 resumed and sent
+`pq-0rtt` on stream 4 before the handshake finished. The server
+accepted those bytes once. The same ticket completed again and
+accepted none. The ClientHello includes `psk_key_exchange_modes`
+with `psk_dhe_ke`. That flight is not an HTTP/3 request. The
+in-memory HTTP/3 0-RTT request is a separate pair, not this quiche
+flight. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
 are the quiche 0.30.0 flights, both ways. masque-go v0.6.0
 completed CONNECT-UDP, and connect-ip-go v0.6.0 completed

@@ -109,7 +109,7 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | CircuitBreaker opens; cache expires at TTL | Done |
 | mDNS probe/announce/browse; ML-DSA TXT verify / mutate-fail | Done |
 | Optional SLH-DSA-SHA2-128f mDNS TXT (`pqslh=`); mutate fails | Done. Default announce stays ML-DSA-65. Not the other eleven sets. Not TLS CertificateVerify. |
-| QUIC 0-RTT early data, accepted once and empty on replay | Done. Application Data space, shared with 1-RTT. Not a fourth space. |
+| QUIC 0-RTT early data, accepted once and empty on replay | Done. Application Data space, shared with 1-RTT. Not a fourth space. One in-memory HTTP/3 request, one DATAGRAM, and one client unidirectional stream. The DATAGRAM is not resent. quiche 0.30.0 sent `pq-0rtt` on stream 4 once. That flight is not an HTTP/3 request. |
 | CRYPTO frame carries 1216-byte share | Done (live ClientHello; OPEN-06) |
 | Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
@@ -124,11 +124,10 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 Recorded so achievements cannot be misread:
 
 - BoringSSL on SecP256r1MLKEM768 or SecP384r1MLKEM1024. Those groups are not in BoringSSL 0.20261020.0. The X25519MLKEM768 handshake is a separate row above. `X509_verify_cert` on one OpenSSL leaf is not that handshake.
-- Third-party QUIC 0-RTT. This tree speaks 0-RTT to itself. Early
-  data is replayable. A replayed ticket is not accepted. Transport
-  parameters are not remembered. Not `curl --http3`.
-- Connection migration, ECN, multipath, anti-amplification, and
-  Handshake packet protection. Loss detection, PTO, and NewReno are in
-  tree. ChaCha header protection still fails closed.
-- Production DoH/DoT with ALPN.
+- Not `curl --http3`.
+- ECN does not move the congestion window. Connection migration past
+  PATH_CHALLENGE / PATH_RESPONSE is not done. Multipath is one second
+  path with noq 1.5.0, and extra paths have no separate PTO. Handshake
+  packet protection, anti-amplification, ChaCha header protection, and
+  DoH/DoT are in this tree.
 - CMVP / FIPS 140 module validation.

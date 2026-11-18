@@ -159,6 +159,11 @@ final class QuicTlsHandshake {
       _client?.peerQuicTransportParameters ??
       _server?.peerQuicTransportParameters;
 
+  /// Parameters this endpoint sent. The server replaces them once the
+  /// client's destination CID is known.
+  Uint8List? get localTransportParameters =>
+      _server?.quicTransportParameters ?? _client?.quicTransportParameters;
+
   /// Replace the parameters the server will send. Must happen before the
   /// ClientHello is ingested. A real client's destination CID is not known
   /// at construction.

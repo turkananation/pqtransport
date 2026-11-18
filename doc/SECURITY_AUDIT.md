@@ -83,7 +83,7 @@ same key.
 ### S7 — QUIC 0-RTT (LIM-05)
 
 AES and ChaCha20 header protection are done (OPEN-06, OPEN-16).
-0-RTT is self-interop. The ClientHello sends `psk_key_exchange_modes`
+The ClientHello sends `psk_key_exchange_modes`
 with `psk_dhe_ke` before `pre_shared_key` (RFC 8446 §4.2.9). A
 `pre_shared_key` without that extension is `illegal_parameter`.
 `psk_ke` is not selected. RFC 9000 §12.3 puts early data in the
@@ -91,9 +91,15 @@ Application Data space with 1-RTT. It is not a fourth space. RFC
 9002 §6.2.1 keeps that PTO disarmed until the handshake is
 confirmed. Early data is replayable. The server ticket is
 single-use, so a second connection with the same ticket completes
-and accepts no early data. Rejected early data is not resent as
-1-RTT. ECH and 0-RTT together are refused. CRYPTO frames carry a
-live encapsulate. Foreign QUIC 0-RTT was not run.
+and accepts no early data. Rejected early data is sent again as
+1-RTT, including FIN on a client-initiated unidirectional stream.
+One HTTP/3 request on the early bidirectional stream uses the QPACK
+static table only. The control stream is still 1-RTT. A 0-RTT
+DATAGRAM is delivered once and is not sent again on replay. ECH and
+0-RTT together are refused. CRYPTO frames carry a
+live encapsulate. quiche 0.30.0 sent `pq-0rtt` on stream 4 once
+(`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then
+completed and accepted none.
 
 ### S8 — UDP HKDF extra is shared (by design)
 

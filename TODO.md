@@ -229,7 +229,126 @@ browsers, and `curl wss://` are not peers here.
   sends `initial_max_path_id` 1. This is not every RFC 10069 frame.
   Single-path migration stays in section 1.
 
+## 6. Remaining RFC gaps
+
+Same branch: `fix/0.2.1-psk-coding`. Version stays 0.2.1.
+An in-memory pair is not a foreign flight. A peer that cannot speak
+the bytes is not closed by a comment. Items under "Do not implement"
+are non-goals from [ROADMAP.md](doc/ROADMAP.md) and
+[CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md). Do not code them.
+
+### Started
+
+- [x] G1. Rejected 0-RTT is sent again as 1-RTT (RFC 9000 / RFC 9001).
+  Accepted 0-RTT advances the STREAM send offset, so a later
+  `writeStream` does not overlap those bytes. `writeEarly` may be
+  called again before `start`, including on another client bidi
+  stream. `test/quic/early_data_test.dart`.
+- [x] G2. HTTP/3 0-RTT. One request on the early bidi stream, accepted
+  once. QPACK uses the static table only. The control stream is still
+  1-RTT. Replay leaves `earlyData` empty; the same bytes are then read
+  as 1-RTT because G1 resends a rejected STREAM. Not `curl --http3`.
+  The quiche proof is still the raw STREAM `pq-0rtt` on stream 4.
+  `encodeHttp3EarlyRequest`, `PqHttp3Session.writeEarlyRequest`,
+  `test/quic/early_data_test.dart`.
+- [x] G3. 0-RTT DATAGRAM (RFC 9221) under the same accept / reject /
+  replay rule. A rejected datagram is not retransmitted. An empty
+  payload is refused by `writeEarlyDatagram`. That is not an RFC 9221
+  rule. `test/quic/early_data_test.dart`.
+- [x] G4. Unidirectional 0-RTT. `writeEarly` on a client-initiated
+  unidirectional stream (id 2) is accepted once, including FIN.
+  `openUni` continues at the next id. A server-initiated id is refused.
+  A stream past the ticket's `initial_max_streams_uni` is refused.
+  Rejected bytes are sent again as 1-RTT, and FIN is kept.
+
+### QUIC, this tree can still do the work
+
+- [ ] G5. Per-path PTO (RFC 10069). Path 1 exists with noq 1.5.0.
+  Extra paths share path 0's timer. Not every RFC 10069 frame has
+  a peer flight.
+- [ ] G6. Connection migration past PATH_CHALLENGE / PATH_RESPONSE.
+  `preferred_address` is not sent. `QuicLossRecovery` does not
+  migrate. The spin bit and ACK frequency (RFC 9000 extension) are
+  absent.
+- [ ] G7. ECN as a congestion signal (RFC 9002). Counts are parsed.
+  `QuicNewReno` does not change the window. Not CUBIC (RFC 9438).
+  NewReno stays the controller RFC 9002 names.
+- [ ] G8. Stateless resumption tickets. The store is in-memory and
+  single-use. A process restart cannot resume. Not an external PSK
+  (RFC 9258).
+- [ ] G9. More than one PSK identity in `pre_shared_key`.
+
+### Blocked on a peer that does not speak the bytes
+
+- [ ] G10. OpenSSL 3.5.9 QUIC early data. `SSL_write_early_data` does
+  not send on a QUIC connection. The OpenSSL flight stays a
+  handshake. Do not claim a ticket that this binary cannot resume.
+- [ ] G11. `curl --http3`. No curl in this tree speaks QUIC to
+  `PqQuicConn`.
+- [ ] G12. picoquic 1.1.54.0 multipath. It does not offer ML-DSA-65.
+  A classical certificate is not minted. The flight stays a refusal.
+- [ ] G13. quiche QPACK dynamic table. quiche 0.30.0 rejects a
+  dynamic-table reference. Capacity stays 0 against that peer.
+  libnghttp3 1.11.0 at 4096 is the dynamic-table flight. Not nghttp3
+  as the HTTP/3 session.
+- [ ] G14. BoringSSL SecP256r1MLKEM768 and SecP384r1MLKEM1024. Those
+  groups are not in BoringSSL 0.20261020.0.
+- [ ] G15. ECH against OpenSSL, ECH with HelloRetryRequest, ECH from
+  DNS HTTPS, and GREASE. The flight is BoringSSL plus self-interop,
+  X25519MLKEM768, no cleartext retry.
+- [ ] G16. `curl wss:// --http2` as RFC 8441. That curl sent
+  HTTP/1.1 Upgrade. libnghttp2 1.66.0 is the extended CONNECT peer.
+  HTTP/2 and HTTP/3 extended CONNECT are not the WebSocket codec.
+  Not Autobahn. Not a browser. RFC 7692 permessage-deflate is VM
+  only.
+
+### HTTP and TLS slices, not a finished RFC
+
+- [ ] G17. HTTP/2 PRIORITY_UPDATE is in-memory besides the one
+  libnghttp2 flight. The old PRIORITY frame stays ignored. Push
+  stays off.
+- [ ] G18. WebSocket frames on extended CONNECT (`:protocol
+  websocket`). The carriage today is HTTP/1.1 only.
+- [ ] G19. Client certificates. The resumed handshake omits
+  Certificate because the PSK is the server authentication. The
+  client is not asked for a certificate.
+- [ ] G20. `compress_certificate`. Not implemented.
+- [ ] G21. SLH-DSA as TLS CertificateVerify. `pqslh=` is
+  SLH-DSA-SHA2-128f on mDNS TXT only. Not the other eleven sets.
+- [ ] G22. `psk_ke`. Parsed and not selected. Resumption stays
+  `psk_dhe_ke`. This is not a classical-only fallback.
+- [ ] G23. ECH together with 0-RTT. Refused. G15 stays the ECH
+  bound.
+- [ ] G24. MASQUE past one CONNECT-UDP and one CONNECT-IP, both
+  directions, against masque-go and connect-ip-go v0.6.0. Draft
+  DNS and PREF64 capsules are not implemented.
+
+### DNS
+
+- [ ] G25. Authoritative DNS. The iterative resolver is not that
+  server. The AD bit is not validation.
+- [ ] G26. DNSSEC algorithms outside 5, 7, 8, 10, 13, 14, 15, and
+  16. NSEC3 iteration ceiling defaults to 0.
+- [ ] G27. DoH over `curl --http3`. DoH and DoT in this tree are
+  not that curl.
+
+### Do not implement
+
+- TLS 1.2, ML-KEM-512, standalone ML-KEM-768, X448.
+- WebPKI, AIA, OCSP, CT, the system trust store, a chain longer
+  than 8.
+- A browser raw UDP, mDNS, or QUIC socket.
+- CMVP / FIPS 140. Hard constant-time execution. Hard erasure.
+- `dart:ffi` or `SecureSocket` on the PQ path.
+- A classical-only handshake after a PQ ClientHello.
+- `doc/ACHIEVEMENTS.md` still lists handshake protection,
+  anti-amplification, ChaCha header protection, and DoH/DoT as
+  missing. Those are in this tree. Do not reopen them from that
+  paragraph. ECN, migration, and multipath in that paragraph are
+  G5, G6, and G7, not "absent".
+
 ## Order
 
 Section 0, then 1, then 2, then 3, then 4 and 5. HTTP/2 and HTTP/1
-do not wait on QUIC. HTTP/3 does.
+do not wait on QUIC. HTTP/3 does. Section 6 starts at G1. G10
+through G16 and the "Do not implement" list are not coding turns.

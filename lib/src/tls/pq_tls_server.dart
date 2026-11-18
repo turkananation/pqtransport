@@ -468,12 +468,19 @@ final class PqTlsServer {
       return Result.failure(error);
     }
     _hybridSs = accepted.valueOrNull!.secret;
-    final selectedIdentity = _selectCertificate(hello);
-    if (selectedIdentity.isFailure) {
-      return _certificateFailure(selectedIdentity.errorOrNull!);
+    // RFC 8446 §2. A selected PSK authenticates the server. Certificate
+    // and CertificateVerify are not sent. Sending either is
+    // unexpected_message to a peer that resumed.
+    int? echoType;
+    var sendX509 = false;
+    if (!_pskSelected) {
+      final selectedIdentity = _selectCertificate(hello);
+      if (selectedIdentity.isFailure) {
+        return _certificateFailure(selectedIdentity.errorOrNull!);
+      }
+      sendX509 = selectedIdentity.valueOrNull!.sendX509;
+      echoType = selectedIdentity.valueOrNull!.echoType;
     }
-    final sendX509 = selectedIdentity.valueOrNull!.sendX509;
-    final echoType = selectedIdentity.valueOrNull!.echoType;
     final sh = ServerHello(
       random: crypto.randomBytes(handshakeRandomBytes),
       group: selected,
@@ -510,29 +517,38 @@ final class PqTlsServer {
       quicTransportParameters: quic ? quicTransportParameters : null,
     );
     transcript.add(ee);
-    final cert = sendX509
-        ? identity.certificateMessage!
-        : encodeCertificate(identity.publicKey);
-    transcript.add(cert);
-    final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
-    final signed = identity.signContent != null
-        ? identity.signContent!(toSign)
-        : await offloadMlDsaSign(
-            algorithm: crypto.signature,
-            secretKey: identity.secretKey,
-            message: toSign,
-          );
-    final scheme = sendX509 ? identity.leafScheme : tlsSignatureMldsa65;
-    final sig = wireCertificateVerifySignature(scheme, signed);
-    final cv = sendX509
-        ? encodeCertVerifyScheme(scheme, sig)
-        : encodeCertVerify(sig);
-    transcript.add(cv);
-    final fin = encodeFinished(
-      schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
-    );
-    transcript.add(fin);
-    final rest = concatBytes([ee, cert, cv, fin]);
+    final Uint8List rest;
+    if (_pskSelected) {
+      final fin = encodeFinished(
+        schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
+      );
+      transcript.add(fin);
+      rest = concatBytes([ee, fin]);
+    } else {
+      final cert = sendX509
+          ? identity.certificateMessage!
+          : encodeCertificate(identity.publicKey);
+      transcript.add(cert);
+      final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
+      final signed = identity.signContent != null
+          ? identity.signContent!(toSign)
+          : await offloadMlDsaSign(
+              algorithm: crypto.signature,
+              secretKey: identity.secretKey,
+              message: toSign,
+            );
+      final scheme = sendX509 ? identity.leafScheme : tlsSignatureMldsa65;
+      final sig = wireCertificateVerifySignature(scheme, signed);
+      final cv = sendX509
+          ? encodeCertVerifyScheme(scheme, sig)
+          : encodeCertVerify(sig);
+      transcript.add(cv);
+      final fin = encodeFinished(
+        schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
+      );
+      transcript.add(fin);
+      rest = concatBytes([ee, cert, cv, fin]);
+    }
     if (quic) {
       return Result.success([shBytes, rest]);
     }
@@ -565,19 +581,22 @@ final class PqTlsServer {
     }
     final fin = decodeFinished(finBytes, verifyDataLength: schedule.hashLen);
     if (fin.isFailure) return Result.failure(fin.errorOrNull!);
+    // RFC 8446 §7.1. Application keys stop at server Finished.
+    // resumption_master includes this client Finished.
+    final applicationHash = transcript.snapshot();
     final expected = schedule.finishedMac(
       schedule.clientFinishedKey,
-      transcript.snapshot(),
+      applicationHash,
     );
     if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
       return _fail('client finished mac');
     }
-    // RFC 8446 §7.1. Application keys do not cover client Finished.
+    transcript.add(finBytes);
     schedule.deriveApplication(
       hybridSharedSecret: _hybridSs!,
-      applicationTranscriptHash: transcript.snapshot(),
+      applicationTranscriptHash: applicationHash,
+      resumptionTranscriptHash: transcript.snapshot(),
     );
-    transcript.add(finBytes);
     final driven = driveTls(machine, TlsEvent.receiveFinished);
     if (driven.isFailure) return Result.failure(driven.errorOrNull!);
     return const Result.success([]);

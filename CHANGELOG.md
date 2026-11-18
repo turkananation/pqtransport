@@ -5,8 +5,17 @@
 - QUIC 0-RTT ClientHello sends `psk_key_exchange_modes` (extension 45)
   with `psk_dhe_ke` before `pre_shared_key` (RFC 8446 §4.2.9). A
   `pre_shared_key` without that extension is `illegal_parameter`.
-  `psk_ke` is not selected. The in-memory pair still accepts early
-  data once. Foreign QUIC 0-RTT was not run.
+  `psk_ke` is not selected. `resumption_master` is
+  Hash(ClientHello..client Finished). A selected PSK omits Certificate
+  and CertificateVerify. The in-memory pair accepts early data once.
+  A rejected 0-RTT STREAM is sent again as 1-RTT, and `fin` is kept.
+  A client-initiated unidirectional stream is included. One HTTP/3
+  request on the early bidirectional stream uses the QPACK static
+  table only; the control stream is still 1-RTT. A 0-RTT DATAGRAM is
+  delivered once and is not sent again on replay. quiche 0.30.0 sent
+  `pq-0rtt` on stream 4 once
+  (`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then
+  completed and accepted none.
 - An ignored key share is the group's real client length. P-256 and
   P-384 start with the uncompressed-point prefix. X448 is 56 bytes.
   A codepoint with no fixed length is refused. The default hello
@@ -105,9 +114,6 @@
   `unsupported_certificate`. `-M` prints `Enable multipath: Refused`
   on one path. A classical certificate was not minted. quiche
   0.30.0 has ML-DSA and only RFC 9000 path migration.
-- Foreign QUIC 0-RTT was not run. OpenSSL 3.5.9 `s_client -quic
-  -early_data` can emit early data. The flight in this tree is still
-  one handshake. The in-memory 0-RTT test is not that peer.
 - Not `curl --http3`. Not WebPKI. Not a browser. Not FIPS. Not CMVP.
 
 ## 0.2.0
@@ -129,7 +135,7 @@ DNS server, not a browser, and not WebPKI.
   a replay completes the handshake and accepts no early data. The
   `early_data` maximum is `0xffffffff`. Transport parameters are not
   remembered; the local flow-control window is the limit. ECH and
-  0-RTT together are refused. Self-interop only. Not `curl --http3`.
+  0-RTT together are refused. Not `curl --http3`.
   `test/quic/early_data_test.dart`.
 - Optional mDNS TXT archival signature SLH-DSA-SHA2-128f (`pqslh=`,
   `signTxtArchival` / `verifyTxtArchival`). The default announce path

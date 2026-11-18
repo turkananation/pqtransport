@@ -384,8 +384,9 @@ final class QuicLossRecovery {
   }
 
   /// Forget frames whose token matches [drop]. A packet that then has
-  /// nothing left to send leaves the in-flight set. Rejected 0-RTT uses
-  /// this so the STREAM is not sealed again as 1-RTT.
+  /// nothing left to send leaves the in-flight set. Rejected 0-RTT
+  /// drops the `0rtt:` tokens here. The connection queues the same
+  /// bytes again as 1-RTT under a different token.
   void abandonFrames(bool Function(String token) drop) {
     final space = QuicPacketNumberSpace.application;
     final outstanding = _outstanding[space]!;

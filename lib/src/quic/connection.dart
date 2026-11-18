@@ -25,9 +25,13 @@ import 'zero_rtt.dart';
 /// RFC 9002 loss detection and NewReno.
 ///
 /// 0-RTT is a long header in the Application Data packet number space.
-/// Call [writeEarly] before [start]. Those bytes are replayable until
-/// the handshake accepts them. A replayed ticket completes and carries
-/// no early data.
+/// Call [writeEarly] before [start], more than once if needed, on a
+/// client-initiated bidirectional or unidirectional stream. [fin] ends
+/// that stream. Those bytes are replayable until the handshake accepts
+/// them. A rejected STREAM is sent again as 1-RTT. A rejected DATAGRAM
+/// is not: [writeEarlyDatagram] is ack-eliciting and is not queued
+/// again (RFC 9221). A replayed ticket completes and carries no early
+/// data.
 ///
 /// Lost CRYPTO and STREAM bytes are sealed again under a new packet number
 /// (RFC 9000 §13.3). The congestion window is [QuicNewReno]. A UDP datagram
@@ -338,8 +342,10 @@ final class PqQuicConn {
   QuicZeroRttCodec? _zeroOpen;
   QuicZeroRttCodec? _hsSeal;
   QuicZeroRttCodec? _hsOpen;
-  Uint8List? _earlyPayload;
-  var _earlyStreamId = 0;
+  final List<({int id, Uint8List data, bool fin})> _earlyParts = [];
+  final List<Uint8List> _earlyDatagrams = [];
+  var _earlyOnWire = false;
+  var _earlySettled = false;
   final List<({int streamId, Uint8List data})> earlyData = [];
   QuicResumptionTicket? receivedTicket;
   final QuicResumptionTicket? _resumption;
@@ -525,16 +531,22 @@ final class PqQuicConn {
   }
 
   /// RFC 9000 0-RTT STREAM. Replayable. Call before [start].
+  ///
+  /// A second call appends. The same stream continues at the next
+  /// offset. Another client-initiated stream, including a unidirectional
+  /// one, is a separate STREAM frame. [fin] is set on the last byte of
+  /// this call. A rejected STREAM is sent again as 1-RTT, including [fin].
   Result<void, PqTransportError> writeEarly(
     Uint8List data, {
     int streamId = 0,
+    bool fin = false,
   }) {
     if (!isClient) {
       return Result.failure(
         PqTransportError.unexpectedMessage('server does not send 0-rtt'),
       );
     }
-    if (data.isEmpty || isComplete || _earlyPayload != null) {
+    if (data.isEmpty || isComplete || _earlyOnWire) {
       return Result.failure(
         PqTransportError.illegalParameter(
           PqLengthLabel.tlsExtension,
@@ -543,15 +555,86 @@ final class PqQuicConn {
         ),
       );
     }
-    final remembered = _resumption;
-    if (remembered != null &&
-        (data.length > remembered.maxEarlyData ||
-            data.length > remembered.maxEarlyStreamData)) {
-      return Result.failure(PqTransportError.flowControl('0-rtt limit'));
+    if ((streamId & 1) != 0) {
+      return Result.failure(PqTransportError.decodeFailure('0-rtt stream id'));
     }
-    _earlyPayload = Uint8List.fromList(data);
-    _earlyStreamId = streamId;
+    if (_earlyParts.any((part) => part.id == streamId && part.fin)) {
+      return Result.failure(PqTransportError.decodeFailure('0-rtt stream fin'));
+    }
+    final uni = (streamId & 0x02) != 0;
+    final remembered = _resumption;
+    if (remembered != null) {
+      final count = (streamId >> 2) + 1;
+      final cap = uni
+          ? remembered.maxEarlyStreamsUni
+          : remembered.maxEarlyStreamsBidi;
+      if (count > cap) {
+        return Result.failure(PqTransportError.flowControl('0-rtt stream'));
+      }
+      var all = data.length;
+      var onStream = data.length;
+      for (final part in _earlyParts) {
+        all += part.data.length;
+        if (part.id == streamId) onStream += part.data.length;
+      }
+      if (all > remembered.maxEarlyData ||
+          onStream > remembered.maxEarlyStreamData) {
+        return Result.failure(PqTransportError.flowControl('0-rtt limit'));
+      }
+    }
+    _noteEarlyStream(streamId);
+    _earlyParts.add((id: streamId, data: Uint8List.fromList(data), fin: fin));
     return const Result.success(null);
+  }
+
+  /// RFC 9221 DATAGRAM in a 0-RTT packet. Not retransmitted. A rejected
+  /// or lost datagram is not sent again; the application sends another.
+  /// Refused when the ticket did not remember `max_datagram_frame_size`.
+  /// An empty payload is refused here. That is not an RFC 9221 rule.
+  Result<void, PqTransportError> writeEarlyDatagram(Uint8List payload) {
+    if (!isClient) {
+      return Result.failure(
+        PqTransportError.unexpectedMessage('server does not send 0-rtt'),
+      );
+    }
+    if (payload.isEmpty || isComplete || _earlyOnWire) {
+      return Result.failure(
+        PqTransportError.illegalParameter(
+          PqLengthLabel.tlsExtension,
+          payload.length,
+          1,
+        ),
+      );
+    }
+    final frame = QuicDatagramFrame(payload, lengthPrefixed: true);
+    final remembered = _resumption;
+    if (remembered == null ||
+        remembered.maxEarlyDatagram <= 0 ||
+        frame.encodedLength > remembered.maxEarlyDatagram) {
+      return Result.failure(PqTransportError.unsupported('quic datagram'));
+    }
+    final room =
+        lossRecovery.maxDatagramSize - _longHeaderOverhead(initial: false);
+    if (frame.encodedLength > room ||
+        frame.encodedLength > quicLocalMaxDatagramFrameSize) {
+      return Result.failure(
+        PqTransportError.decodeFailure('datagram too large'),
+      );
+    }
+    _earlyDatagrams.add(Uint8List.fromList(payload));
+    return const Result.success(null);
+  }
+
+  void _noteEarlyStream(int id) {
+    final existed = _streams.streams.containsKey(id);
+    _streams.reserveOutbound(id);
+    if (existed) return;
+    final count = (id >> 2) + 1;
+    if ((id & 0x02) != 0) {
+      if (count > _openedUni) _openedUni = count;
+    } else if (count > _openedBidi) {
+      _openedBidi = count;
+    }
   }
 
   /// RFC 8446 NewSessionTicket in a 1-RTT CRYPTO frame.
@@ -568,27 +651,46 @@ final class PqQuicConn {
             ),
           );
         } else {
-          final ticket = store.issue(
-            schedule: _tls.schedule,
-            crypto: crypto,
-            cipherSuite: _tls.schedule.suite.codepoint,
-            now: lossRecovery.clock.now(),
-            maxEarlyData: _flow.localMaxData,
-            maxEarlyStreamData: _flow.localStreamMax(0),
-          );
-          _pending.add(
-            QuicRetransmitCrypto(
-              space: QuicPacketNumberSpace.application,
-              offset: 0,
-              data: encodeNewSessionTicket(ticket),
-            ),
-          );
-          final sent = await _flush();
-          done.complete(
-            sent.isFailure
-                ? Result.failure(sent.errorOrNull!)
-                : Result.success(ticket),
-          );
+          final localParams = _tls.localTransportParameters;
+          if (localParams == null) {
+            done.complete(
+              Result.failure(
+                PqTransportError.unexpectedMessage(
+                  'ticket transport parameters',
+                ),
+              ),
+            );
+          } else {
+            final remembered = quicTicketTransportParameters(localParams);
+            if (remembered.isFailure) {
+              done.complete(Result.failure(remembered.errorOrNull!));
+            } else {
+              final ticket = store.issue(
+                schedule: _tls.schedule,
+                crypto: crypto,
+                cipherSuite: _tls.schedule.suite.codepoint,
+                now: lossRecovery.clock.now(),
+                maxEarlyData: _flow.localMaxData,
+                maxEarlyStreamData: _flow.localStreamMax(0),
+              );
+              _pending.add(
+                QuicRetransmitCrypto(
+                  space: QuicPacketNumberSpace.application,
+                  offset: 0,
+                  data: encodeNewSessionTicket(
+                    ticket,
+                    transportParameters: remembered.valueOrNull,
+                  ),
+                ),
+              );
+              final sent = await _flush();
+              done.complete(
+                sent.isFailure
+                    ? Result.failure(sent.errorOrNull!)
+                    : Result.success(ticket),
+              );
+            }
+          }
         }
         _wake();
       } on Object catch (e) {
@@ -602,10 +704,13 @@ final class PqQuicConn {
   }
 
   Future<Result<void, PqTransportError>> _sendQueuedEarly() async {
-    final data = _earlyPayload;
     final codec = _zeroSeal;
-    if (data == null || codec == null) return const Result.success(null);
-    _earlyPayload = null;
+    if (_earlyOnWire ||
+        (_earlyParts.isEmpty && _earlyDatagrams.isEmpty) ||
+        codec == null) {
+      return const Result.success(null);
+    }
+    _earlyOnWire = true;
     final room =
         lossRecovery.maxDatagramSize - _longHeaderOverhead(initial: false);
     if (room < 1) {
@@ -613,71 +718,93 @@ final class PqQuicConn {
         PqTransportError.internalError('quic datagram payload'),
       );
     }
-    var offset = 0;
-    while (offset < data.length) {
-      final n = _fitPayload(
-        fixed: 1 + quicVarintLength(_earlyStreamId) + quicVarintLength(offset),
-        available: data.length - offset,
-        room: room,
-      );
-      if (n == null || n < 1) {
-        return Result.failure(
-          PqTransportError.internalError('quic early data does not fit'),
+    final offsets = <int, int>{};
+    for (final part in _earlyParts) {
+      var offset = offsets[part.id] ?? 0;
+      final data = part.data;
+      final end = offset + data.length;
+      while (offset < end) {
+        final start = offset - (end - data.length);
+        final n = _fitPayload(
+          fixed: 1 + quicVarintLength(part.id) + quicVarintLength(offset),
+          available: data.length - start,
+          room: room,
         );
-      }
-      final chunk = slice(data, offset, offset + n);
-      final frame = QuicRetransmitFrame(
-        space: QuicPacketNumberSpace.application,
-        token: '0rtt:$_earlyStreamId:$offset:${chunk.length}',
-        bytes: QuicStreamFrame(
-          id: _earlyStreamId,
-          offset: offset,
-          data: chunk,
-        ).encode(),
-      );
-      final pn = lossRecovery.peekPacketNumber(
-        QuicPacketNumberSpace.application,
-      );
-      final sealed = codec.protect(
-        dcid: _dcid,
-        scid: localCid,
-        packetNumber: pn,
-        payload: frame.encode(),
-      );
-      if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
-      final packet = sealed.valueOrNull!;
-      if (packet.length > lossRecovery.maxDatagramSize) {
-        return Result.failure(
-          PqTransportError.internalError('quic datagram exceeds path maximum'),
+        if (n == null || n < 1) {
+          return Result.failure(
+            PqTransportError.internalError('quic early data does not fit'),
+          );
+        }
+        final chunk = slice(data, start, start + n);
+        final last = offset + n == end;
+        final frame = QuicRetransmitFrame(
+          space: QuicPacketNumberSpace.application,
+          token: '0rtt:${part.id}:$offset:${chunk.length}',
+          bytes: QuicStreamFrame(
+            id: part.id,
+            offset: offset,
+            data: chunk,
+            fin: part.fin && last,
+          ).encode(),
         );
+        final sent = await _emitEarly(codec, frame.encode(), frame: frame);
+        if (sent.isFailure) return sent;
+        offset += n;
       }
-      final committed = lossRecovery.allocatePacketNumber(
-        QuicPacketNumberSpace.application,
-      );
-      if (committed != pn) {
-        return Result.failure(
-          PqTransportError.internalError('packet number changed'),
-        );
-      }
-      final recorded = lossRecovery.onPacketSent(
-        space: QuicPacketNumberSpace.application,
-        packetNumber: pn,
-        sentBytes: packet.length,
-        ackEliciting: true,
-        inFlight: true,
-        frames: [frame],
-        appLimited: true,
-      );
-      if (recorded.isFailure) return Result.failure(recorded.errorOrNull!);
-      if (_connMachine.currentState == QuicConnectionState.handshake) {
-        _connMachine.trigger(QuicConnectionEvent.early);
-      }
-      _bytesSent += packet.length;
-      final emitted = await _emit(packet);
-      if (emitted.isFailure) return emitted;
-      offset += n;
+      offsets[part.id] = offset;
+    }
+    for (final payload in _earlyDatagrams) {
+      final bytes = QuicDatagramFrame(payload, lengthPrefixed: true).encode();
+      // RFC 9221. The packet is ack-eliciting and is not a STREAM
+      // retransmission. Loss or rejection does not send it again.
+      final sent = await _emitEarly(codec, bytes);
+      if (sent.isFailure) return sent;
     }
     return const Result.success(null);
+  }
+
+  Future<Result<void, PqTransportError>> _emitEarly(
+    QuicZeroRttCodec codec,
+    Uint8List payload, {
+    QuicRetransmitFrame? frame,
+  }) async {
+    final pn = lossRecovery.peekPacketNumber(QuicPacketNumberSpace.application);
+    final sealed = codec.protect(
+      dcid: _dcid,
+      scid: localCid,
+      packetNumber: pn,
+      payload: payload,
+    );
+    if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
+    final packet = sealed.valueOrNull!;
+    if (packet.length > lossRecovery.maxDatagramSize) {
+      return Result.failure(
+        PqTransportError.internalError('quic datagram exceeds path maximum'),
+      );
+    }
+    final committed = lossRecovery.allocatePacketNumber(
+      QuicPacketNumberSpace.application,
+    );
+    if (committed != pn) {
+      return Result.failure(
+        PqTransportError.internalError('packet number changed'),
+      );
+    }
+    final recorded = lossRecovery.onPacketSent(
+      space: QuicPacketNumberSpace.application,
+      packetNumber: pn,
+      sentBytes: packet.length,
+      ackEliciting: true,
+      inFlight: true,
+      frames: frame == null ? const [] : [frame],
+      appLimited: true,
+    );
+    if (recorded.isFailure) return Result.failure(recorded.errorOrNull!);
+    if (_connMachine.currentState == QuicConnectionState.handshake) {
+      _connMachine.trigger(QuicConnectionEvent.early);
+    }
+    _bytesSent += packet.length;
+    return _emit(packet);
   }
 
   Result<QuicResumptionTicket, PqTransportError> _ticketFrom(
@@ -686,6 +813,22 @@ final class PqQuicConn {
     final parsed = decodeNewSessionTicket(handshake);
     if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
     final parts = parsed.valueOrNull!;
+    var maxEarlyData = quicMaxDataDefault;
+    var maxEarlyStreamData = quicMaxStreamDataDefault;
+    var maxEarlyDatagram = 0;
+    var maxEarlyStreamsBidi = quicInitialMaxStreams;
+    var maxEarlyStreamsUni = quicInitialMaxStreams;
+    final remembered = parts.transportParameters;
+    if (remembered != null) {
+      final limits = QuicTransportParameters.decode(remembered);
+      if (limits.isFailure) return Result.failure(limits.errorOrNull!);
+      final params = limits.valueOrNull!;
+      maxEarlyData = params.initialMaxData;
+      maxEarlyStreamData = params.streamDataLimit;
+      maxEarlyDatagram = params.maxDatagramFrameSize;
+      maxEarlyStreamsBidi = params.initialMaxStreamsBidi;
+      maxEarlyStreamsUni = params.initialMaxStreamsUni;
+    }
     return Result.success(
       QuicResumptionTicket(
         identity: parts.identity,
@@ -695,6 +838,11 @@ final class PqQuicConn {
         cipherSuite: _tls.schedule.suite.codepoint,
         issuedAt: lossRecovery.clock.now(),
         lifetimeSeconds: parts.lifetimeSeconds,
+        maxEarlyData: maxEarlyData,
+        maxEarlyStreamData: maxEarlyStreamData,
+        maxEarlyDatagram: maxEarlyDatagram,
+        maxEarlyStreamsBidi: maxEarlyStreamsBidi,
+        maxEarlyStreamsUni: maxEarlyStreamsUni,
       ),
     );
   }
@@ -2189,16 +2337,47 @@ final class PqQuicConn {
     return const Result.success(null);
   }
 
+  /// RFC 9000 §4.5 / RFC 9001. Accepted 0-RTT counts toward the send
+  /// offset. Rejected 0-RTT, and 0-RTT discarded by Retry, is queued
+  /// again as 1-RTT. The abandoned `0rtt:` tokens are not sealed twice.
+  void _settleEarlyData() {
+    if (!isClient || !_tls.isComplete || _earlySettled) return;
+    _earlySettled = true;
+    if (_earlyParts.isEmpty) return;
+    if (_tls.earlyDataAccepted && !_earlyAbandoned) {
+      final ends = <int, int>{};
+      for (final part in _earlyParts) {
+        ends[part.id] = (ends[part.id] ?? 0) + part.data.length;
+      }
+      for (final entry in ends.entries) {
+        if ((_sendOffsets[entry.key] ?? 0) < entry.value) {
+          _sendOffsets[entry.key] = entry.value;
+        }
+        _flow.commitSend(entry.key, entry.value);
+      }
+      return;
+    }
+    if (!_earlyAbandoned) {
+      _earlyAbandoned = true;
+      lossRecovery.abandonFrames((token) => token.startsWith('0rtt:'));
+      _pending.removeWhere((frame) => frame.token.startsWith('0rtt:'));
+    }
+    for (final part in _earlyParts) {
+      final queued = _enqueueSend(part.id, part.data, fin: part.fin);
+      if (queued.isFailure) {
+        _error = queued.errorOrNull;
+        return;
+      }
+    }
+  }
+
   void _syncHandshake() {
     if (!_tls.isComplete) return;
     _ensureAppKeys();
     if (_tls.peerTransportParameters == null && _error == null) {
       _error = PqTransportError.decodeFailure('missing transport parameters');
     }
-    if (isClient && !_tls.earlyDataAccepted && !_earlyAbandoned) {
-      _earlyAbandoned = true;
-      lossRecovery.abandonFrames((token) => token.startsWith('0rtt:'));
-    }
+    if (isClient) _settleEarlyData();
     final state = _connMachine.currentState;
     if (state == QuicConnectionState.handshake ||
         state == QuicConnectionState.zeroRtt) {

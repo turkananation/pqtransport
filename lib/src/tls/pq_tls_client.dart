@@ -148,6 +148,7 @@ final class PqTlsClient {
   /// Group in the peer's ServerHello. Null until that message is accepted.
   TlsNamedGroup? negotiatedGroup;
   var _peerAuthenticated = false;
+  var _resumed = false;
   String? _peerLeafAlgorithm;
   Uint8List? _peerPublicKey;
   int? _certificateType;
@@ -164,11 +165,11 @@ final class PqTlsClient {
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
   TlsCipherSuite get cipherSuite => _suite;
 
-  /// True only when this client checked CertificateVerify and the
-  /// handshake then completed.
+  /// True when this handshake authenticated the peer and then completed.
   ///
-  /// False before completion, false after a fatal alert, and false when
-  /// [allowUnauthenticated] skipped the check. Finished is not this bit.
+  /// A certificate handshake sets this from CertificateVerify. A resumed
+  /// PSK sets this because the ticket is that authentication (RFC 8446
+  /// §2). Finished alone does not. [allowUnauthenticated] leaves it false.
   bool get peerAuthenticated => _peerAuthenticated && isComplete;
 
   /// X.509 leaf algorithm name after CertificateVerify succeeded.
@@ -357,7 +358,8 @@ final class PqTlsClient {
     }
     _hybridSs = secret.valueOrNull!;
     final resumed = ticket;
-    if (sh.valueOrNull!.selectedPsk) {
+    _resumed = sh.valueOrNull!.selectedPsk;
+    if (_resumed) {
       if (resumed == null) return _fail('psk not offered');
       schedule.usePsk(resumed.psk);
     } else {
@@ -423,12 +425,20 @@ final class PqTlsClient {
           if (ticket == null) return _fail('early_data not offered');
           earlyDataAccepted = true;
         }
-        final type = _selectedCertificateType(ee.valueOrNull!);
-        if (type.isFailure) return _fatal(type.errorOrNull!, onWire: false);
-        _certificateType = type.valueOrNull;
+        if (!_resumed) {
+          final type = _selectedCertificateType(ee.valueOrNull!);
+          if (type.isFailure) return _fatal(type.errorOrNull!, onWire: false);
+          _certificateType = type.valueOrNull;
+        }
         final d = driveTls(machine, TlsEvent.receiveEncryptedExtensions);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
         transcript.add(msg);
+        if (_resumed) {
+          // RFC 8446 §2. The next handshake message is Finished.
+          final skip = driveTls(machine, TlsEvent.resumeWithPsk);
+          if (skip.isFailure) return Result.failure(skip.errorOrNull!);
+          if (!allowUnauthenticated) _peerAuthenticated = true;
+        }
       } else if (type == tlsHsCertificate) {
         final d = driveTls(machine, TlsEvent.receiveCertificate);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
@@ -533,18 +543,18 @@ final class PqTlsClient {
         }
         transcript.add(msg);
         // RFC 8446 §7.1: application secrets are Hash(ClientHello..server
-        // Finished). Client Finished is not in that hash.
-        schedule.deriveApplication(
-          hybridSharedSecret: _hybridSs!,
-          applicationTranscriptHash: transcript.snapshot(),
-        );
+        // Finished). resumption_master includes the client Finished
+        // that is about to be sent.
+        final applicationHash = transcript.snapshot();
         final clientFin = encodeFinished(
-          schedule.finishedMac(
-            schedule.clientFinishedKey,
-            transcript.snapshot(),
-          ),
+          schedule.finishedMac(schedule.clientFinishedKey, applicationHash),
         );
         transcript.add(clientFin);
+        schedule.deriveApplication(
+          hybridSharedSecret: _hybridSs!,
+          applicationTranscriptHash: applicationHash,
+          resumptionTranscriptHash: transcript.snapshot(),
+        );
         if (quic) {
           finishedRecord = clientFin;
         } else {

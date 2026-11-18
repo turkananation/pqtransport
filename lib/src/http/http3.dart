@@ -154,6 +154,97 @@ Result<PqHttpResponse, PqTransportError> http3ParseResponse(
   );
 }
 
+/// One HTTP/3 request for 0-RTT. QPACK uses the static table only
+/// (RFC 9204: a 0-RTT field section does not reference the dynamic
+/// table). The control stream is not included. That stream is
+/// unidirectional and is still sent in 1-RTT by [PqHttp3Session.start].
+Result<Uint8List, PqTransportError> encodeHttp3EarlyRequest(PqHttpRequest req) {
+  if (req.trailers.keys.any((name) => name.startsWith(':'))) {
+    return Result.failure(PqTransportError.decodeFailure('h3 trailer pseudo'));
+  }
+  final qpack = QpackCodec(maxTableCapacity: 0);
+  final frames = BytesBuilder(copy: false);
+  frames.add(
+    Http3Frame(
+      type: http3FrameHeaders,
+      payload: qpack.encodeFieldSection(http3RequestHeaders(req)),
+    ).encode(),
+  );
+  if (req.body.isNotEmpty) {
+    frames.add(
+      Http3Frame(
+        type: http3FrameData,
+        payload: Uint8List.fromList(req.body),
+      ).encode(),
+    );
+  }
+  if (req.trailers.isNotEmpty) {
+    frames.add(
+      Http3Frame(
+        type: http3FrameHeaders,
+        payload: qpack.encodeFieldSection([
+          for (final entry in req.trailers.entries)
+            HpackHeader(entry.key.toLowerCase(), entry.value),
+        ]),
+      ).encode(),
+    );
+  }
+  return Result.success(frames.takeBytes());
+}
+
+/// Parses one request produced by [encodeHttp3EarlyRequest]. A dynamic
+/// table reference fails. This is not a control stream.
+Result<PqHttpRequest, PqTransportError> decodeHttp3RequestBytes(
+  Uint8List wire,
+) {
+  final qpack = QpackCodec(maxTableCapacity: 0);
+  List<HpackHeader>? headers;
+  List<HpackHeader>? trailers;
+  final body = BytesBuilder(copy: false);
+  var off = 0;
+  while (off < wire.length) {
+    final one = Http3Frame.tryDecode(slice(wire, off, wire.length));
+    if (one.isFailure) return Result.failure(one.errorOrNull!);
+    final (frame, n) = one.valueOrNull!;
+    if (frame.type == http3FrameHeaders) {
+      if (qpack.sectionUsesDynamic(frame.payload)) {
+        return Result.failure(
+          PqTransportError.decodeFailure('h3 0-rtt dynamic'),
+        );
+      }
+      final dec = qpack.decodeFieldSection(frame.payload);
+      if (dec.isFailure) return Result.failure(dec.errorOrNull!);
+      if (headers == null) {
+        headers = dec.valueOrNull;
+      } else if (trailers == null) {
+        trailers = dec.valueOrNull;
+      } else {
+        return Result.failure(
+          PqTransportError.decodeFailure('h3 extra headers'),
+        );
+      }
+    } else if (frame.type == http3FrameData) {
+      if (headers == null || trailers != null) {
+        return Result.failure(PqTransportError.decodeFailure('h3 data'));
+      }
+      body.add(frame.payload);
+    } else {
+      return Result.failure(
+        PqTransportError.decodeFailure('h3 frame ${frame.type}'),
+      );
+    }
+    off += n;
+  }
+  if (headers == null) {
+    return Result.failure(PqTransportError.decodeFailure('h3 headers'));
+  }
+  return http3ParseRequest(
+    headers,
+    body.takeBytes(),
+    trailers: trailers ?? const [],
+  );
+}
+
 /// HTTP/3 session over a completed [PqQuicConn] (ALPN `h3`).
 ///
 /// One control stream, one QPACK encoder stream, and one QPACK decoder
@@ -298,6 +389,33 @@ final class PqHttp3Session {
     final stop = await conn.stopSending(streamId, http3ErrorRequestCancelled);
     if (stop.isFailure) return stop;
     return conn.resetStream(streamId, http3ErrorRequestCancelled);
+  }
+
+  /// Queues one request on a client bidi stream before [PqQuicConn.start].
+  /// Static QPACK only. Not the control stream. Not `curl --http3`.
+  /// The quiche 0-RTT flight is still the raw STREAM `pq-0rtt`.
+  Result<int, PqTransportError> writeEarlyRequest(PqHttpRequest req) {
+    if (!isClient) {
+      return Result.failure(
+        PqTransportError.internalError('server cannot request'),
+      );
+    }
+    if (req.protocol != null) {
+      return Result.failure(PqTransportError.decodeFailure('h3 0-rtt connect'));
+    }
+    final encoded = encodeHttp3EarlyRequest(req);
+    if (encoded.isFailure) return Result.failure(encoded.errorOrNull!);
+    final streamId = conn.openBidi();
+    if (streamId < 0) {
+      return Result.failure(PqTransportError.decodeFailure('h3 stream'));
+    }
+    final wrote = conn.writeEarly(
+      encoded.valueOrNull!,
+      streamId: streamId,
+      fin: true,
+    );
+    if (wrote.isFailure) return Result.failure(wrote.errorOrNull!);
+    return Result.success(streamId);
   }
 
   Future<Result<PqHttpResponse, PqTransportError>> request(
