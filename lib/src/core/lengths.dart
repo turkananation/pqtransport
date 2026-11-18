@@ -772,6 +772,10 @@ const int http3FrameGoaway = 0x07;
 const int http3FrameMaxPushId = 0x0d;
 const int httpMaxHeaderBytes = 65536;
 
+/// Default HTTP/1.1 body cap for a public listener. Larger bodies fail
+/// before they are buffered.
+const int http1DefaultMaxBodyBytes = 1048576;
+
 const int http3StreamTypeControl = 0x00;
 const int http3StreamTypePush = 0x01;
 const int http3StreamTypeQpackEncoder = 0x02;

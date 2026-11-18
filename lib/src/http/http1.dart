@@ -29,6 +29,7 @@ String http1ReasonPhrase(int status) {
     411 => 'Length Required',
     413 => 'Content Too Large',
     414 => 'URI Too Long',
+    417 => 'Expectation Failed',
     431 => 'Request Header Fields Too Large',
     500 => 'Internal Server Error',
     501 => 'Not Implemented',
@@ -63,37 +64,44 @@ final class Http1Parse {
 }
 
 /// RFC 9112 request. No Content-Length and no chunked means an empty body.
-Result<Http1Parse, PqTransportError> tryParseHttp1Request(Uint8List buf) {
-  return _parse(buf, request: true, closed: false);
+Result<Http1Parse, PqTransportError> tryParseHttp1Request(
+  Uint8List buf, {
+  int maxBody = http1DefaultMaxBodyBytes,
+}) {
+  return _parse(buf, request: true, closed: false, maxBody: maxBody);
 }
 
 /// RFC 9112 response. Without Content-Length or chunked, the body runs
 /// until the connection closes. [closed] takes the bytes already buffered.
+/// [head] is a response to HEAD: the header block is the whole message.
 Result<Http1Parse, PqTransportError> tryParseHttp1Response(
   Uint8List buf, {
   required bool closed,
+  bool head = false,
 }) {
-  return _parse(buf, request: false, closed: closed);
+  return _parse(buf, request: false, closed: closed, head: head);
 }
 
 Result<Http1Parse, PqTransportError> _parse(
   Uint8List buf, {
   required bool request,
   required bool closed,
+  bool head = false,
+  int maxBody = http1DefaultMaxBodyBytes,
 }) {
-  final head = _headerEnd(buf);
-  if (head == null) {
+  final headerBytes = _headerEnd(buf);
+  if (headerBytes == null) {
     if (buf.length > httpMaxHeaderBytes) {
       return Result.failure(PqTransportError.decodeFailure('http1 headers'));
     }
     return const Result.success(Http1Parse.incomplete());
   }
-  if (head < 0) {
+  if (headerBytes < 0) {
     return Result.failure(PqTransportError.decodeFailure('http1 line'));
   }
   final String text;
   try {
-    text = utf8.decode(buf.sublist(0, head), allowMalformed: false);
+    text = utf8.decode(buf.sublist(0, headerBytes), allowMalformed: false);
   } on FormatException {
     return Result.failure(PqTransportError.decodeFailure('http1 utf8'));
   }
@@ -106,25 +114,49 @@ Result<Http1Parse, PqTransportError> _parse(
     return Result.failure(PqTransportError.decodeFailure('http1 headers'));
   }
   final start = lines.first;
+  final minor = _minor(start, request: request);
+  if (minor == null) {
+    return Result.failure(PqTransportError.decodeFailure('http1 version'));
+  }
   final fields = _fields(lines.sublist(1, lines.length - 2));
   if (fields.isFailure) return Result.failure(fields.errorOrNull!);
   final headers = fields.valueOrNull!;
   final framing = _framing(headers);
   if (framing.isFailure) return Result.failure(framing.errorOrNull!);
   final frame = framing.valueOrNull!;
+  if (minor == 0 && frame.chunked) {
+    return Result.failure(
+      PqTransportError.decodeFailure('http1 transfer-encoding'),
+    );
+  }
+  final close = _connectionClose(headers, minor: minor);
+  if (!request) {
+    final status = int.tryParse(start.split(' ').elementAtOrNull(1) ?? '');
+    if (status != null && _endsAtHeaders(status, head: head)) {
+      final resp = _response(start, headers, Uint8List(0), const {}, minor);
+      if (resp.isFailure) return Result.failure(resp.errorOrNull!);
+      return Result.success(
+        Http1Parse._(
+          consumed: headerBytes,
+          close: close,
+          response: resp.valueOrNull,
+        ),
+      );
+    }
+  }
   final bodyEnd = _body(
     buf,
-    head,
+    headerBytes,
     frame: frame,
     request: request,
     closed: closed,
+    maxBody: maxBody,
   );
   if (bodyEnd.isFailure) return Result.failure(bodyEnd.errorOrNull!);
   final taken = bodyEnd.valueOrNull;
   if (taken == null) return const Result.success(Http1Parse.incomplete());
-  final close = _connectionClose(headers);
   if (request) {
-    final req = _request(start, headers, taken.body, taken.trailers);
+    final req = _request(start, headers, taken.body, taken.trailers, minor);
     if (req.isFailure) return Result.failure(req.errorOrNull!);
     return Result.success(
       Http1Parse._(
@@ -134,7 +166,7 @@ Result<Http1Parse, PqTransportError> _parse(
       ),
     );
   }
-  final resp = _response(start, headers, taken.body, taken.trailers);
+  final resp = _response(start, headers, taken.body, taken.trailers, minor);
   if (resp.isFailure) return Result.failure(resp.errorOrNull!);
   return Result.success(
     Http1Parse._(
@@ -143,6 +175,22 @@ Result<Http1Parse, PqTransportError> _parse(
       response: resp.valueOrNull,
     ),
   );
+}
+
+int? _minor(String start, {required bool request}) {
+  final parts = start.split(' ');
+  final version = request ? (parts.length == 3 ? parts[2] : '') : parts.first;
+  return switch (version) {
+    'HTTP/1.0' => 0,
+    'HTTP/1.1' => 1,
+    _ => null,
+  };
+}
+
+bool _endsAtHeaders(int status, {required bool head}) {
+  if (head) return true;
+  if (status >= 100 && status < 200) return true;
+  return status == 204 || status == 304;
 }
 
 int? _headerEnd(Uint8List buf) {
@@ -245,12 +293,13 @@ Result<_Taken?, PqTransportError> _body(
   required _Frame frame,
   required bool request,
   required bool closed,
+  required int maxBody,
 }) {
-  if (frame.chunked) return _chunks(buf, head);
+  if (frame.chunked) return _chunks(buf, head, maxBody);
   if (frame.length != null) {
     final end = head + frame.length!;
     if (buf.length < end) return const Result.success(null);
-    if (frame.length! > _http1MaxBody) {
+    if (frame.length! > maxBody) {
       return Result.failure(PqTransportError.decodeFailure('http1 body'));
     }
     return Result.success(
@@ -261,7 +310,7 @@ Result<_Taken?, PqTransportError> _body(
     return Result.success(_Taken(head, Uint8List(0), const {}));
   }
   if (!closed) return const Result.success(null);
-  if (buf.length - head > _http1MaxBody) {
+  if (buf.length - head > maxBody) {
     return Result.failure(PqTransportError.decodeFailure('http1 body'));
   }
   return Result.success(
@@ -269,7 +318,11 @@ Result<_Taken?, PqTransportError> _body(
   );
 }
 
-Result<_Taken?, PqTransportError> _chunks(Uint8List buf, int offset) {
+Result<_Taken?, PqTransportError> _chunks(
+  Uint8List buf,
+  int offset,
+  int maxBody,
+) {
   final body = BytesBuilder(copy: false);
   var i = offset;
   while (true) {
@@ -291,7 +344,7 @@ Result<_Taken?, PqTransportError> _chunks(Uint8List buf, int offset) {
       if (taken == null) return const Result.success(null);
       return Result.success(_Taken(taken.$1, body.takeBytes(), taken.$2));
     }
-    if (body.length + size > _http1MaxBody) {
+    if (body.length + size > maxBody) {
       return Result.failure(PqTransportError.decodeFailure('http1 body'));
     }
     if (buf.length < i + size + 2) return const Result.success(null);
@@ -319,7 +372,15 @@ Result<(int, Map<String, String>)?, PqTransportError> _trailer(
       if (lines.isEmpty) return Result.success((i + 2, const {}));
       final fields = _fields(lines);
       if (fields.isFailure) return Result.failure(fields.errorOrNull!);
-      return Result.success((i + 2, fields.valueOrNull!));
+      final trailers = fields.valueOrNull!;
+      for (final name in trailers.keys) {
+        if (_forbiddenTrailer(name)) {
+          return Result.failure(
+            PqTransportError.decodeFailure('http1 trailer'),
+          );
+        }
+      }
+      return Result.success((i + 2, trailers));
     }
     lines.add(utf8.decode(buf.sublist(i, line)));
     i = line + 2;
@@ -345,13 +406,36 @@ bool _hostField(String host) {
   return true;
 }
 
-bool _connectionClose(Map<String, String> headers) {
+bool _forbiddenTrailer(String name) {
+  return switch (name) {
+    'transfer-encoding' ||
+    'content-length' ||
+    'host' ||
+    'authorization' ||
+    'cookie' ||
+    'set-cookie' ||
+    'connection' ||
+    'keep-alive' ||
+    'proxy-connection' ||
+    'te' ||
+    'trailer' ||
+    'trailers' ||
+    'upgrade' ||
+    'proxy-authenticate' ||
+    'proxy-authorization' => true,
+    _ => false,
+  };
+}
+
+bool _connectionClose(Map<String, String> headers, {required int minor}) {
   final raw = headers['connection'];
-  if (raw == null) return false;
-  return raw
-      .split(',')
-      .map((part) => part.trim().toLowerCase())
-      .contains('close');
+  final tokens = raw == null
+      ? const <String>[]
+      : [for (final part in raw.split(',')) part.trim().toLowerCase()];
+  if (tokens.contains('close')) return true;
+  // RFC 9112 §9.3. HTTP/1.0 is not persistent unless keep-alive is named.
+  if (minor == 0) return !tokens.contains('keep-alive');
+  return false;
 }
 
 Result<PqHttpRequest, PqTransportError> _request(
@@ -359,9 +443,10 @@ Result<PqHttpRequest, PqTransportError> _request(
   Map<String, String> headers,
   Uint8List body,
   Map<String, String> trailers,
+  int httpMinor,
 ) {
   final parts = start.split(' ');
-  if (parts.length != 3 || !parts[2].startsWith('HTTP/1.')) {
+  if (parts.length != 3) {
     return Result.failure(PqTransportError.decodeFailure('http1 request'));
   }
   final method = parts[0];
@@ -373,20 +458,26 @@ Result<PqHttpRequest, PqTransportError> _request(
   if (host != null && !_hostField(host)) {
     return Result.failure(PqTransportError.decodeFailure('http1 host'));
   }
-  if (parts[2] == 'HTTP/1.1' && host == null) {
+  if (httpMinor == 1 && host == null) {
     return Result.failure(PqTransportError.decodeFailure('http1 host'));
   }
   final Uri uri;
-  try {
-    if (target.startsWith('/')) {
-      uri = Uri.parse('https://${host ?? 'localhost'}$target');
-    } else if (target == '*') {
-      uri = Uri.parse('https://${host ?? 'localhost'}/*');
-    } else {
-      uri = Uri.parse(target);
+  if (method.toUpperCase() == 'CONNECT') {
+    final authority = _connectAuthority(target);
+    if (authority.isFailure) return Result.failure(authority.errorOrNull!);
+    uri = authority.valueOrNull!;
+  } else {
+    try {
+      if (target.startsWith('/')) {
+        uri = Uri.parse('https://${host ?? 'localhost'}$target');
+      } else if (target == '*') {
+        uri = Uri.parse('https://${host ?? 'localhost'}/*');
+      } else {
+        uri = Uri.parse(target);
+      }
+    } on FormatException {
+      return Result.failure(PqTransportError.decodeFailure('http1 target'));
     }
-  } on FormatException {
-    return Result.failure(PqTransportError.decodeFailure('http1 target'));
   }
   final regular = Map<String, String>.from(headers)..remove('host');
   return Result.success(
@@ -396,8 +487,37 @@ Result<PqHttpRequest, PqTransportError> _request(
       headers: regular,
       body: body,
       trailers: trailers,
+      httpMinor: httpMinor,
     ),
   );
+}
+
+Result<Uri, PqTransportError> _connectAuthority(String target) {
+  if (target.contains('/') || target.contains(' ') || target.contains('?')) {
+    return Result.failure(PqTransportError.decodeFailure('http1 connect'));
+  }
+  final String host;
+  final String portText;
+  if (target.startsWith('[')) {
+    final end = target.indexOf(']');
+    if (end <= 1 || end + 2 > target.length || target[end + 1] != ':') {
+      return Result.failure(PqTransportError.decodeFailure('http1 connect'));
+    }
+    host = target.substring(1, end);
+    portText = target.substring(end + 2);
+  } else {
+    final colon = target.lastIndexOf(':');
+    if (colon <= 0) {
+      return Result.failure(PqTransportError.decodeFailure('http1 connect'));
+    }
+    host = target.substring(0, colon);
+    portText = target.substring(colon + 1);
+  }
+  final port = int.tryParse(portText);
+  if (host.isEmpty || port == null || port < 1 || port > 65535) {
+    return Result.failure(PqTransportError.decodeFailure('http1 connect'));
+  }
+  return Result.success(Uri(scheme: 'https', host: host, port: port));
 }
 
 Result<PqHttpResponse, PqTransportError> _response(
@@ -405,9 +525,10 @@ Result<PqHttpResponse, PqTransportError> _response(
   Map<String, String> headers,
   Uint8List body,
   Map<String, String> trailers,
+  int httpMinor,
 ) {
   final parts = start.split(' ');
-  if (parts.length < 2 || !parts[0].startsWith('HTTP/1.')) {
+  if (parts.length < 2) {
     return Result.failure(PqTransportError.decodeFailure('http1 status line'));
   }
   final status = int.tryParse(parts[1]);
@@ -421,8 +542,67 @@ Result<PqHttpResponse, PqTransportError> _response(
       body: body,
       version: HttpVersion.h1,
       trailers: trailers,
+      httpMinor: httpMinor,
     ),
   );
 }
 
-const int _http1MaxBody = 1 << 20;
+/// RFC 9110 §10.1.1. Null while the header block is incomplete.
+/// [sendContinue] is set only when the body is not already buffered.
+final class Http1Expect {
+  const Http1Expect({required this.rejected, required this.sendContinue});
+
+  final bool rejected;
+  final bool sendContinue;
+}
+
+Result<Http1Expect?, PqTransportError> inspectHttp1Expect(
+  Uint8List buf, {
+  int maxBody = http1DefaultMaxBodyBytes,
+}) {
+  final head = _headerEnd(buf);
+  if (head == null) return const Result.success(null);
+  if (head < 0) {
+    return Result.failure(PqTransportError.decodeFailure('http1 line'));
+  }
+  final String text;
+  try {
+    text = utf8.decode(buf.sublist(0, head), allowMalformed: false);
+  } on FormatException {
+    return Result.failure(PqTransportError.decodeFailure('http1 utf8'));
+  }
+  final lines = text.split('\r\n');
+  if (lines.length < 3 ||
+      lines.last.isNotEmpty ||
+      lines[lines.length - 2].isNotEmpty) {
+    return Result.failure(PqTransportError.decodeFailure('http1 headers'));
+  }
+  final fields = _fields(lines.sublist(1, lines.length - 2));
+  if (fields.isFailure) return Result.failure(fields.errorOrNull!);
+  final headers = fields.valueOrNull!;
+  final raw = headers['expect'];
+  if (raw == null) {
+    return const Result.success(
+      Http1Expect(rejected: false, sendContinue: false),
+    );
+  }
+  if (raw.trim().toLowerCase() != '100-continue') {
+    return const Result.success(
+      Http1Expect(rejected: true, sendContinue: false),
+    );
+  }
+  final framing = _framing(headers);
+  if (framing.isFailure) return Result.failure(framing.errorOrNull!);
+  final taken = _body(
+    buf,
+    head,
+    frame: framing.valueOrNull!,
+    request: true,
+    closed: false,
+    maxBody: maxBody,
+  );
+  if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+  return Result.success(
+    Http1Expect(rejected: false, sendContinue: taken.valueOrNull == null),
+  );
+}

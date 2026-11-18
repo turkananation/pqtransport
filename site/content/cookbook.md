@@ -452,8 +452,12 @@ await relic.mountAndStart(
 
 `identity` is a `PqTlsServerIdentity`. ALPN offers `h2` and
 `http/1.1`. Pass `quic: true` to also accept HTTP/3 on the same
-port. Neither adapter detaches the TLS stream, and neither speaks
-WebSocket. The tests are `test/io/framework_test.dart`.
+port. Shelf hijacks HTTP/1.1. Relic `Hijack` detaches HTTP/1.1, and
+Relic `WebSocketUpgrade` completes an RFC 6455 handshake on that
+connection, including permessage-deflate on the VM. The test client
+is this package. It is not a browser. HTTP/2 does not hijack, and
+the HTTP/2 and HTTP/3 extended CONNECT tunnels are not that codec.
+The tests are `test/io/framework_test.dart`.
 
 Foreign servers are the [Peers](peers) page. OpenSSL 3.5.9 is the
 TLS peer, including `s_server -max_send_frag 512`, which splits both
@@ -462,9 +466,14 @@ OpenSSL is the HTTP/1.1 client against `PqHttpServer` (chunked body,
 one connection for two responses, a new connection after
 `Connection: close`). quiche 0.30.0 is the HTTP/3 peer for one GET
 both ways. That is not `curl --http3` and not a complete RFC 9114
-stack. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams are
-the quiche flights. CONNECT-UDP is masque-go v0.6.0 and CONNECT-IP
+stack. Extended CONNECT is libnghttp2 and quiche. HTTP/2
+PRIORITY_UPDATE is libnghttp2 1.66.0 (`u=1, i` recorded by this
+server). The QPACK dynamic table at capacity 4096 is libnghttp3
+1.11.0, both directions. quiche 0.30.0 stays at capacity 0. HTTP
+datagrams are the quiche flights. CONNECT-UDP is masque-go v0.6.0 and CONNECT-IP
 is connect-ip-go v0.6.0, both directions. curl 8.23.0 with
 nghttp2 completes one HTTP/2 GET. libnghttp2 completes extended
 CONNECT. curl `wss://` does not. The interop job runs picoquic
-1.1.54.0. It did not complete, so multipath is not claimed.
+1.1.54.0. It did not complete. noq 1.5.0 (`bb1c63ee`) with rustls
+0.23.46 on aws-lc-rs did: path 1, ML-DSA-65 checked by rustls,
+X25519MLKEM768 after HelloRetryRequest. Not every RFC 10069 frame.

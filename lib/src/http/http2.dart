@@ -295,6 +295,16 @@ Result<PqHttpRequest, PqTransportError> http2ParseRequest(
   );
 }
 
+/// RFC 9113 §8.1. A 1xx status is not the final response.
+bool http2Informational(List<HpackHeader> headers) {
+  for (final header in headers) {
+    if (header.name != ':status') continue;
+    final status = int.tryParse(header.value);
+    return status != null && status >= 100 && status < 200;
+  }
+  return false;
+}
+
 Result<PqHttpResponse, PqTransportError> http2ParseResponse(
   List<HpackHeader> headers,
   Uint8List body, {
@@ -471,9 +481,13 @@ Uint8List encodeHttp2Goaway({
 
 /// HTTP/2 session over a completed [PqTlsSocket] (ALPN `h2`).
 final class PqHttp2Session {
-  PqHttp2Session._(this.tls, {required this.isClient})
-    : _encode = HpackCodec(),
-      _decode = HpackCodec() {
+  PqHttp2Session._(
+    this.tls, {
+    required this.isClient,
+    int maxConcurrentStreams = http2DefaultMaxConcurrentStreams,
+  }) : _encode = HpackCodec(),
+       _decode = HpackCodec(),
+       _localMaxConcurrent = maxConcurrentStreams {
     _sub = tls.applicationData.listen(
       _onBytes,
       onDone: () {
@@ -486,8 +500,14 @@ final class PqHttp2Session {
   factory PqHttp2Session.client(PqTlsSocket tls) =>
       PqHttp2Session._(tls, isClient: true);
 
-  factory PqHttp2Session.server(PqTlsSocket tls) =>
-      PqHttp2Session._(tls, isClient: false);
+  factory PqHttp2Session.server(
+    PqTlsSocket tls, {
+    int maxConcurrentStreams = http2DefaultMaxConcurrentStreams,
+  }) => PqHttp2Session._(
+    tls,
+    isClient: false,
+    maxConcurrentStreams: maxConcurrentStreams,
+  );
 
   final PqTlsSocket tls;
   final bool isClient;
@@ -510,7 +530,7 @@ final class PqHttp2Session {
   var _sendConnWindow = http2DefaultInitialWindowSize;
   var _recvConnWindow = http2DefaultInitialWindowSize;
   var _peerMaxConcurrent = http2DefaultMaxConcurrentStreams;
-  final int _localMaxConcurrent = http2DefaultMaxConcurrentStreams;
+  final int _localMaxConcurrent;
   int? _peerMaxHeaderList;
   final int _localMaxHeaderList = http2DefaultMaxHeaderListSize;
   var _expectContinuation = false;
@@ -550,7 +570,12 @@ final class PqHttp2Session {
       );
       if (sent.isFailure) return Result.failure(sent.errorOrNull!);
     } else {
-      final sent = await tls.send(encodeHttp2Settings(http2ServerSettings));
+      final sent = await tls.send(
+        encodeHttp2Settings({
+          ...http2ServerSettings,
+          http2SettingsMaxConcurrentStreams: _localMaxConcurrent,
+        }),
+      );
       if (sent.isFailure) return Result.failure(sent.errorOrNull!);
     }
     final ready = await _waitUntil(() => _sawPeerSettings, timeout);
@@ -731,6 +756,14 @@ final class PqHttp2Session {
     final headers = http2ResponseHeaders(resp);
     final limited = _headerListTooLarge(headers, peer: true);
     if (limited != null) return Result.failure(limited);
+    if (resp.status >= 100 && resp.status < 200) {
+      _onLocalHeaders(streamId, endStream: false);
+      return _sendHeaderBlock(
+        streamId,
+        _encode.encode(headers),
+        endStream: false,
+      );
+    }
     final headersEnd = fin && resp.body.isEmpty && trailerHeaders.isEmpty;
     _onLocalHeaders(streamId, endStream: headersEnd);
     final block = _encode.encode(headers);
@@ -842,6 +875,7 @@ final class PqHttp2Session {
     var streamEnded = false;
     var ended = false;
     var streamId = wantStream;
+    List<HpackHeader>? keptHeaders;
     final deadline = DateTime.now().add(timeout);
     while (!ended) {
       final remaining = deadline.difference(DateTime.now());
@@ -927,11 +961,35 @@ final class PqHttp2Session {
         dataParts.add(body.valueOrNull!);
         ended = frame.endStream;
       }
-      if (!untilFin && headersDone && !headersOpen && !headerPartsAreTrailers) {
+      if (wantStream != 0 &&
+          headersDone &&
+          !headersOpen &&
+          !headerPartsAreTrailers &&
+          keptHeaders == null) {
+        final now = _decode.decode(headerParts.takeBytes());
+        if (now.isFailure) return Result.failure(now.errorOrNull!);
+        if (http2Informational(now.valueOrNull!)) {
+          if (streamEnded) {
+            return Result.failure(
+              PqTransportError.decodeFailure('http2 informational end'),
+            );
+          }
+          headersDone = false;
+        } else {
+          keptHeaders = now.valueOrNull!;
+        }
+      }
+      if (!untilFin &&
+          headersDone &&
+          !headersOpen &&
+          !headerPartsAreTrailers &&
+          keptHeaders != null) {
         ended = true;
       }
     }
-    final decoded = _decode.decode(headerParts.takeBytes());
+    final decoded = keptHeaders != null
+        ? Result<List<HpackHeader>, PqTransportError>.success(keptHeaders)
+        : _decode.decode(headerParts.takeBytes());
     if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
     final trailerBytes = trailerParts.takeBytes();
     final decodedTrailers = trailerBytes.isEmpty

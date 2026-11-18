@@ -12,6 +12,7 @@ import '../tls/pq_tls_socket.dart';
 import 'http1.dart';
 import 'http2.dart';
 import 'http3.dart';
+import 'content_coding.dart';
 
 enum HttpVersion { h1, h2, h3 }
 
@@ -23,6 +24,7 @@ final class PqHttpRequest {
     this.body = const [],
     this.trailers = const {},
     this.protocol,
+    this.httpMinor = 1,
   });
 
   final String method;
@@ -34,6 +36,9 @@ final class PqHttpRequest {
   /// RFC 8441 / RFC 9220 `:protocol` on an extended CONNECT.
   /// Null is an ordinary request, or a classic CONNECT tunnel.
   final String? protocol;
+
+  /// 0 is HTTP/1.0. 1 is HTTP/1.1. HTTP/2 and HTTP/3 leave this at 1.
+  final int httpMinor;
 }
 
 final class PqHttpResponse {
@@ -43,6 +48,8 @@ final class PqHttpResponse {
     required this.body,
     required this.version,
     this.trailers = const {},
+    this.hijacked = false,
+    this.httpMinor = 1,
   });
 
   final int status;
@@ -50,6 +57,13 @@ final class PqHttpResponse {
   final Uint8List body;
   final HttpVersion version;
   final Map<String, String> trailers;
+
+  /// The HTTP/1.1 connection was taken by a Shelf hijack. No response
+  /// bytes are written by the server.
+  final bool hijacked;
+
+  /// 0 is HTTP/1.0. 1 is HTTP/1.1. Ignored for HTTP/2 and HTTP/3.
+  final int httpMinor;
 }
 
 /// HTTP/1.1 request encoder / response parser.
@@ -58,8 +72,15 @@ Uint8List encodeHttp1Request(PqHttpRequest req) {
   final path = req.uri.hasQuery
       ? '${req.uri.path}?${req.uri.query}'
       : (req.uri.path.isEmpty ? '/' : req.uri.path);
-  b.write('${req.method} $path HTTP/1.1\r\n');
-  b.write('Host: ${req.uri.host}\r\n');
+  b.write('${req.method} $path HTTP/1.${req.httpMinor}\r\n');
+  if (req.httpMinor != 0) {
+    b.write('Host: ${req.uri.host}\r\n');
+  } else if (req.uri.host.isNotEmpty) {
+    final host = req.uri.hasPort
+        ? '${req.uri.host}:${req.uri.port}'
+        : req.uri.host;
+    b.write('Host: $host\r\n');
+  }
   req.headers.forEach((k, v) => b.write('$k: $v\r\n'));
   if (req.body.isNotEmpty) {
     b.write('Content-Length: ${req.body.length}\r\n');
@@ -81,7 +102,7 @@ Result<PqHttpResponse, PqTransportError> decodeHttp1Response(Uint8List wire) {
   return Result.success(message.response!);
 }
 
-Uint8List encodeHttp1Response(PqHttpResponse resp) {
+Uint8List encodeHttp1Response(PqHttpResponse resp, {bool omitBody = false}) {
   final headers = <String, String>{};
   resp.headers.forEach((key, value) {
     final name = key.toLowerCase();
@@ -95,9 +116,19 @@ Uint8List encodeHttp1Response(PqHttpResponse resp) {
   );
   final b = BytesBuilder(copy: false);
   void add(String text) => b.add(utf8.encode(text));
-  add('HTTP/1.1 ${resp.status} ${http1ReasonPhrase(resp.status)}\r\n');
+  final minor = resp.httpMinor == 0 ? 0 : 1;
+  add('HTTP/1.$minor ${resp.status} ${http1ReasonPhrase(resp.status)}\r\n');
   headers.forEach((key, value) => add('$key: $value\r\n'));
-  if (chunked) {
+  // RFC 9112 §6.3. 1xx, 204, and 304 end at the header block.
+  final noEntity =
+      (resp.status >= 100 && resp.status < 200) ||
+      resp.status == 204 ||
+      resp.status == 304;
+  if (noEntity) {
+    add('\r\n');
+    return b.takeBytes();
+  }
+  if (chunked && !omitBody) {
     add('transfer-encoding: chunked\r\n\r\n');
     add('${resp.body.length.toRadixString(16)}\r\n');
     b.add(resp.body);
@@ -107,7 +138,7 @@ Uint8List encodeHttp1Response(PqHttpResponse resp) {
     return b.takeBytes();
   }
   add('content-length: ${resp.body.length}\r\n\r\n');
-  b.add(resp.body);
+  if (!omitBody) b.add(resp.body);
   return b.takeBytes();
 }
 
@@ -119,6 +150,36 @@ Result<PqHttpRequest, PqTransportError> decodeHttp1Request(Uint8List wire) {
     return Result.failure(PqTransportError.decodeFailure('http1 request'));
   }
   return Result.success(message.request!);
+}
+
+Result<PqHttpResponse, PqTransportError> _inflateResponse(
+  PqHttpResponse response,
+) {
+  final coding = response.headers.entries
+      .where((entry) => entry.key.toLowerCase() == 'content-encoding')
+      .map((entry) => entry.value)
+      .join(',');
+  if (coding.isEmpty || response.body.isEmpty) {
+    return Result.success(response);
+  }
+  final decoded = decodeContentCodingHeader(coding, response.body);
+  if (decoded.isFailure) return Result.failure(decoded.errorOrNull!);
+  final headers = <String, String>{
+    for (final entry in response.headers.entries)
+      if (entry.key.toLowerCase() != 'content-encoding') entry.key: entry.value,
+  };
+  headers['content-length'] = '${decoded.valueOrNull!.length}';
+  return Result.success(
+    PqHttpResponse(
+      status: response.status,
+      headers: headers,
+      body: decoded.valueOrNull!,
+      version: response.version,
+      trailers: response.trailers,
+      hijacked: response.hijacked,
+      httpMinor: response.httpMinor,
+    ),
+  );
 }
 
 final class PqHttpClient {
@@ -234,7 +295,22 @@ final class PqHttpClient {
       }
       final message = parsed.valueOrNull!;
       if (!message.incomplete && message.response != null) {
-        done.complete(Result.success(message.response!));
+        final response = message.response!;
+        if (response.status >= 100 && response.status < 200) {
+          final rest = Uint8List.sublistView(raw, message.consumed);
+          buf.clear();
+          if (rest.isNotEmpty) {
+            buf.add(rest);
+            consider(buf.toBytes(), closed: closed);
+          }
+          return;
+        }
+        final inflated = _inflateResponse(response);
+        if (inflated.isFailure) {
+          done.complete(Result.failure(inflated.errorOrNull!));
+          return;
+        }
+        done.complete(Result.success(inflated.valueOrNull!));
       } else if (closed) {
         done.complete(
           Result.failure(PqTransportError.decodeFailure('http1 headers')),

@@ -5,6 +5,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/bytes.dart';
 import '../core/crypto.dart';
+import '../core/offload.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
@@ -507,7 +508,11 @@ final class PqTlsServer {
     final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
     final signed = identity.signContent != null
         ? identity.signContent!(toSign)
-        : crypto.mlDsaSign(secretKey: identity.secretKey, message: toSign);
+        : await offloadMlDsaSign(
+            algorithm: crypto.signature,
+            secretKey: identity.secretKey,
+            message: toSign,
+          );
     final scheme = sendX509 ? identity.leafScheme : tlsSignatureMldsa65;
     final sig = wireCertificateVerifySignature(scheme, signed);
     final cv = sendX509

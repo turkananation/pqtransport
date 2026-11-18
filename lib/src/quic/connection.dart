@@ -62,6 +62,7 @@ final class PqQuicConn {
     this._resumption,
     this._statelessResetToken,
     this.advertiseMaxPathId,
+    this._deliverOnPath,
   }) : lossRecovery = QuicLossRecovery(
          clock: clock ?? const QuicSystemClock(),
          isServer: !isClient,
@@ -119,6 +120,11 @@ final class PqQuicConn {
     String? serverName,
     List<int>? signatureSchemes,
     int? initialMaxPathId,
+    Future<Result<void, PqTransportError>> Function(
+      Uint8List packet,
+      int pathId,
+    )?
+    deliverOnPath,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final local = localCid ?? c.randomBytes(quicShortDcidBytes);
@@ -159,6 +165,7 @@ final class PqQuicConn {
       idleTimeout: idleTimeout,
       resumption: ticket,
       advertiseMaxPathId: initialMaxPathId,
+      deliverOnPath: deliverOnPath,
     );
   }
 
@@ -182,6 +189,11 @@ final class PqQuicConn {
     Duration? idleTimeout,
     QuicEarlyDataStore? earlyData,
     int? initialMaxPathId,
+    Future<Result<void, PqTransportError>> Function(
+      Uint8List packet,
+      int pathId,
+    )?
+    deliverOnPath,
   }) {
     final c = crypto ?? const PqTransportCrypto();
     final local = localCid ?? c.randomBytes(quicShortDcidBytes);
@@ -221,6 +233,7 @@ final class PqQuicConn {
       idleTimeout: idleTimeout,
       statelessResetToken: reset,
       advertiseMaxPathId: initialMaxPathId,
+      deliverOnPath: deliverOnPath,
     );
   }
 
@@ -290,6 +303,15 @@ final class PqQuicConn {
 
   final QuicTlsHandshake _tls;
   final Future<Result<void, PqTransportError>> Function(Uint8List)? _deliver;
+
+  /// Same as [_deliver], with the path identifier of the datagram.
+  /// Path 0 is the RFC 9000 path. Set this when more than one path
+  /// can be in use. [_deliver] is used when this is null.
+  final Future<Result<void, PqTransportError>> Function(
+    Uint8List packet,
+    int pathId,
+  )?
+  _deliverOnPath;
   final QuicStreamMap _streams;
   final QuicFlowControl _flow;
   final int flowWindow;
@@ -353,6 +375,8 @@ final class PqQuicConn {
   int? _peerInitialMaxPathId;
   QuicMultipath? _multipath;
   final Map<int, int> _pathNextPn = {};
+  final Map<int, Set<int>> _pathReceived = {};
+  var _pathCidsIssued = false;
   final List<Uint8List> _datagramOut = [];
   final List<Uint8List> _datagramIn = [];
   final int _localMaxBidi = quicInitialMaxStreams;
@@ -1260,6 +1284,10 @@ final class PqQuicConn {
       final opened = _initialOpen.open(wire);
       if (opened.isFailure) {
         if (_appOpen != null) return _ingestApp(wire);
+        // A 1-RTT packet can arrive before the handshake flight has
+        // installed application keys. RFC 9001 discards it. It is not
+        // an Initial, and it is not a connection error.
+        if ((wire[0] & 0x80) == 0) return const Result.success(null);
         return Result.failure(opened.errorOrNull!);
       }
       final packet = opened.valueOrNull!;
@@ -1428,6 +1456,7 @@ final class PqQuicConn {
       space: QuicPacketNumberSpace.application,
       packetNumber: packet.packetNumber,
       payload: packet.payload,
+      pathId: _pathIdOf(wire),
     );
   }
 
@@ -1436,6 +1465,7 @@ final class PqQuicConn {
     required int packetNumber,
     required Uint8List payload,
     bool early = false,
+    int pathId = 0,
   }) async {
     if (isClient && space == QuicPacketNumberSpace.initial) {
       _sawServerInitial = true;
@@ -1462,9 +1492,19 @@ final class PqQuicConn {
       return Result.failure(PqTransportError.decodeFailure('datagram'));
     }
     final recv = _received[space]!;
-    final duplicate = recv.received.contains(packetNumber);
-    recv.onReceived(packetNumber);
-    if (body.ackEliciting) _wantAck[space] = true;
+    if (pathId > 0 && space != QuicPacketNumberSpace.application) {
+      return Result.failure(PqTransportError.decodeFailure('multipath space'));
+    }
+    final otherPath = pathId > 0 ? (_pathReceived[pathId] ??= <int>{}) : null;
+    final duplicate = otherPath != null
+        ? otherPath.contains(packetNumber)
+        : recv.received.contains(packetNumber);
+    if (otherPath != null) {
+      otherPath.add(packetNumber);
+    } else {
+      recv.onReceived(packetNumber);
+      if (body.ackEliciting) _wantAck[space] = true;
+    }
     if (!duplicate) {
       if (body.closes.isNotEmpty) {
         final frame = body.closes.first;
@@ -1598,21 +1638,34 @@ final class PqQuicConn {
       for (final frame in body.retireConnectionIds) {
         _localCids.remove(frame.sequence);
       }
+      if (body.multipath.isNotEmpty) {
+        final accepted = await _acceptMultipath(space, body.multipath);
+        if (accepted.isFailure) return accepted;
+      }
       for (final frame in body.pathChallenges) {
-        _queueControl(
-          'pr:${frame.data.join(',')}',
-          QuicPathResponseFrame(frame.data).encode(),
-        );
+        if (pathId == 0) {
+          _queueControl(
+            'pr:${frame.data.join(',')}',
+            QuicPathResponseFrame(frame.data).encode(),
+          );
+        } else {
+          final replied = await _replyOnPath(
+            pathId,
+            challenge: frame.data,
+            ackPn: body.ackEliciting ? packetNumber : null,
+          );
+          if (replied.isFailure) return replied;
+        }
+      }
+      if (pathId > 0 && body.ackEliciting && body.pathChallenges.isEmpty) {
+        final replied = await _replyOnPath(pathId, ackPn: packetNumber);
+        if (replied.isFailure) return replied;
       }
       for (final frame in body.pathResponses) {
         final challenge = _pathChallenge;
         if (challenge != null && _sameBytes(challenge, frame.data)) {
           pathResponseMatched = true;
         }
-      }
-      if (body.multipath.isNotEmpty) {
-        final accepted = await _acceptMultipath(space, body.multipath);
-        if (accepted.isFailure) return accepted;
       }
       if (body.handshakeDone) {
         if (!isClient) {
@@ -1706,12 +1759,25 @@ final class PqQuicConn {
     var again = true;
     while (again && failed == null) {
       again = false;
-      while (true) {
+      // A 1-RTT frame queued before application keys exist (PATH_NEW_CONNECTION_ID
+      // is issued from the peer's transport parameters, which arrive in the
+      // ClientHello) must not sit at the head of [_pending] and block Initial
+      // or Handshake CRYPTO. One blocked space yields to the others.
+      final blocked = <QuicPacketNumberSpace>{};
+      while (failed == null) {
         _pending.removeWhere((frame) => !lossRecovery.shouldSend(frame));
-        if (_pending.isEmpty) break;
-        final space = _pending.first.space;
+        QuicPacketNumberSpace? space;
+        for (final frame in _pending) {
+          if (blocked.contains(frame.space)) continue;
+          space = frame.space;
+          break;
+        }
+        if (space == null) break;
         final batch = _batchFor(space);
-        if (batch.isEmpty) break;
+        if (batch.isEmpty) {
+          blocked.add(space);
+          continue;
+        }
         final sent = await _sendPacket(
           space: space,
           frames: batch,
@@ -1721,7 +1787,10 @@ final class PqQuicConn {
           failed = Result.failure(sent.errorOrNull!);
           break;
         }
-        if (sent.valueOrNull != true) break;
+        if (sent.valueOrNull != true) {
+          blocked.add(space);
+          continue;
+        }
         final tokens = batch.map((frame) => frame.token).toSet();
         _pending.removeWhere((frame) => tokens.contains(frame.token));
         if (bypassLeft > 0) bypassLeft--;
@@ -1903,7 +1972,9 @@ final class PqQuicConn {
     }
     if (!isClient && !_addressValidated) {
       final room = _bytesReceived * 3 - _bytesSent;
-      if (packet.length > room) return const Result.success(false);
+      if (packet.length > room) {
+        return const Result.success(false);
+      }
     }
     final committed = lossRecovery.allocatePacketNumber(space);
     if (committed != pn) {
@@ -2101,8 +2172,14 @@ final class PqQuicConn {
   }
 
   Future<Result<void, PqTransportError>> _deliverDatagram(
-    Uint8List packet,
-  ) async {
+    Uint8List packet, {
+    int pathId = 0,
+  }) async {
+    final onPath = _deliverOnPath;
+    if (onPath != null) {
+      unawaited(onPath(packet, pathId));
+      return const Result.success(null);
+    }
     final deliver = _deliver;
     if (deliver != null) {
       unawaited(deliver(packet));
@@ -2274,6 +2351,7 @@ final class PqQuicConn {
         peerInitialMax: peerPath,
       );
       _multipath!.rememberIssued(0, localCid);
+      _issuePathCids();
     }
     _paramsApplied = true;
     return null;
@@ -2332,6 +2410,53 @@ final class PqQuicConn {
       }
     }
     return const Result.success(null);
+  }
+
+  /// One connection ID for each negotiated path above 0, on path 0.
+  /// A client cannot open a path until it has a connection ID for it.
+  void _issuePathCids() {
+    final paths = _multipath;
+    if (paths == null || _pathCidsIssued) return;
+    _pathCidsIssued = true;
+    final limit = paths.openLimit;
+    for (var id = 1; id <= limit && id <= 8; id++) {
+      final frame = issuePathConnectionId(
+        pathId: id,
+        sequence: 0,
+        connectionId: crypto.randomBytes(quicShortDcidBytes),
+        statelessResetToken: crypto.randomBytes(quicStatelessResetTokenBytes),
+      );
+      if (frame.isFailure) return;
+      _queueControl('path-cid:$id', frame.valueOrNull!.encode());
+    }
+  }
+
+  /// PATH_RESPONSE and PATH_ACK for a non-zero path. Both go out on
+  /// that path. A missing peer connection ID waits for a later packet.
+  Future<Result<void, PqTransportError>> _replyOnPath(
+    int pathId, {
+    Uint8List? challenge,
+    int? ackPn,
+  }) {
+    if (_multipath?.peerCidByPath[pathId] == null) {
+      return Future.value(const Result.success(null));
+    }
+    final b = BytesBuilder(copy: false);
+    if (ackPn != null) {
+      b.add(
+        QuicPathAckFrame(
+          pathId: pathId,
+          largest: ackPn,
+          delay: 0,
+          firstRange: 0,
+        ).encode(),
+      );
+    }
+    if (challenge != null) {
+      b.add(QuicPathResponseFrame(challenge).encode());
+    }
+    if (b.isEmpty) return Future.value(const Result.success(null));
+    return sendOnPath(pathId, b.takeBytes());
   }
 
   /// Sends one RFC 10069 frame on path 0. Refused when multipath is off.
@@ -2412,7 +2537,7 @@ final class PqQuicConn {
     );
     if (sealed.isFailure) return Result.failure(sealed.errorOrNull!);
     _pathNextPn[pathId] = pn + 1;
-    return _deliverDatagram(sealed.valueOrNull!);
+    return _deliverDatagram(sealed.valueOrNull!, pathId: pathId);
   }
 
   bool _streamIdPastLimit(int id) {

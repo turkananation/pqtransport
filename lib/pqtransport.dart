@@ -28,6 +28,7 @@ export 'src/http/capsule.dart';
 export 'src/http/connect_ip.dart';
 export 'src/http/connect_udp.dart';
 export 'src/http/qpack.dart';
+export 'src/http/websocket.dart';
 export 'src/mdns/pq_mdns.dart';
 export 'src/mdns/signed_record.dart';
 export 'src/quic/packet.dart';

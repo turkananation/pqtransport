@@ -5,6 +5,7 @@ import 'package:swissarmyknife/swissarmyknife.dart';
 
 import '../core/bytes.dart';
 import '../core/crypto.dart';
+import '../core/offload.dart';
 import '../core/errors.dart';
 import '../core/hybrid.dart';
 import '../core/lengths.dart';
@@ -474,7 +475,7 @@ final class PqTlsClient {
                 sig.valueOrNull!.scheme != tlsSignatureMldsa87) {
               return _fatal(PqTransportError.decryptError('signature_scheme'));
             }
-            final ok = crypto.mlDsaVerify(
+            final ok = await offloadMlDsaVerify(
               publicKey: certPk,
               message: toSign,
               signatureBytes: sig.valueOrNull!.signature,
@@ -494,15 +495,24 @@ final class PqTlsClient {
               verify: sig.valueOrNull!,
             );
             if (leaf.isFailure) return _fatal(leaf.errorOrNull!);
+            final leafCert = leaf.valueOrNull!;
+            final key = leafCert.publicKey;
+            final preverified = key is PqX509MlDsaKey
+                ? await offloadMlDsaVerify(
+                    publicKey: key.raw,
+                    message: toSign,
+                    signatureBytes: sig.valueOrNull!.signature,
+                  )
+                : null;
             final checked = verifyLeafSignature(
-              leaf: leaf.valueOrNull!,
+              leaf: leafCert,
               verify: sig.valueOrNull!,
               content: toSign,
               mlDsaVerify: crypto.mlDsaVerify,
+              mlDsaOk: preverified,
             );
             if (checked.isFailure) return _fatal(checked.errorOrNull!);
-            _peerLeafAlgorithm = leaf.valueOrNull!.algorithm.name;
-            final key = leaf.valueOrNull!.publicKey;
+            _peerLeafAlgorithm = leafCert.algorithm.name;
             if (key is PqX509MlDsaKey) _peerPublicKey = key.raw;
           }
           _peerAuthenticated = true;

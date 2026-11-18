@@ -395,6 +395,49 @@ void main() {
       expect(served.isSuccess, isTrue, reason: '${served.errorOrNull}');
     }, timeout: const Timeout(Duration(seconds: 40)));
 
+    test('HTTP/3 100 then the final response', () async {
+      final (client, server) = PqQuicConn.pair(
+        crypto: crypto,
+        alpnProtocols: const [httpAlpnH3],
+      );
+      await Future.wait([client.handshake(), server.handshake()]);
+      final h3c = PqHttp3Session.client(client);
+      final h3s = PqHttp3Session.server(server);
+      final serverTask = () async {
+        final accepted = await h3s.accept();
+        expect(accepted.isSuccess, isTrue, reason: '${accepted.errorOrNull}');
+        final (id, _) = accepted.valueOrNull!;
+        final early = await h3s.respond(
+          id,
+          PqHttpResponse(
+            status: 100,
+            headers: const {},
+            body: Uint8List(0),
+            version: HttpVersion.h3,
+          ),
+        );
+        expect(early.isSuccess, isTrue, reason: '${early.errorOrNull}');
+        return h3s.respond(
+          id,
+          PqHttpResponse(
+            status: 200,
+            headers: const {},
+            body: Uint8List.fromList('done'.codeUnits),
+            version: HttpVersion.h3,
+          ),
+        );
+      }();
+      final started = await h3c.start();
+      expect(started.isSuccess, isTrue, reason: '${started.errorOrNull}');
+      final resp = await h3c.request(
+        PqHttpRequest(method: 'GET', uri: Uri.parse('https://example.test/c')),
+      );
+      expect(resp.isSuccess, isTrue, reason: '${resp.errorOrNull}');
+      expect(resp.valueOrNull!.status, 200);
+      expect(String.fromCharCodes(resp.valueOrNull!.body), 'done');
+      expect((await serverTask).isSuccess, isTrue);
+    }, timeout: const Timeout(Duration(seconds: 40)));
+
     test('HTTP/3 POST carries DATA', () async {
       final (client, server) = PqQuicConn.pair(
         crypto: crypto,

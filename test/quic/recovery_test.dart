@@ -810,6 +810,7 @@ void main() {
         late final PqQuicConn client;
         late final PqQuicConn server;
         var dropServerInitial = true;
+        var droppedFlight = 0;
         client = PqQuicConn.client(
           crypto: crypto,
           localCid: clientCid,
@@ -825,6 +826,7 @@ void main() {
           clock: clock,
           deliver: (packet) {
             if (dropServerInitial && (packet[0] & 0x80) != 0) {
+              if (packet.length > 200) droppedFlight++;
               return Future<Result<void, PqTransportError>>.value(
                 const Result.success(null),
               );
@@ -834,7 +836,11 @@ void main() {
         );
         final started = await client.start();
         expect(started.isSuccess, isTrue, reason: '${started.errorOrNull}');
-        await _pump();
+        final armed = DateTime.now().add(const Duration(seconds: 5));
+        while (droppedFlight == 0 && DateTime.now().isBefore(armed)) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(droppedFlight, greaterThan(0));
         expect(client.isComplete, isFalse);
         dropServerInitial = false;
         for (var i = 0; i < 8 && !client.isComplete; i++) {
@@ -866,6 +872,7 @@ void main() {
         expect(client.isComplete, isTrue);
         expect(server.isComplete, isTrue);
         final lostInitial = server.lossRecovery.lostPacketNumbers(initial);
+        expect(lostInitial, isNotEmpty);
         expect(lostInitial, isNotEmpty);
         for (final pn in lostInitial) {
           expect(server.lossRecovery.packetNumberUsed(initial, pn), isTrue);

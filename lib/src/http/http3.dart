@@ -504,13 +504,17 @@ final class PqHttp3Session {
         _peerTableCapacity > 0 &&
         _peerBlockedStreams > 0 &&
         _dynamicStreams < _peerBlockedStreams;
-    final block = _qpack.encodeFieldSection(headers, useDynamic: dynamic);
+    final interim = http2Informational(headers);
+    final block = _qpack.encodeFieldSection(
+      headers,
+      useDynamic: !interim && dynamic,
+    );
     if (_qpack.sectionUsesDynamic(block)) _dynamicStreams++;
     final flushed = await _flushQpack();
     if (flushed.isFailure) return flushed;
     final frames = BytesBuilder(copy: false);
     frames.add(Http3Frame(type: http3FrameHeaders, payload: block).encode());
-    if (body.isNotEmpty) {
+    if (!interim && body.isNotEmpty) {
       frames.add(
         Http3Frame(
           type: http3FrameData,
@@ -518,10 +522,10 @@ final class PqHttp3Session {
         ).encode(),
       );
     }
-    final end = fin && trailers.isEmpty;
+    final end = !interim && fin && trailers.isEmpty;
     final sent = await conn.writeStream(streamId, frames.takeBytes(), fin: end);
     if (sent.isFailure) return sent;
-    if (trailers.isEmpty) return const Result.success(null);
+    if (interim || trailers.isEmpty) return const Result.success(null);
     final trailerBlock = _qpack.encodeFieldSection([
       for (final entry in trailers.entries)
         HpackHeader(entry.key.toLowerCase(), entry.value),
@@ -592,9 +596,14 @@ final class PqHttp3Session {
           }
           off += n;
           if (headers == null) {
+            if (isClient && http2Informational(section)) continue;
             headers = section;
             if (_capsuleProtocol(section)) _capsuleStreams.add(streamId);
             continue;
+          }
+          if (isClient && http2Informational(section)) {
+            _fail(http3ErrorMessage, 'h3 informational');
+            return Result.failure(_error!);
           }
           if (trailers == null) {
             trailers = section;
