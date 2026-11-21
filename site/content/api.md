@@ -78,7 +78,8 @@ final auth = await authenticateDns(
 
 `example/dns_validate.dart` signs a zone in memory.
 `example/dns_live.dart` asks a resolver, then checks from the IANA
-root DS set. There is no authoritative server in this package.
+root DS set. `DnsAuthoritativeZone` is an in-memory zone. It is
+not this resolver, it does not sign, and it does not set the AD bit.
 
 ## Core
 

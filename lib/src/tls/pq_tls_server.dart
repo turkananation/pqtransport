@@ -20,6 +20,7 @@ import 'tls_state.dart';
 import 'resumption.dart';
 import 'cipher_suite.dart';
 import 'certificate_policy.dart';
+import 'cert_messages.dart';
 import 'ech.dart';
 import 'key_share.dart';
 import 'named_group.dart';
@@ -59,6 +60,20 @@ final class PqTlsServerIdentity {
     final keys = decoded.valueOrNull!;
     return Result.success(
       PqTlsServerIdentity(publicKey: keys.publicKey, secretKey: keys.secretKey),
+    );
+  }
+
+  /// FIPS 205 CertificateVerify. Not the default. Not the mDNS TXT.
+  factory PqTlsServerIdentity.slhDsa(PqSlhDsaAlgorithm algorithm) {
+    final kp = PqSlhDsaPrimitives.generateKeyPair(algorithm);
+    final scheme = tlsSignatureForSlh(algorithm);
+    final secret = Uint8List.fromList(kp.secretKey);
+    return PqTlsServerIdentity(
+      publicKey: kp.publicKey,
+      secretKey: secret,
+      leafScheme: scheme,
+      signContent: (content) =>
+          PqSlhDsaPrimitives.sign(algorithm, secret, content),
     );
   }
 
@@ -191,6 +206,7 @@ final class PqTlsServer {
     this.ech,
     this.earlyData,
     this.quicTransportParameters,
+    this.clientAuth,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        identity =
            identity ??
@@ -214,6 +230,13 @@ final class PqTlsServer {
 
   /// Local transport parameters, sent in EncryptedExtensions.
   Uint8List? quicTransportParameters;
+
+  /// When set, the full handshake asks for a raw client public key.
+  /// A PSK resume does not ask. Not X.509 and not WebPKI.
+  final TlsClientAuth? clientAuth;
+
+  /// Raw key the client proved, after [clientAuth] accepts it.
+  Uint8List? authenticatedClientKey;
 
   /// Client's transport parameters, from ClientHello.
   Uint8List? peerQuicTransportParameters;
@@ -244,6 +267,10 @@ final class PqTlsServer {
   /// Under ECH this is the inner name, never [EchServerConfig.config]'s public name.
   String? acceptedServerName;
   Uint8List _pendingHandshake = Uint8List(0);
+  Uint8List _pendingClientFlight = Uint8List(0);
+  Uint8List? _applicationHash;
+  Uint8List? _clientPublicKey;
+  var _sawClientCertificate = false;
 
   TlsState get state => machine.currentState;
   bool get isComplete => machine.isIn(TlsState.handshakeCompleted);
@@ -551,9 +578,22 @@ final class PqTlsServer {
       transcript.add(fin);
       rest = concatBytes([ee, fin]);
     } else {
-      final cert = sendX509
+      final rawScheme = tlsRawCertificateScheme(
+        leafScheme: identity.leafScheme,
+        publicKey: identity.publicKey,
+      );
+      final scheme = sendX509 ? identity.leafScheme : rawScheme;
+      final request = clientAuth == null
+          ? Uint8List(0)
+          : encodeCertificateRequest(clientAuth!.schemes);
+      if (request.isNotEmpty) transcript.add(request);
+      var cert = sendX509
           ? identity.certificateMessage!
-          : encodeCertificate(identity.publicKey);
+          : encodeRawPublicKeyCertificate(identity.publicKey, scheme);
+      if (hello.compressCertificate.contains(tlsCertCompressZlib)) {
+        final wrapped = encodeCompressedCertificate(cert);
+        if (wrapped != null) cert = wrapped;
+      }
       transcript.add(cert);
       final toSign = tls13ServerCertVerifyContent(transcript.snapshot());
       final signed = identity.signContent != null
@@ -563,36 +603,33 @@ final class PqTlsServer {
               secretKey: identity.secretKey,
               message: toSign,
             );
-      final scheme = sendX509 ? identity.leafScheme : tlsSignatureMldsa65;
       final sig = wireCertificateVerifySignature(scheme, signed);
-      final cv = sendX509
-          ? encodeCertVerifyScheme(scheme, sig)
-          : encodeCertVerify(sig);
+      final cv = encodeCertVerifyScheme(scheme, sig);
       transcript.add(cv);
       final fin = encodeFinished(
         schedule.finishedMac(schedule.serverFinishedKey, transcript.snapshot()),
       );
       transcript.add(fin);
-      rest = concatBytes([ee, cert, cv, fin]);
+      rest = concatBytes([ee, if (request.isNotEmpty) request, cert, cv, fin]);
     }
     if (quic) {
       return Result.success([shBytes, rest]);
     }
-    final protected = records!.protectWith(
+    final protected = protectHandshakeRecords(
+      records: records!,
       trafficSecret: schedule.serverHandshakeTraffic,
       iv: schedule.serverHandshakeIv,
-      inner: TlsRecord(type: tlsContentHandshake, payload: rest),
-      epoch: TlsRecordEpoch.handshake,
+      payload: rest,
     );
-    return Result.success([wrapHandshake(shBytes, quic: false), protected]);
+    return Result.success([wrapHandshake(shBytes, quic: false), ...protected]);
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> _onClientFinished(
     Uint8List recordBytes,
   ) async {
-    late final Uint8List finBytes;
+    late final Uint8List payload;
     if (quic) {
-      finBytes = recordBytes;
+      payload = recordBytes;
     } else {
       final layer = records;
       if (layer == null) return _fail('no records');
@@ -603,29 +640,131 @@ final class PqTlsServer {
         epoch: TlsRecordEpoch.handshake,
       );
       if (inner.isFailure) return Result.failure(inner.errorOrNull!);
-      finBytes = inner.valueOrNull!.payload;
+      if (inner.valueOrNull!.type != tlsContentHandshake) {
+        return _fail('client flight');
+      }
+      payload = inner.valueOrNull!.payload;
     }
-    final fin = decodeFinished(finBytes, verifyDataLength: schedule.hashLen);
-    if (fin.isFailure) return Result.failure(fin.errorOrNull!);
-    // RFC 8446 §7.1. Application keys stop at server Finished.
-    // resumption_master includes this client Finished.
-    final applicationHash = transcript.snapshot();
-    final expected = schedule.finishedMac(
-      schedule.clientFinishedKey,
-      applicationHash,
-    );
-    if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
-      return _fail('client finished mac');
+    _pendingClientFlight = _pendingClientFlight.isEmpty
+        ? payload
+        : concatBytes([_pendingClientFlight, payload]);
+    if (_pendingClientFlight.length > tlsHandshakeReassemblyMaxBytes) {
+      return _fail('handshake too large');
     }
-    transcript.add(finBytes);
-    schedule.deriveApplication(
-      hybridSharedSecret: _hybridSs!,
-      applicationTranscriptHash: applicationHash,
-      resumptionTranscriptHash: transcript.snapshot(),
-    );
-    final driven = driveTls(machine, TlsEvent.receiveFinished);
-    if (driven.isFailure) return Result.failure(driven.errorOrNull!);
+    _applicationHash ??= transcript.snapshot();
+    final buf = _pendingClientFlight;
+    var offset = 0;
+    while (buf.length - offset >= tlsHandshakeHeaderBytes) {
+      final len = readUint24(buf, offset + 1);
+      final end = offset + tlsHandshakeHeaderBytes + len;
+      if (end > buf.length) break;
+      final msg = slice(buf, offset, end);
+      final type = msg[0];
+      if (type == tlsHsCertificate) {
+        if (_pskSelected || clientAuth == null) {
+          return _fail('unexpected client certificate');
+        }
+        final list = decodeCertificateList(msg);
+        if (list.isFailure) return Result.failure(list.errorOrNull!);
+        final entries = list.valueOrNull!;
+        if (entries.isEmpty) {
+          return _certificateFailure(
+            PqTransportError.certificateRequired('empty client certificate'),
+          );
+        }
+        if (entries.length != 1) {
+          return _certificateFailure(
+            PqTransportError.decodeFailure('client certificate'),
+          );
+        }
+        final spki = decodeRawPublicKey(entries.single);
+        if (spki.isFailure) return _certificateFailure(spki.errorOrNull!);
+        final key = spki.valueOrNull!.key;
+        if (!_allowClientKey(key)) {
+          return _certificateFailure(
+            PqTransportError.certificateUnknown('client public key'),
+          );
+        }
+        _clientPublicKey = key;
+        _sawClientCertificate = true;
+        transcript.add(msg);
+      } else if (type == tlsHsCertificateVerify) {
+        final key = _clientPublicKey;
+        if (key == null) return _fail('client certificate verify');
+        final sig = decodeCertVerify(msg);
+        if (sig.isFailure) return Result.failure(sig.errorOrNull!);
+        final scheme = sig.valueOrNull!.scheme;
+        if (clientAuth == null || !clientAuth!.schemes.contains(scheme)) {
+          return _certificateFailure(
+            PqTransportError.decryptError('signature_scheme'),
+          );
+        }
+        final toSign = tls13ClientCertVerifyContent(transcript.snapshot());
+        final slh = tlsSlhDsaAlgorithm(scheme);
+        final ok = slh != null
+            ? PqSlhDsaPrimitives.verify(
+                slh,
+                key,
+                toSign,
+                sig.valueOrNull!.signature,
+              )
+            : crypto.mlDsaVerify(
+                publicKey: key,
+                message: toSign,
+                signatureBytes: sig.valueOrNull!.signature,
+              );
+        if (!ok) {
+          return _certificateFailure(
+            PqTransportError.decryptError('client certificate verify'),
+          );
+        }
+        transcript.add(msg);
+      } else if (type == tlsHsFinished) {
+        if (clientAuth != null && !_pskSelected && !_sawClientCertificate) {
+          return _certificateFailure(
+            PqTransportError.certificateRequired('missing client certificate'),
+          );
+        }
+        final fin = decodeFinished(msg, verifyDataLength: schedule.hashLen);
+        if (fin.isFailure) return Result.failure(fin.errorOrNull!);
+        final expected = schedule.finishedMac(
+          schedule.clientFinishedKey,
+          transcript.snapshot(),
+        );
+        if (!PqBytes.constantTimeEquals(expected, fin.valueOrNull!)) {
+          return _fail('client finished mac');
+        }
+        transcript.add(msg);
+        schedule.deriveApplication(
+          hybridSharedSecret: _hybridSs!,
+          applicationTranscriptHash: _applicationHash!,
+          resumptionTranscriptHash: transcript.snapshot(),
+        );
+        if (_clientPublicKey != null) {
+          authenticatedClientKey = Uint8List.fromList(_clientPublicKey!);
+        }
+        final driven = driveTls(machine, TlsEvent.receiveFinished);
+        if (driven.isFailure) return Result.failure(driven.errorOrNull!);
+        offset = end;
+        _pendingClientFlight = Uint8List(0);
+        return const Result.success([]);
+      } else {
+        return _fail('client flight type $type');
+      }
+      offset = end;
+    }
+    _pendingClientFlight = offset == 0 ? buf : slice(buf, offset, buf.length);
     return const Result.success([]);
+  }
+
+  bool _allowClientKey(Uint8List key) {
+    final allowed = clientAuth?.publicKeys ?? const [];
+    for (final one in allowed) {
+      if (one.length == key.length && PqBytes.constantTimeEquals(one, key)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Uint8List? _shareFor(ClientHello hello, TlsNamedGroup want) {
@@ -660,17 +799,19 @@ final class PqTlsServer {
         PqTransportError.unsupportedCertificate('no x509 identity'),
       );
     }
+    final rawScheme = tlsRawCertificateScheme(
+      leafScheme: identity.leafScheme,
+      publicKey: identity.publicKey,
+    );
     if (!sendX509 &&
         identity.chain.isNotEmpty &&
-        identity.leafScheme != tlsSignatureMldsa65 &&
-        identity.leafScheme != tlsSignatureMldsa87) {
+        rawScheme != tlsSignatureMldsa65 &&
+        rawScheme != tlsSignatureMldsa87) {
       return Result.failure(
         PqTransportError.unsupportedCertificate('raw public key'),
       );
     }
-    final requiredScheme = sendX509 || identity.chain.isNotEmpty
-        ? identity.leafScheme
-        : tlsSignatureMldsa65;
+    final requiredScheme = sendX509 ? identity.leafScheme : rawScheme;
     if (!hello.signatureSchemes.contains(requiredScheme)) {
       return Result.failure(
         PqTransportError.unsupportedCertificate(

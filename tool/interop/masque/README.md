@@ -19,7 +19,8 @@ checks `peerLeafAlgorithm == mlDsa65` and
 
 The UDP and IP payloads are QUIC DATAGRAM frames. The address
 and route capsules are the Capsule Protocol. DATAGRAM capsules are
-not what these peers send. Draft DNS and PREF64 capsules are not
-implemented. Multipath is not this directory.
+not what these peers send. DNS_ASSIGN and PREF64 encode and decode
+in this tree. Those types are provisional. This directory does not
+put them on a masque-go flight. Multipath is not this directory.
 
 No proxy credentials.

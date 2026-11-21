@@ -15,7 +15,8 @@ Canonical:
 CMVP / FIPS 140. Hard constant-time / hard erasure. Browser raw UDP /
 mDNS / QUIC sockets. Classical-only fallback after
 a PQ hello. Direct `pqcrypto` dependency. `dart:ffi` / `SecureSocket`
-on the PQ path. ML-DSA DNSSEC. An authoritative DNS server.
+on the PQ path. ML-DSA DNSSEC. A DNSSEC-signing authoritative
+server, AXFR, or port 53. An in-memory zone is not that.
 
 ## Landed
 

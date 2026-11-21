@@ -287,6 +287,7 @@ final class PqHttp3Session {
   final List<(int, HttpCapsule)> _capsules = [];
   final Map<int, BytesBuilder> _capsuleBuf = {};
   final Map<int, BytesBuilder> _capsuleFrames = {};
+  final Map<int, BytesBuilder> _dataHold = {};
   final Set<int> _capsuleStreams = {};
   var _dynamicStreams = 0;
   final Set<int> _cancelledPush = {};
@@ -1089,6 +1090,91 @@ final class PqHttp3Session {
       _advertisedHttpDatagrams &&
       _peerHttpDatagrams &&
       conn.peerMaxDatagramFrameSize > 0;
+
+  /// RFC 9114 DATA on a tunnel that is already open. Not a capsule.
+  Future<Result<void, PqTransportError>> writeData(
+    int streamId,
+    Uint8List data, {
+    bool fin = false,
+  }) {
+    if (streamId < 0) {
+      return Future.value(
+        Result.failure(PqTransportError.decodeFailure('h3 data')),
+      );
+    }
+    return conn.writeStream(
+      streamId,
+      Http3Frame(type: http3FrameData, payload: data).encode(),
+      fin: fin,
+    );
+  }
+
+  /// DATA payloads on [streamId] after the headers were read.
+  /// Waits until one DATA frame is complete, the stream ends, or
+  /// [timeout]. Not a capsule parser.
+  Future<Result<Uint8List, PqTransportError>> readData(
+    int streamId, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      await _poll();
+      if (_error != null) return Result.failure(_error!);
+      if (conn.streamResetCode(streamId) != null) {
+        return Result.failure(PqTransportError.closed('h3 cancelled'));
+      }
+      final taken = _pullDataFrame(streamId);
+      if (taken.isFailure) return Result.failure(taken.errorOrNull!);
+      final payload = taken.valueOrNull;
+      if (payload != null) return Result.success(payload);
+      if (conn.streamFin(streamId) && !conn.streamHasData(streamId)) {
+        return Result.failure(PqTransportError.decodeFailure('h3 data'));
+      }
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining.isNegative) {
+        return Result.failure(PqTransportError.decodeFailure('h3 data'));
+      }
+      final waited = await _waitUntil(
+        () =>
+            conn.streamHasData(streamId) ||
+            conn.streamFin(streamId) ||
+            conn.streamResetCode(streamId) != null ||
+            _error != null,
+        remaining,
+      );
+      if (waited.isFailure &&
+          !conn.streamHasData(streamId) &&
+          (_dataHold[streamId]?.isEmpty ?? true) &&
+          _error == null) {
+        return Result.failure(PqTransportError.decodeFailure('h3 data'));
+      }
+    }
+  }
+
+  /// One complete DATA frame, success(null) when more bytes are required.
+  Result<Uint8List?, PqTransportError> _pullDataFrame(int streamId) {
+    final held = _dataHold.remove(streamId);
+    final chunk = conn.readStream(streamId);
+    final wire = concatBytes([
+      if (held != null && held.isNotEmpty) held.takeBytes(),
+      chunk,
+    ]);
+    if (wire.isEmpty) return const Result.success(null);
+    final one = Http3Frame.tryDecode(wire);
+    if (one.isFailure) {
+      _dataHold[streamId] = BytesBuilder(copy: false)..add(wire);
+      return const Result.success(null);
+    }
+    final (frame, n) = one.valueOrNull!;
+    if (n < wire.length) {
+      _dataHold[streamId] = BytesBuilder(copy: false)
+        ..add(slice(wire, n, wire.length));
+    }
+    if (frame.type != http3FrameData) {
+      return Result.failure(PqTransportError.decodeFailure('h3 data'));
+    }
+    return Result.success(frame.payload);
+  }
 
   /// RFC 9297 §3.2. One capsule as a DATA frame on the request stream.
   Future<Result<void, PqTransportError>> sendCapsule(

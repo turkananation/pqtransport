@@ -135,8 +135,9 @@ Starts after section 1. The session speaks the QUIC from that section.
 HTTP/1.0 is parsed and answered by `PqHttpServer` (close unless
 `keep-alive`, no chunked, Host optional). RFC 6455 and RFC 7692 run
 on the Relic HTTP/1.1 carriage. That test is this package's client.
-HTTP/2 and HTTP/3 extended CONNECT are not that codec. Autobahn,
-browsers, and `curl wss://` are not peers here.
+HTTP/2 and HTTP/3 extended CONNECT can carry one RFC 6455 data
+frame in memory (G18). Autobahn, browsers, and `curl wss://` are
+not peers here. RFC 7692 stays on this HTTP/1.1 carriage.
 
 ## 5. Extensions
 
@@ -180,8 +181,8 @@ browsers, and `curl wss://` are not peers here.
   v0.6.0 proxy logged `ip-got n=20 src=192.0.2.11
   dst=198.51.100.1 proto=17` and `ip-echo n=20`
   (`reverse-ip` with the same leaf and group). The UDP and IP
-  payloads are QUIC DATAGRAMs, not DATAGRAM capsules. Draft DNS
-  and PREF64 capsules are not implemented.
+  payloads are QUIC DATAGRAMs, not DATAGRAM capsules. DNS_ASSIGN
+  and PREF64 are encode/decode only (G24). Not a masque-go flight.
 - [x] E3. PRIORITY_UPDATE (RFC 9218), not the old PRIORITY frame.
   HTTP/2 type 0x10 on stream 0. A prioritized stream id of 0, a
   reserved bit, or a payload shorter than 4 octets is an error.
@@ -213,8 +214,8 @@ browsers, and `curl wss://` are not peers here.
   PROTOCOL_VIOLATION. The 1-RTT nonce is the RFC 10069
   path-and-packet-number. Path 0 matches RFC 9001. A zero-length
   connection ID while both sides advertise the parameter is
-  PROTOCOL_VIOLATION. Extra paths have their own packet numbers.
-  They do not have a separate PTO. The interop job runs
+  PROTOCOL_VIOLATION. Extra paths have their own packet numbers
+  and, in memory, their own PTO (G5). The interop job runs
   picoquic 1.1.54.0. It did not offer ML-DSA-65, this server
   refused scheme 0x0905, and `-M` printed `Enable multipath:
   Refused` on one path. That peer is not a completed handshake.
@@ -314,37 +315,59 @@ and it is blocked on a peer.
   X25519MLKEM768, no cleartext retry.
 - [ ] G16. `curl wss:// --http2` as RFC 8441. That curl sent
   HTTP/1.1 Upgrade. libnghttp2 1.66.0 is the extended CONNECT peer.
-  HTTP/2 and HTTP/3 extended CONNECT are not the WebSocket codec.
-  Not Autobahn. Not a browser. RFC 7692 permessage-deflate is VM
-  only.
+  The in-memory WebSocket data frame is G18. Not Autobahn. Not a
+  browser. RFC 7692 permessage-deflate is VM only, on HTTP/1.1.
 
-### HTTP and TLS slices, not a finished RFC
+### Already in this tree, with the limits below
 
-- [ ] G17. HTTP/2 PRIORITY_UPDATE is in-memory besides the one
-  libnghttp2 flight. The old PRIORITY frame stays ignored. Push
-  stays off.
-- [ ] G18. WebSocket frames on extended CONNECT (`:protocol
-  websocket`). The carriage today is HTTP/1.1 only.
-- [ ] G19. Client certificates. The resumed handshake omits
-  Certificate because the PSK is the server authentication. The
-  client is not asked for a certificate.
-- [ ] G20. `compress_certificate`. Not implemented.
-- [ ] G21. SLH-DSA as TLS CertificateVerify. `pqslh=` is
-  SLH-DSA-SHA2-128f on mDNS TXT only. Not the other eleven sets.
+- [x] G17. HTTP/2 PRIORITY_UPDATE is already in-memory
+  (`test/http/http2_flow_test.dart`) besides the one libnghttp2
+  flight. The old PRIORITY frame stays ignored. Push stays off.
+  Not a further coding turn.
+- [x] G18. One masked RFC 6455 text frame on HTTP/2 and HTTP/3
+  extended CONNECT, in memory, after a 200 that does not end the
+  stream. `readData` / `writeData`. Not `curl wss://`. Not
+  Autobahn. Not a browser. RFC 7692 stays on the HTTP/1.1
+  carriage. `test/http/websocket_connect_test.dart`.
+- [x] G19. Optional client certificates. `TlsClientAuth` is a raw
+  public-key allow-list. The test uses one key. An empty client
+  Certificate is `certificate_required` (alert 116). Not sent on
+  PSK resume. Not an X.509 client chain. Not WebPKI.
+  `test/tls/gap_slice_test.dart`.
+- [x] G20. `compress_certificate` (RFC 8879) is zlib, algorithm 1,
+  and only when the ClientHello offers it. Not brotli. Not zstd.
+  Not the default ClientHello. The web build has no zlib.
+  `test/tls/gap_slice_test.dart`.
+- [x] G21. SLH-DSA as TLS CertificateVerify for the 12 IANA schemes
+  `0x0911`–`0x091C`. The handshake test is SHA2-128f only. Not the
+  default. Not a foreign peer. The TLS record path splits a flight
+  that does not fit in one record. The QUIC CRYPTO path is not
+  split. mDNS `pqslh=` stays SHA2-128f only.
+  `test/tls/gap_slice_test.dart`.
 - [ ] G22. `psk_ke`. Parsed and not selected. Resumption stays
-  `psk_dhe_ke`. This is not a classical-only fallback.
+  `psk_dhe_ke`. This is not a classical-only fallback. Do not
+  select it.
 - [ ] G23. ECH together with 0-RTT. Refused. G15 stays the ECH
-  bound.
-- [ ] G24. MASQUE past one CONNECT-UDP and one CONNECT-IP, both
-  directions, against masque-go and connect-ip-go v0.6.0. Draft
-  DNS and PREF64 capsules are not implemented.
+  bound. Do not accept it.
+- [x] G24. DNS_ASSIGN (`0x1ACE79EC`) and PREF64 (`0x274C0FBC`)
+  encode and decode. Those types are
+  draft-ietf-masque-connect-ip-dns-07 provisional values, not
+  stable IANA. An empty capsule withdraws. Service priority 0 is
+  refused. `ipv4hint` and `ipv6hint` are refused. Not a masque-go
+  flight. CONNECT-UDP and CONNECT-IP stay the v0.6.0 peers.
+  `test/http/connect_ip_dns_test.dart`.
 
 ### DNS
 
-- [ ] G25. Authoritative DNS. The iterative resolver is not that
-  server. The AD bit is not validation.
+- [x] G25. `DnsAuthoritativeZone` is an in-memory zone: AA on an
+  answer, NODATA, and NXDOMAIN; a referral clears AA and may
+  include in-zone glue; REFUSED outside the zone; FORMERR when
+  the query is not one question; a CNAME is returned and not
+  chased. The AD bit is not set. It does not sign. It is not
+  `DnsIterativeResolver`. `test/dns/authoritative_test.dart`.
 - [ ] G26. DNSSEC algorithms outside 5, 7, 8, 10, 13, 14, 15, and
-  16. NSEC3 iteration ceiling defaults to 0.
+  16. NSEC3 iteration ceiling defaults to 0. pqforge does not
+  verify the others. Do not pretend it does.
 - [ ] G27. DoH over `curl --http3`. DoH and DoT in this tree are
   not that curl.
 
@@ -360,11 +383,16 @@ and it is blocked on a peer.
 - `doc/ACHIEVEMENTS.md` must not list handshake protection,
   anti-amplification, ChaCha header protection, or DoH/DoT as
   missing. Those are in this tree. G5, G6, and G7 are in this tree
-  with the limits above. Do not restore "ECN does not move the
-  window" or "extra paths have no separate PTO".
+  with the limits above. G18 through G21, G24, and G25 are in this
+  tree with the limits on those rows. Do not restore "ECN does not
+  move the window", "extra paths have no separate PTO",
+  "compress_certificate is not implemented", or "extended CONNECT
+  is not the WebSocket codec" without the limits on those rows.
 
 ## Order
 
 Section 0, then 1, then 2, then 3, then 4 and 5. HTTP/2 and HTTP/1
 do not wait on QUIC. HTTP/3 does. Section 6 starts at G1. G10
-through G16 and the "Do not implement" list are not coding turns.
+through G16, G22, G23, G26, G27, and the "Do not implement" list
+are not coding turns. G17 through G21, G24, and G25 are in this
+tree with the limits on those rows.

@@ -51,6 +51,7 @@ final class ClientHello {
     this.pskIdentities = const [],
     this.pskKeyExchangeModes,
     this.quicTransportParameters,
+    this.compressCertificate = const [],
   });
 
   final Uint8List random;
@@ -106,6 +107,10 @@ final class ClientHello {
   /// RFC 9001 `quic_transport_parameters` (extension 57). Null omits it.
   final Uint8List? quicTransportParameters;
 
+  /// RFC 8879 algorithms this hello offers. Empty omits the extension.
+  /// This stack only writes [tlsCertCompressZlib].
+  final List<int> compressCertificate;
+
   List<({TlsNamedGroup group, Uint8List share})> get offeredKeyShares =>
       keyShares ?? [(group: group, share: share)];
 
@@ -147,6 +152,9 @@ final class ClientHello {
     }
     b.add(_extSupportedGroups(offeredGroupCodepoints));
     b.add(_extSignatureAlgorithms(signatureSchemes));
+    if (compressCertificate.isNotEmpty) {
+      b.add(_extCompressCertificate(compressCertificate));
+    }
     if (alpnProtocols.isNotEmpty) {
       b.add(_extAlpn(alpnProtocols));
     }
@@ -284,6 +292,10 @@ final class ClientHello {
         PqTransportError.illegalParameter(PqLengthLabel.tlsExtension, 0, 1),
       );
     }
+    final compressed = _parseCompressCertificate(
+      map[tlsExtCompressCertificate],
+    );
+    if (compressed.isFailure) return Result.failure(compressed.errorOrNull!);
     return Result.success(
       ClientHello(
         random: random.valueOrNull!,
@@ -311,6 +323,7 @@ final class ClientHello {
         pskIdentities: pskOffered ?? const [],
         pskKeyExchangeModes: modeList,
         quicTransportParameters: map[tlsExtQuicTransportParameters],
+        compressCertificate: compressed.valueOrNull!,
       ),
     );
   }
@@ -1031,6 +1044,38 @@ Uint8List _extSignatureAlgorithms(List<int> schemes) {
     writeUint16(list, scheme);
   }
   return _ext(tlsExtSignatureAlgorithms, _u16Vector(list.takeBytes()));
+}
+
+Uint8List _extCompressCertificate(List<int> algorithms) {
+  final list = BytesBuilder(copy: false);
+  for (final algorithm in algorithms) {
+    writeUint16(list, algorithm);
+  }
+  final packed = list.takeBytes();
+  final body = BytesBuilder(copy: false);
+  body.addByte(packed.length);
+  body.add(packed);
+  return _ext(tlsExtCompressCertificate, body.takeBytes());
+}
+
+Result<List<int>, PqTransportError> _parseCompressCertificate(Uint8List? body) {
+  if (body == null) return const Result.success([]);
+  if (body.length < 3) {
+    return Result.failure(
+      PqTransportError.decodeFailure('compress_certificate'),
+    );
+  }
+  final len = body[0];
+  if (len != body.length - 1 || len.isOdd || len < 2) {
+    return Result.failure(
+      PqTransportError.decodeFailure('compress_certificate'),
+    );
+  }
+  final out = <int>[];
+  for (var i = 1; i < body.length; i += 2) {
+    out.add(readUint16(body, i));
+  }
+  return Result.success(out);
 }
 
 Uint8List _extKeyShareClients(

@@ -78,6 +78,13 @@ final class PqTransportError implements Exception {
     alert: tlsAlertCertificateUnknown,
   );
 
+  factory PqTransportError.certificateRequired(String why) =>
+      PqTransportError._(
+        code: PqTransportErrorCode.certificateRequired,
+        message: 'certificate_required: $why',
+        alert: tlsAlertCertificateRequired,
+      );
+
   factory PqTransportError.circuitOpen(String why) => PqTransportError._(
     code: PqTransportErrorCode.circuitOpen,
     message: 'circuit_open: $why',
@@ -139,6 +146,7 @@ enum PqTransportErrorCode {
   badCertificate,
   unsupportedCertificate,
   certificateUnknown,
+  certificateRequired,
   circuitOpen,
   replay,
   throttled,

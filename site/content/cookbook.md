@@ -455,9 +455,10 @@ await relic.mountAndStart(
 port. Shelf hijacks HTTP/1.1. Relic `Hijack` detaches HTTP/1.1, and
 Relic `WebSocketUpgrade` completes an RFC 6455 handshake on that
 connection, including permessage-deflate on the VM. The test client
-is this package. It is not a browser. HTTP/2 does not hijack, and
-the HTTP/2 and HTTP/3 extended CONNECT tunnels are not that codec.
-The tests are `test/io/framework_test.dart`.
+is this package. It is not a browser. HTTP/2 does not hijack.
+HTTP/2 and HTTP/3 extended CONNECT can carry one RFC 6455 data
+frame in memory. That is not `curl wss://`, not Autobahn, and not
+RFC 7692. The tests are `test/io/framework_test.dart`.
 
 Foreign servers are the [Peers](peers) page. OpenSSL 3.5.9 is the
 TLS peer, including `s_server -max_send_frag 512`, which splits both

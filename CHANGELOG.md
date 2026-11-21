@@ -83,7 +83,9 @@
 - The Relic carriage test writes the RFC 6455 101 and echoes one
   masked text frame. That client is this package. It is not
   Autobahn, not a browser, and not `curl wss://`. HTTP/2 and HTTP/3
-  extended CONNECT stay a byte pipe. They do not run this codec.
+  extended CONNECT can carry one RFC 6455 data frame in memory
+  after a 200 that does not end the stream. That is not this
+  HTTP/1.1 carriage, and RFC 7692 stays here.
 - HTTP/2 `PRIORITY_UPDATE` (RFC 9218) from libnghttp2 1.66.0.
   `h2connect` calls `nghttp2_submit_priority_update` with `u=1, i`
   after the peer's `SETTINGS_NO_RFC7540_PRIORITIES`. The server
@@ -111,6 +113,30 @@
   handler sees. `gzip` is the Fixed note above. HTTP/2 and HTTP/3
   inflate and encode as that note says.
   This is not RFC 7692 permessage-deflate.
+- One masked RFC 6455 text frame on HTTP/2 and HTTP/3 extended
+  CONNECT, in memory, after a 200 that does not end the stream.
+  Not `curl wss://`. Not Autobahn. Not a browser. RFC 7692 stays
+  on the HTTP/1.1 carriage.
+- Optional client certificates. `TlsClientAuth` is a raw
+  public-key allow-list. An empty client Certificate is
+  `certificate_required`. A PSK resume does not ask. Not an X.509
+  client chain. Not WebPKI.
+- `compress_certificate` (RFC 8879) is zlib, algorithm 1, and only
+  when the ClientHello offers it. Not brotli. Not zstd. Not the
+  default ClientHello. The web build has no zlib.
+- SLH-DSA as TLS CertificateVerify for IANA `0x0911`–`0x091C`.
+  The handshake test is SHA2-128f. Not the default. Not a foreign
+  peer. The TLS record path splits a flight that does not fit.
+  The QUIC CRYPTO path is not split. mDNS `pqslh=` stays
+  SHA2-128f.
+- DNS_ASSIGN (`0x1ACE79EC`) and PREF64 (`0x274C0FBC`) encode and
+  decode. Provisional types from draft-ietf-masque-connect-ip-dns-07.
+  An empty capsule withdraws. Service priority 0, `ipv4hint`, and
+  `ipv6hint` are refused. Not a masque-go flight. Not stable IANA.
+- `DnsAuthoritativeZone` answers in memory: AA, NODATA, NXDOMAIN,
+  a referral with AA clear, REFUSED, FORMERR, and an unchased
+  CNAME. The AD bit is not set. The zone does not sign. It is not
+  the iterative resolver.
 - noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
   a QUICv1 handshake and establishes path 1 (RFC 10069). rustls
   checks the ML-DSA-65 chain. The group is X25519MLKEM768 after
@@ -119,8 +145,9 @@
   `initial_max_path_id` 1 and prints
   `noq-mp handshake=ok multipath=1 path=1`. A short-header packet
   that arrives before 1-RTT keys exist is discarded. This is one
-  second path. It is not every RFC 10069 frame. Extra paths have
-  no separate PTO.
+  second path. It is not every RFC 10069 frame. A path id above 0
+  has its own in-memory PTO (see Fixed). The noq flight does not
+  prove that PTO.
 
 ### Not in this version
 

@@ -36,7 +36,9 @@ branch is merged. Do not tag the feature branch.
 
 ## What this is not
 
-Not an authoritative DNS server. Not a recursive resolver that sets
+Not a DNSSEC-signing authoritative server, and not AXFR or port 53.
+`DnsAuthoritativeZone` is an in-memory zone and does not set the AD
+bit. Not a recursive resolver that sets
 the AD bit. Not WebPKI. Not a browser. Not `curl --http3`. Not
 ML-KEM-512 or ML-KEM-768 as a standalone group. Not TLS
 1.2. Not a FIPS 140 module.

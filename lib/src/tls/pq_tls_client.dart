@@ -12,6 +12,8 @@ import '../core/lengths.dart';
 import '../core/transcript.dart';
 import '../core/zeroize.dart';
 import 'certificate_policy.dart';
+import 'cert_compress.dart';
+import 'cert_messages.dart';
 import 'resumption.dart';
 import 'cipher_suite.dart';
 import 'ech.dart';
@@ -70,6 +72,14 @@ final class PqTlsClient {
 
     /// RFC 9001 transport parameters. Sent when QUIC and non-null.
     this.quicTransportParameters,
+
+    /// RFC 8879. Offers zlib when this build has it. Default is off,
+    /// so an existing peer flight is unchanged.
+    this.compressCertificate = false,
+
+    /// Sent when the server's CertificateRequest lists its scheme.
+    /// Null sends an empty Certificate. Ignored on a PSK resume.
+    this.clientIdentity,
   }) : crypto = crypto ?? const PqTransportCrypto(),
        offeredGroups = offeredGroups ?? [group],
        offeredCipherSuites =
@@ -126,11 +136,20 @@ final class PqTlsClient {
   /// Local `quic_transport_parameters` extension body.
   final Uint8List? quicTransportParameters;
 
+  /// See the constructor. False does not send `compress_certificate`.
+  final bool compressCertificate;
+
+  /// See the constructor. Null has no client certificate.
+  final TlsClientIdentity? clientIdentity;
+
   /// Peer's parameters, from EncryptedExtensions. Null until then.
   Uint8List? peerQuicTransportParameters;
 
   Uint8List? earlyTrafficSecret;
   bool earlyDataAccepted = false;
+
+  /// True when the peer's Certificate arrived as RFC 8879 zlib.
+  bool certificateWasCompressed = false;
 
   /// Identity the server selected. Meaningful when the handshake resumed.
   int selectedPskIndex = 0;
@@ -161,6 +180,8 @@ final class PqTlsClient {
   var _resumed = false;
   String? _peerLeafAlgorithm;
   Uint8List? _peerPublicKey;
+  int? _peerRawScheme;
+  List<int>? _clientAuthSchemes;
   int? _certificateType;
   List<Uint8List>? _certificateEntries;
 
@@ -418,7 +439,7 @@ final class PqTlsClient {
       return _fail('handshake too large');
     }
     var offset = 0;
-    Uint8List? finishedRecord;
+    List<Uint8List> finishedRecords = const [];
     final buf = _pendingHandshake;
     while (buf.length - offset >= tlsHandshakeHeaderBytes) {
       final len = readUint24(buf, offset + 1);
@@ -455,10 +476,24 @@ final class PqTlsClient {
           if (skip.isFailure) return Result.failure(skip.errorOrNull!);
           if (!allowUnauthenticated) _peerAuthenticated = true;
         }
-      } else if (type == tlsHsCertificate) {
+      } else if (type == tlsHsCertificateRequest) {
+        if (_resumed) return _fail('certificate request on resume');
+        final req = decodeCertificateRequest(msg);
+        if (req.isFailure) return Result.failure(req.errorOrNull!);
+        _clientAuthSchemes = req.valueOrNull;
+        transcript.add(msg);
+      } else if (type == tlsHsCertificate ||
+          type == tlsHsCompressedCertificate) {
+        var certificate = msg;
+        if (type == tlsHsCompressedCertificate) {
+          final plain = decodeCompressedCertificate(msg);
+          if (plain.isFailure) return _fatal(plain.errorOrNull!);
+          certificate = plain.valueOrNull!;
+          certificateWasCompressed = true;
+        }
         final d = driveTls(machine, TlsEvent.receiveCertificate);
         if (d.isFailure) return Result.failure(d.errorOrNull!);
-        final cert = decodeCertificateEntries(msg);
+        final cert = decodeCertificateEntries(certificate);
         if (cert.isFailure) return _fatal(cert.errorOrNull!);
         final entries = cert.valueOrNull!;
         if (_certificateType == tlsCertTypeRawPublicKey) {
@@ -468,11 +503,12 @@ final class PqTlsClient {
           if (PqX509.parse(entries.single).certificate != null) {
             return _fatal(PqTransportError.unsupportedCertificate('x509'));
           }
-          final spki = decodeMlDsa65Spki(entries.single);
+          final spki = decodeRawPublicKey(entries.single);
           if (spki.isFailure) return _fatal(spki.errorOrNull!);
-          _peerPublicKey = spki.valueOrNull;
+          _peerPublicKey = spki.valueOrNull!.key;
+          _peerRawScheme = spki.valueOrNull!.scheme;
         } else {
-          if (decodeMlDsa65Spki(entries.first).isSuccess &&
+          if (decodeRawPublicKey(entries.first).isSuccess &&
               PqX509.parse(entries.first).certificate == null) {
             return _fatal(
               PqTransportError.unsupportedCertificate('raw public key'),
@@ -497,16 +533,28 @@ final class PqTlsClient {
           if (_certificateType == tlsCertTypeRawPublicKey) {
             final certPk = _peerPublicKey;
             if (certPk == null) return _fail('cv without cert');
-            if (sig.valueOrNull!.scheme != tlsSignatureMldsa65 &&
-                sig.valueOrNull!.scheme != tlsSignatureMldsa87) {
+            final scheme = sig.valueOrNull!.scheme;
+            if (scheme != _peerRawScheme) {
               return _fatal(PqTransportError.decryptError('signature_scheme'));
             }
-            final ok = await offloadMlDsaVerify(
-              publicKey: certPk,
-              message: toSign,
-              signatureBytes: sig.valueOrNull!.signature,
-            );
-            if (!ok) return _fail('ml-dsa verify failed');
+            final slh = tlsSlhDsaAlgorithm(scheme);
+            final ok = slh != null
+                ? PqSlhDsaPrimitives.verify(
+                    slh,
+                    certPk,
+                    toSign,
+                    sig.valueOrNull!.signature,
+                  )
+                : await offloadMlDsaVerify(
+                    publicKey: certPk,
+                    message: toSign,
+                    signatureBytes: sig.valueOrNull!.signature,
+                  );
+            if (!ok) {
+              return _fail(
+                slh != null ? 'slh-dsa verify failed' : 'ml-dsa verify failed',
+              );
+            }
           } else {
             final entries = _certificateEntries;
             if (entries == null) return _fail('cv without cert');
@@ -559,11 +607,16 @@ final class PqTlsClient {
         }
         transcript.add(msg);
         // RFC 8446 §7.1: application secrets are Hash(ClientHello..server
-        // Finished). resumption_master includes the client Finished
-        // that is about to be sent.
+        // Finished). A client Certificate is after that hash and before
+        // the client Finished mac. resumption_master includes the
+        // client Finished.
         final applicationHash = transcript.snapshot();
+        final prelude = _clientAuthFlight();
         final clientFin = encodeFinished(
-          schedule.finishedMac(schedule.clientFinishedKey, applicationHash),
+          schedule.finishedMac(
+            schedule.clientFinishedKey,
+            transcript.snapshot(),
+          ),
         );
         transcript.add(clientFin);
         schedule.deriveApplication(
@@ -571,14 +624,15 @@ final class PqTlsClient {
           applicationTranscriptHash: applicationHash,
           resumptionTranscriptHash: transcript.snapshot(),
         );
+        final flight = concatBytes([...prelude, clientFin]);
         if (quic) {
-          finishedRecord = clientFin;
+          finishedRecords = [flight];
         } else {
-          finishedRecord = records!.protectWith(
+          finishedRecords = protectHandshakeRecords(
+            records: records!,
             trafficSecret: schedule.clientHandshakeTraffic,
             iv: schedule.clientHandshakeIv,
-            inner: TlsRecord(type: tlsContentHandshake, payload: clientFin),
-            epoch: TlsRecordEpoch.handshake,
+            payload: flight,
           );
         }
       } else {
@@ -591,9 +645,7 @@ final class PqTlsClient {
         : (offset == buf.length
               ? Uint8List(0)
               : slice(buf, offset, buf.length));
-    return Result.success(
-      finishedRecord == null ? const <Uint8List>[] : [finishedRecord],
-    );
+    return Result.success(finishedRecords);
   }
 
   Future<Result<List<Uint8List>, PqTransportError>> _ingestHelloRetry(
@@ -637,6 +689,34 @@ final class PqTlsClient {
     return Result.success([wrapHandshake(encoded, quic: quic)]);
   }
 
+  List<Uint8List> _clientAuthFlight() {
+    final schemes = _clientAuthSchemes;
+    if (schemes == null || _resumed) return const [];
+    final id = clientIdentity;
+    if (id == null || !schemes.contains(id.scheme)) {
+      final empty = encodeEmptyCertificate();
+      transcript.add(empty);
+      return [empty];
+    }
+    final cert = encodeRawPublicKeyCertificate(id.publicKey, id.scheme);
+    transcript.add(cert);
+    final content = tls13ClientCertVerifyContent(transcript.snapshot());
+    final cv = encodeCertVerifyScheme(id.scheme, _signClient(id, content));
+    transcript.add(cv);
+    return [cert, cv];
+  }
+
+  Uint8List _signClient(TlsClientIdentity id, Uint8List content) {
+    final slh = tlsSlhDsaAlgorithm(id.scheme);
+    if (slh != null) {
+      return PqSlhDsaPrimitives.sign(slh, id.secretKey, content);
+    }
+    final algorithm = id.publicKey.length == mlDsa87PublicKeyBytes
+        ? PqSignatureAlgorithm.mlDsa87
+        : PqSignatureAlgorithm.mlDsa65;
+    return PqSignaturePrimitives.sign(algorithm, id.secretKey, content);
+  }
+
   ClientHello _clientHello({Uint8List? cookie}) {
     final shares = _localShares;
     return ClientHello(
@@ -670,6 +750,9 @@ final class PqTlsClient {
                   tlsSignatureRsaPssSha512,
                 ]
               : const [tlsSignatureMldsa65, tlsSignatureMldsa87]),
+      compressCertificate: compressCertificate && zlibCertificateCompression
+          ? const [tlsCertCompressZlib]
+          : const [],
       quicTransportParameters: quic ? quicTransportParameters : null,
     );
   }

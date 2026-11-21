@@ -19,6 +19,7 @@ export 'src/dns/wire.dart';
 export 'src/dns/dnssec.dart';
 export 'src/dns/validate.dart';
 export 'src/dns/resolve.dart';
+export 'src/dns/authoritative.dart';
 export 'src/http/pq_http_client.dart';
 export 'src/http/http1.dart';
 export 'src/http/hpack.dart';
@@ -27,6 +28,7 @@ export 'src/http/http3.dart';
 export 'src/http/capsule.dart';
 export 'src/http/connect_ip.dart';
 export 'src/http/connect_udp.dart';
+export 'src/http/connect_ip_dns.dart';
 export 'src/http/qpack.dart';
 export 'src/http/websocket.dart';
 export 'src/mdns/pq_mdns.dart';
@@ -44,6 +46,14 @@ export 'src/quic/recovery.dart';
 export 'src/quic/zero_rtt.dart';
 export 'src/socket/pq_transport_socket.dart';
 export 'src/tls/certificate_policy.dart';
+export 'src/tls/cert_messages.dart'
+    show
+        TlsClientAuth,
+        TlsClientIdentity,
+        tlsSignatureForSlh,
+        tlsSlhDsaAlgorithm,
+        decodeCompressedCertificate,
+        encodeCompressedCertificate;
 export 'src/tls/cipher_suite.dart';
 export 'src/tls/ech.dart'
     show EchConfig, EchServerConfig, echAcceptConfirmationMatches;
