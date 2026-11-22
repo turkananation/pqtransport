@@ -70,8 +70,7 @@ final class PqUdpSocket {
 /// [QuicInitialCodec] and no session key. Application data is a RFC 9000
 /// §17.3 short header with RFC 9001 protection from [quicKeysFromTls].
 /// The peer opens it with [QuicPacketCodec], the same opener [PqQuicConn]
-/// uses. Loss recovery is RFC 9002. The HKDF extra is unchanged. Not ECN.
-/// Not `curl --http3`.
+/// uses. Loss recovery is RFC 9002. The HKDF extra is unchanged.
 final class PqEncryptedUdpSocket {
   PqEncryptedUdpSocket({
     required this.raw,

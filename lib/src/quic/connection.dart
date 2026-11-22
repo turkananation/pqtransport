@@ -602,7 +602,7 @@ final class PqQuicConn {
   /// RFC 9221 DATAGRAM in a 0-RTT packet. Not retransmitted. A rejected
   /// or lost datagram is not sent again; the application sends another.
   /// Refused when the ticket did not remember `max_datagram_frame_size`.
-  /// An empty payload is refused here. That is not an RFC 9221 rule.
+  /// An empty payload is refused.
   Result<void, PqTransportError> writeEarlyDatagram(Uint8List payload) {
     if (!isClient) {
       return Result.failure(
@@ -895,7 +895,6 @@ final class PqQuicConn {
   int get peerMaxDatagramFrameSize => _peerMaxDatagramFrameSize;
 
   /// True after [commitMigration] switched the destination connection ID.
-  /// `preferred_address` is not sent. The spin bit stays clear.
   bool get migrated => _migrated;
 
   /// Destination connection ID on the next 1-RTT packet.
@@ -2903,8 +2902,7 @@ final class PqQuicConn {
   }
 
   /// RFC 9000 §9. After [pathResponseMatched], send on a connection ID
-  /// that is not the one used before the probe. `preferred_address` is
-  /// not sent. The spin bit stays clear. ACK frequency is not sent.
+  /// that is not the one used before the probe.
   Future<Result<void, PqTransportError>> commitMigration() {
     final done = Completer<Result<void, PqTransportError>>();
     _inFlight = _inFlight.then((_) async {

@@ -269,7 +269,7 @@ final class TlsClientIdentity {
     return TlsClientIdentity(publicKey: kp.publicKey, secretKey: kp.secretKey);
   }
 
-  /// One of the twelve FIPS 205 sets. Not the ML-DSA default.
+  /// One of the twelve FIPS 205 sets.
   factory TlsClientIdentity.slhDsa(PqSlhDsaAlgorithm algorithm) {
     final kp = PqSlhDsaPrimitives.generateKeyPair(algorithm);
     return TlsClientIdentity(
@@ -299,9 +299,8 @@ int tlsSignatureForSlh(PqSlhDsaAlgorithm algorithm) => switch (algorithm) {
   PqSlhDsaAlgorithm.shake256f => tlsSignatureSlhDsaShake256f,
 };
 
-/// Raw public keys the server will accept. The request is not sent
-/// on a PSK resume. An empty client Certificate is `certificate_required`.
-/// Not X.509. Not WebPKI.
+/// Raw public keys the server will accept. A PSK resume does not send
+/// the request. An empty client Certificate is `certificate_required`.
 final class TlsClientAuth {
   const TlsClientAuth({
     required this.publicKeys,

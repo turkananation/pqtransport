@@ -9,7 +9,6 @@ import '../quic/packet.dart';
 import 'capsule.dart';
 
 /// draft-ietf-masque-connect-ip-dns-07. Provisional capsule types.
-/// They are not stable IANA values. Not a masque-go flight.
 const int capsuleDnsAssign = 0x1ACE79EC;
 const int capsulePref64 = 0x274C0FBC;
 

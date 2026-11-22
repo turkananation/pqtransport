@@ -356,7 +356,7 @@ const int tlsSignatureRsaPssSha256 = 0x0804;
 const int tlsSignatureRsaPssSha384 = 0x0805;
 const int tlsSignatureRsaPssSha512 = 0x0806;
 
-/// IANA TLS SignatureScheme, draft-reddy-tls-slhdsa. Not the default.
+/// IANA TLS SignatureScheme, draft-reddy-tls-slhdsa.
 const int tlsSignatureSlhDsaSha2128s = 0x0911;
 const int tlsSignatureSlhDsaSha2128f = 0x0912;
 const int tlsSignatureSlhDsaSha2192s = 0x0913;

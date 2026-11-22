@@ -250,7 +250,7 @@ Result<PqHttpRequest, PqTransportError> decodeHttp3RequestBytes(
 /// One control stream, one QPACK encoder stream, and one QPACK decoder
 /// stream. SETTINGS is the first control frame. GOAWAY, MAX_PUSH_ID, and
 /// CANCEL_PUSH are acted on after that. Push stays off, so an unpromised
-/// CANCEL_PUSH or a PUSH_PROMISE is an error. Not a complete RFC 9114 stack.
+/// CANCEL_PUSH or a PUSH_PROMISE is an error.
 final class PqHttp3Session {
   PqHttp3Session._(this.conn, {required this.isClient})
     : _qpack = QpackCodec(maxTableCapacity: http3DefaultQpackMaxTableCapacity);
@@ -393,8 +393,7 @@ final class PqHttp3Session {
   }
 
   /// Queues one request on a client bidi stream before [PqQuicConn.start].
-  /// Static QPACK only. Not the control stream. Not `curl --http3`.
-  /// The quiche 0-RTT flight is still the raw STREAM `pq-0rtt`.
+  /// Static QPACK only. The control stream stays on 1-RTT.
   Result<int, PqTransportError> writeEarlyRequest(PqHttpRequest req) {
     if (!isClient) {
       return Result.failure(
@@ -1091,7 +1090,7 @@ final class PqHttp3Session {
       _peerHttpDatagrams &&
       conn.peerMaxDatagramFrameSize > 0;
 
-  /// RFC 9114 DATA on a tunnel that is already open. Not a capsule.
+  /// RFC 9114 DATA on a tunnel that is already open.
   Future<Result<void, PqTransportError>> writeData(
     int streamId,
     Uint8List data, {
@@ -1111,7 +1110,7 @@ final class PqHttp3Session {
 
   /// DATA payloads on [streamId] after the headers were read.
   /// Waits until one DATA frame is complete, the stream ends, or
-  /// [timeout]. Not a capsule parser.
+  /// [timeout].
   Future<Result<Uint8List, PqTransportError>> readData(
     int streamId, {
     Duration timeout = const Duration(seconds: 10),

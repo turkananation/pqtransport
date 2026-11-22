@@ -232,7 +232,7 @@ not peers here. RFC 7692 stays on this HTTP/1.1 carriage.
 
 ## 6. Remaining RFC gaps
 
-Same branch: `fix/0.2.1-psk-coding`. Version stays 0.2.1.
+Same branch: `fix/0.2.1-psk-coding`.
 An in-memory pair is not a foreign flight. A peer that cannot speak
 the bytes is not closed by a comment. Items under "Do not implement"
 are non-goals from [ROADMAP.md](doc/ROADMAP.md) and

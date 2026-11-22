@@ -5,9 +5,8 @@ import '../core/lengths.dart';
 
 /// RFC 9002 Section 7 congestion controller: NewReno (Appendix B).
 ///
-/// This is the controller named by the RFC. It is not CUBIC. An ECN-CE
-/// increase is the same congestion event as loss (RFC 9002). It does not
-/// mark packets lost. The window is in bytes. Slow start grows by the bytes just
+/// An ECN-CE increase is the same congestion event as loss (RFC 9002).
+/// It does not mark packets lost. The window is in bytes. Slow start grows by the bytes just
 /// acknowledged. Congestion avoidance grows by at most one maximum datagram
 /// per window of acknowledged bytes (integer division, Appendix B.5).
 ///

@@ -63,7 +63,7 @@ final class PqTlsServerIdentity {
     );
   }
 
-  /// FIPS 205 CertificateVerify. Not the default. Not the mDNS TXT.
+  /// FIPS 205 key pair used for CertificateVerify.
   factory PqTlsServerIdentity.slhDsa(PqSlhDsaAlgorithm algorithm) {
     final kp = PqSlhDsaPrimitives.generateKeyPair(algorithm);
     final scheme = tlsSignatureForSlh(algorithm);
@@ -232,7 +232,7 @@ final class PqTlsServer {
   Uint8List? quicTransportParameters;
 
   /// When set, the full handshake asks for a raw client public key.
-  /// A PSK resume does not ask. Not X.509 and not WebPKI.
+  /// A PSK resume does not ask.
   final TlsClientAuth? clientAuth;
 
   /// Raw key the client proved, after [clientAuth] accepts it.

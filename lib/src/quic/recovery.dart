@@ -227,8 +227,8 @@ final class QuicRecoveryEvent {
 ///    A lost number stays retired (RFC 9000 §12.3, §13.3).
 ///
 /// ECN-CE is a NewReno congestion event on this object. It does not
-/// declare packets lost and it is not CUBIC. Connection migration and
-/// per-path PTO are [PqQuicConn], not this object.
+/// declare packets lost. Connection migration and per-path PTO live on
+/// [PqQuicConn].
 /// The anti-amplification limit (RFC 9000 §8.1, RFC 9002 §6.2.2.1) is
 /// applied by [PqQuicConn], not by this object. A flight that does not
 /// fit in three times the bytes received stays queued until the client
@@ -1002,8 +1002,8 @@ final class QuicLossRecovery {
 /// RFC 10069 loss timer for one path other than path 0.
 ///
 /// Path 0 stays on [QuicLossRecovery]. This object has its own RTT, PTO
-/// count, and deadline. A timeout asks for one probe. It does not declare
-/// packets lost. Not every RFC 10069 frame is tracked here.
+/// count, and deadline. A timeout asks for one probe and does not declare
+/// packets lost.
 final class QuicPathPto {
   QuicPathPto({required this.clock, this.maxPtoCount = quicMaxPtoCount});
 

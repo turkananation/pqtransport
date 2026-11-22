@@ -50,8 +50,7 @@ final class QuicResumptionTicket {
   final int maxEarlyStreamsUni;
 
   /// False when this ticket was recovered from a stateless blob by a
-  /// store that did not issue it. That store resumes, and it does not
-  /// accept 0-RTT. Not an external PSK (RFC 9258).
+  /// store that did not issue it. That store resumes and refuses 0-RTT.
   final bool allowEarlyData;
 
   int obfuscatedAge(DateTime now) {
@@ -66,7 +65,7 @@ final class QuicResumptionTicket {
 /// [ticketKey] makes the identity an AES-256-GCM blob of the PSK and
 /// the limits. A later store with the same key can resume after this
 /// process is gone. 0-RTT is accepted only while the issuing store
-/// still holds the identity. Not an external PSK (RFC 9258).
+/// still holds the identity.
 final class QuicEarlyDataStore {
   QuicEarlyDataStore({Uint8List? ticketKey}) : _ticketKey = ticketKey {
     if (ticketKey != null && ticketKey.length != 32) {

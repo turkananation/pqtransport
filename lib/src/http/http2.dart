@@ -705,8 +705,8 @@ final class PqHttp2Session {
     return _sendBody(streamId, data, endStream: endStream, timeout: timeout);
   }
 
-  /// The next DATA payload on an open tunnel. RFC 8441 WebSocket
-  /// frames and RFC 9297 capsules are this payload. One frame.
+  /// The next DATA payload on an open tunnel. WebSocket frames and
+  /// capsules are both just this payload.
   Future<Result<Uint8List, PqTransportError>> readData(
     int streamId, {
     Duration timeout = const Duration(seconds: 10),
