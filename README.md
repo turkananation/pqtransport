@@ -7,7 +7,7 @@ Pure-Dart post-quantum transport, 0.2.1. TLS 1.3 (RFC 10024 hybrids, plus X25519
 [![pub.dev](https://img.shields.io/badge/pub.dev-pqtransport-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://pub.dev/packages/pqtransport)
 [![version](https://img.shields.io/badge/version-0.2.1-0175c2?style=for-the-badge&logo=dart&logoColor=white)](pubspec.yaml)
 [![Yardenah PQ](https://img.shields.io/badge/Lab-Yardenah_PQ-b6f25c?style=for-the-badge)](https://yardenah.com)
-[![API](https://img.shields.io/badge/API-doc%2FAPI.md-0ea5e9?style=for-the-badge&logo=dart&logoColor=white)](doc/API.md)
+[![API](https://img.shields.io/badge/API-doc%2FAPI.md-0ea5e9?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/API.md)
 [![GitHub Pages](https://img.shields.io/badge/Pages-jaspr_site-4ee0d4?style=for-the-badge&logo=githubpages&logoColor=0b1220)](https://turkananation.github.io/pqtransport/)
 [![Wiki](https://img.shields.io/badge/Wiki-claim_%26_roadmap-f5c35b?style=for-the-badge&logo=wikipedia&logoColor=0b1220)](https://github.com/turkananation/pqtransport/wiki)
 [![license](https://img.shields.io/github/license/turkananation/pqtransport?style=for-the-badge&label=license&color=2ea043)](LICENSE)
@@ -16,13 +16,13 @@ Pure-Dart post-quantum transport, 0.2.1. TLS 1.3 (RFC 10024 hybrids, plus X25519
 
 ## Protocol surface
 
-[![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge&logoColor=0b1220)](doc/ARCHITECTURE.md)
-[![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](doc/FEATURES.md)
-[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](doc/FEATURES.md)
-[![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](doc/API.md)
-[![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
-[![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](doc/PLATFORM_SUPPORT.md)
-[![tests](https://img.shields.io/badge/tests-258_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](doc/ACHIEVEMENTS.md)
+[![RFC 10024](https://img.shields.io/badge/RFC_10024-3_hybrid_groups-b6f25c?style=for-the-badge&logoColor=0b1220)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ARCHITECTURE.md)
+[![X25519MLKEM768](https://img.shields.io/badge/Live_KEX-X25519MLKEM768-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/FEATURES.md)
+[![NIST groups](https://img.shields.io/badge/NIST_P--256%2FP--384-live_KEX-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/FEATURES.md)
+[![AEAD](https://img.shields.io/badge/AEAD-AES--256--GCM_%2B_ChaCha-7c3aed?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/API.md)
+[![schedule](https://img.shields.io/badge/IANA-0x1302_SHA--384_%2B_0x1303-7c3aed?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/CLAIM_BOUNDARY.md)
+[![runtime](https://img.shields.io/badge/runtime-pure_Dart_%7C_0_FFI_%7C_VM_%2B_Flutter_%2B_Web-0175c2?style=for-the-badge&logo=dart&logoColor=white)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/PLATFORM_SUPPORT.md)
+[![tests](https://img.shields.io/badge/tests-258_pass_%7C_90.7%25_lib-2ea043?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ACHIEVEMENTS.md)
 
 ## Automation and discovery
 
@@ -33,13 +33,13 @@ Pure-Dart post-quantum transport, 0.2.1. TLS 1.3 (RFC 10024 hybrids, plus X25519
 [![Pages workflow](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/pages.yml?branch=main&style=for-the-badge&label=Pages&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/pages.yml)
 [![Wiki sync](https://img.shields.io/github/actions/workflow/status/turkananation/pqtransport/sync-wiki.yml?branch=main&style=for-the-badge&label=Wiki&logo=githubactions&logoColor=white)](https://github.com/turkananation/pqtransport/actions/workflows/sync-wiki.yml)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/turkananation/pqtransport?style=for-the-badge&label=Scorecard)](https://github.com/turkananation/pqtransport/actions/workflows/scorecard.yml)
-[![llms.txt](https://img.shields.io/badge/AI-llms.txt-7c3aed?style=for-the-badge)](llms.txt)
+[![llms.txt](https://img.shields.io/badge/AI-llms.txt-7c3aed?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/llms.txt)
 
 ## Claim boundary
 
-[![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](doc/CLAIM_BOUNDARY.md)
-[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](doc/OPENSSL_INTEROP.md)
-[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446-2f855a?style=for-the-badge)](doc/ROADMAP.md)
+[![CMVP](https://img.shields.io/badge/CMVP_%2F_FIPS_140-not_validated-bf8700?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/CLAIM_BOUNDARY.md)
+[![OpenSSL](https://img.shields.io/badge/OpenSSL_3.5.9-X25519MLKEM768_raw--pk-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/OPENSSL_INTEROP.md)
+[![encoding](https://img.shields.io/badge/TLS_wire-RFC_8446-2f855a?style=for-the-badge)](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ROADMAP.md)
 [![pqforge](https://img.shields.io/badge/crypto-pqforge-4ee0d4?style=for-the-badge)](https://github.com/turkananation/pqforge)
 [![swissarmyknife](https://img.shields.io/badge/infra-swissarmyknife-b6f25c?style=for-the-badge)](https://github.com/turkananation/swissarmyknife)
 [![pqcrypto](https://img.shields.io/badge/evidence-pqcrypto-2f855a?style=for-the-badge)](https://github.com/turkananation/pqcrypto)
@@ -53,11 +53,11 @@ zeroization in Dart are best-effort. ML-KEM/ML-DSA evidence lives in
 `package:pqcrypto` (via pqforge).
 
 Documentation (architecture, features, bugs, tracker, roadmap):
-[`doc/INDEX.md`](doc/INDEX.md).
+[`doc/INDEX.md`](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/INDEX.md).
 Site (Jaspr, same engine as swissarmyknife):
 [turkananation.github.io/pqtransport](https://turkananation.github.io/pqtransport/).
 Wiki: [github.com/turkananation/pqtransport/wiki](https://github.com/turkananation/pqtransport/wiki).
-How the site is built: [`doc/SITE.md`](doc/SITE.md).
+How the site is built: [`doc/SITE.md`](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/SITE.md).
 
 ## Hybrid groups (RFC 10024)
 
@@ -81,10 +81,10 @@ with OpenSSL 3.5.9 on X25519MLKEM768, SecP256r1MLKEM768, and
 SecP384r1MLKEM1024 in `tool/interop/openssl` (2026-10-20, auth mode
 raw-pk). SecP384r1MLKEM1024 uses `PqForgeProfile.maximum`. That raw-pk
 row is not an X.509 path. X.509, both directions, is
-[doc/OPENSSL_INTEROP.md](doc/OPENSSL_INTEROP.md). BoringSSL 0.20261020.0
+[doc/OPENSSL_INTEROP.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/OPENSSL_INTEROP.md). BoringSSL 0.20261020.0
 is a TLS peer on X25519MLKEM768, and on X25519, secp256r1, secp384r1,
 and MLKEM1024
-([tool/interop/boringssl](tool/interop/boringssl)). Hybrid stays first.
+([tool/interop/boringssl](https://github.com/turkananation/pqtransport/blob/v0.2.1/tool/interop/boringssl)). Hybrid stays first.
 Not SecP256r1MLKEM768. Not SecP384r1MLKEM1024. Not a browser. Not WebPKI.
 
 ## Install
@@ -152,19 +152,19 @@ QUIC RFC 9001 A.1/A.2 + live TLS-in-QUIC, RFC 9002 loss recovery,
 
 ## Documentation
 
-Canonical root: [`doc/INDEX.md`](doc/INDEX.md).
+Canonical root: [`doc/INDEX.md`](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/INDEX.md).
 
 | Document | Purpose |
 | --- | --- |
-| [doc/ACHIEVEMENTS.md](doc/ACHIEVEMENTS.md) | What 0.1.0 shipped, with evidence |
-| [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) | Layout, concat, TLS/UDP data flow |
-| [doc/FEATURES.md](doc/FEATURES.md) | Done / partial / fail-closed / not started |
-| [doc/API.md](doc/API.md) | Public types and consume examples |
-| [doc/BUGS.md](doc/BUGS.md) | OPEN / BLK / LIM / FIX |
-| [doc/TRACKER.md](doc/TRACKER.md) | Canonical tracker |
-| [doc/ROADMAP.md](doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
-| [doc/PQFORGE_EXPORTS.md](doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.13 APIs |
-| [doc/CLAIM_BOUNDARY.md](doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
+| [doc/ACHIEVEMENTS.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ACHIEVEMENTS.md) | What 0.1.0 shipped, with evidence |
+| [doc/ARCHITECTURE.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ARCHITECTURE.md) | Layout, concat, TLS/UDP data flow |
+| [doc/FEATURES.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/FEATURES.md) | Done / partial / fail-closed / not started |
+| [doc/API.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/API.md) | Public types and consume examples |
+| [doc/BUGS.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/BUGS.md) | OPEN / BLK / LIM / FIX |
+| [doc/TRACKER.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/TRACKER.md) | Canonical tracker |
+| [doc/ROADMAP.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/ROADMAP.md) | 0.2 → 0.5, order is not optional |
+| [doc/PQFORGE_EXPORTS.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/PQFORGE_EXPORTS.md) | Consumed vs not-wired pqforge 0.4.13 APIs |
+| [doc/CLAIM_BOUNDARY.md](https://github.com/turkananation/pqtransport/blob/v0.2.1/doc/CLAIM_BOUNDARY.md) | Allowed vs forbidden wording |
 
 ## Sister packages
 
