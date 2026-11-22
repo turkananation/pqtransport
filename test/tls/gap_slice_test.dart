@@ -33,7 +33,7 @@ void main() {
       final client = PqTlsClient(crypto: crypto, compressCertificate: true);
       final server = PqTlsServer(crypto: crypto, identity: identity);
       await finish(client, server);
-      expect(client.certificateWasCompressed, isTrue);
+      expect(client.certificateWasCompressed, zlibCertificateCompression);
       expect(client.peerAuthenticated, isTrue);
 
       final plain = PqTlsClient(crypto: crypto);

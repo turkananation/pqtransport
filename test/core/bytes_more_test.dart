@@ -15,6 +15,13 @@ void main() {
     expect(readUint32(w, 5), 0x89abcdef);
   });
 
+  test('uint64 round trip of a millisecond timestamp', () {
+    final b = BytesBuilder(copy: false);
+    const stamp = 1763800000000;
+    writeUint64(b, stamp);
+    expect(readUint64(b.takeBytes(), 0), stamp);
+  });
+
   test('ByteReader remaining helpers', () {
     final r = ByteReader(Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]));
     expect(r.u32().isSuccess, isTrue);

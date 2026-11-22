@@ -46,6 +46,7 @@ export 'src/quic/recovery.dart';
 export 'src/quic/zero_rtt.dart';
 export 'src/socket/pq_transport_socket.dart';
 export 'src/tls/certificate_policy.dart';
+export 'src/tls/cert_compress.dart' show zlibCertificateCompression;
 export 'src/tls/cert_messages.dart'
     show
         TlsClientAuth,

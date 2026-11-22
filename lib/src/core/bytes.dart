@@ -82,9 +82,14 @@ void writeUint32(BytesBuilder builder, int value) {
 }
 
 /// Writes [value] as a big-endian unsigned 64-bit integer.
+///
+/// A 32-bit shift is not a 64-bit shift on dart2js, so the high half is
+/// taken by division. Values above 2^53 are exact on the VM only.
 void writeUint64(BytesBuilder builder, int value) {
-  writeUint32(builder, (value >> 32) & 0xffffffff);
-  writeUint32(builder, value & 0xffffffff);
+  final hi = value ~/ 0x100000000;
+  final lo = value - hi * 0x100000000;
+  writeUint32(builder, hi);
+  writeUint32(builder, lo);
 }
 
 /// Writes an 8-bit length-prefixed opaque value.
@@ -120,7 +125,7 @@ int readUint32(Uint8List bytes, int offset) =>
 int readUint64(Uint8List bytes, int offset) {
   final hi = readUint32(bytes, offset);
   final lo = readUint32(bytes, offset + 4);
-  return (hi << 32) | lo;
+  return hi * 0x100000000 + lo;
 }
 
 /// Cursor over a buffer for Result-typed codecs.

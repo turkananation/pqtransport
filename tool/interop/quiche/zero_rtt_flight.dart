@@ -66,7 +66,8 @@ Future<void> main(List<String> args) async {
     'replay_bytes=${replay == null ? '' : _earlyText(replay)} '
     'replay_accepted=${replay?.earlyDataAccepted} exit=$code',
   );
-  final ok = code == 0 &&
+  final ok =
+      code == 0 &&
       text.contains('quiche-0rtt sent=pq-0rtt') &&
       text.contains('quiche-0rtt replay established=true') &&
       earlyText == 'pq-0rtt' &&
@@ -109,8 +110,9 @@ final class _QuicTable {
   Future<void> _pump = Future<void>.value();
   var _ticketSent = false;
 
-  List<QuicLossSubscription> get losses =>
-      [for (final slot in _slots) slot.loss];
+  List<QuicLossSubscription> get losses => [
+    for (final slot in _slots) slot.loss,
+  ];
 
   PqQuicConn? at(int index) =>
       _slots.length > index ? _slots[index].conn : null;
