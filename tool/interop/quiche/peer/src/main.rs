@@ -34,6 +34,7 @@ fn main() -> ExitCode {
     let mode = args.next().unwrap_or_default();
     match mode.as_str() {
         "client" => client(args),
+        "0rtt-client" => zero_rtt_client(args),
         "server" => server(args),
         "h3-client" => h3_client(args),
         "h3-server" => h3_server(args),
@@ -42,6 +43,7 @@ fn main() -> ExitCode {
         _ => {
             eprintln!(
                 "usage: quiche_peer client <host:port> <ca.pem>\n       \
+                 quiche_peer 0rtt-client <host:port> <ca.pem>\n       \
                  quiche_peer server <port> <cert.pem> <key.pem>\n       \
                  quiche_peer h3-client <host:port> <ca.pem>\n       \
                  quiche_peer h3-server <port> <cert.pem> <key.pem>\n       \
@@ -163,6 +165,109 @@ fn client(mut args: impl Iterator<Item = String>) -> ExitCode {
         explain(&conn);
         ExitCode::from(1)
     }
+}
+
+/// First connection caches quiche's session. The next one sends `pq-0rtt`
+/// on stream 4 before the handshake finishes. The third offers the same
+/// session again.
+fn zero_rtt_client(mut args: impl Iterator<Item = String>) -> ExitCode {
+    let peer_text = args.next().unwrap_or_default();
+    let ca = args.next().unwrap_or_default();
+    if peer_text.is_empty() || ca.is_empty() || args.next().is_some() {
+        eprintln!("usage: quiche_peer 0rtt-client <host:port> <ca.pem>");
+        return ExitCode::from(64);
+    }
+    let peer: SocketAddr = peer_text.parse().unwrap_or_else(|_| {
+        die(&format!("not a socket address: {peer_text}"));
+    });
+    let mut config = config();
+    config.enable_early_data();
+    config
+        .load_verify_locations_from_file(&ca)
+        .unwrap_or_else(|err| die(&format!("ca: {err:?}")));
+    config.verify_peer(true);
+    let session = match take_session(&mut config, peer) {
+        Some(bytes) => bytes,
+        None => return ExitCode::from(1),
+    };
+    if !resume(&mut config, peer, &session, true) {
+        return ExitCode::from(1);
+    }
+    if !resume(&mut config, peer, &session, false) {
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
+fn take_session(config: &mut quiche::Config, peer: SocketAddr) -> Option<Vec<u8>> {
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap_or_else(|err| die(&format!("bind: {err}")));
+    let local = socket.local_addr().unwrap();
+    let scid = random_cid();
+    let mut conn = quiche::connect(Some("localhost"), &scid, local, peer, config)
+        .unwrap_or_else(|err| die(&format!("connect: {err:?}")));
+    let mut out = [0u8; 65535];
+    flush(&socket, &mut conn, &mut out);
+    if !drive(&socket, &mut conn, &mut out) {
+        explain(&conn);
+        eprintln!("0-rtt: first handshake failed");
+        return None;
+    }
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline && conn.session().is_none() && !conn.is_closed() {
+        pump_once(&socket, &mut conn, &mut out, Duration::from_millis(50));
+    }
+    match conn.session() {
+        Some(bytes) => {
+            eprintln!("0-rtt: session {}", bytes.len());
+            Some(bytes.to_vec())
+        }
+        None => {
+            explain(&conn);
+            eprintln!("0-rtt: no session");
+            None
+        }
+    }
+}
+
+fn resume(
+    config: &mut quiche::Config,
+    peer: SocketAddr,
+    session: &[u8],
+    early: bool,
+) -> bool {
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap_or_else(|err| die(&format!("bind: {err}")));
+    let local = socket.local_addr().unwrap();
+    let scid = random_cid();
+    let mut conn = quiche::connect(Some("localhost"), &scid, local, peer, config)
+        .unwrap_or_else(|err| die(&format!("connect: {err:?}")));
+    if let Err(err) = conn.set_session(session) {
+        eprintln!("0-rtt: set_session {err:?}");
+        return false;
+    }
+    if early {
+        if let Err(err) = conn.stream_send(4, b"pq-0rtt", true) {
+            eprintln!("0-rtt: stream_send {err:?}");
+            return false;
+        }
+    }
+    let mut out = [0u8; 65535];
+    flush(&socket, &mut conn, &mut out);
+    let ok = drive(&socket, &mut conn, &mut out);
+    if !ok {
+        explain(&conn);
+        return false;
+    }
+    if early {
+        println!("quiche-0rtt sent=pq-0rtt");
+    } else {
+        println!("quiche-0rtt replay established=true");
+    }
+    let _ = io::stdout().flush();
+    let grace = Instant::now() + Duration::from_secs(1);
+    while Instant::now() < grace && !conn.is_closed() {
+        pump_once(&socket, &mut conn, &mut out, Duration::from_millis(50));
+    }
+    true
 }
 
 fn server(mut args: impl Iterator<Item = String>) -> ExitCode {

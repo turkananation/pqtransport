@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: Every public call in pqtransport 0.2.0. Constructors and fields are the ones in the library.
+description: Every public call in pqtransport 0.2.1. Constructors and fields are the ones in the library.
 ---
 
 The web-safe import is `package:pqtransport/pqtransport.dart`.
@@ -241,11 +241,21 @@ peer FIN. `resetStream(id, errorCode)` sends RESET_STREAM.
 CONNECTION_CLOSE and then discards inbound packets until three times
 the current PTO. `isComplete` is the TLS handshake. `alpn` is the
 selected protocol. `isDraining` and `isClosed` are the connection
-state. `writeEarly` sends replayable 0-RTT before `handshake`.
+state. `writeEarly` sends replayable 0-RTT before `handshake`, on a
+client-initiated bidirectional or unidirectional stream. `fin` is
+kept if that STREAM is later sent as 1-RTT. `writeEarlyDatagram`
+sends one RFC 9221 DATAGRAM that is not resent.
+`PqHttp3Session.writeEarlyRequest` queues one HTTP/3 request on the
+early bidirectional stream. QPACK uses the static table only. The
+control stream is still 1-RTT. Not `curl --http3`.
 The server calls `sendNewSessionTicket` after the handshake, into a
 `QuicEarlyDataStore`. The next `pair` takes that ticket. A second
 use of the same ticket completes and accepts no early data. 0-RTT
 shares the Application Data packet number space with 1-RTT.
+`moreTickets` offers more identities. Early data is index 0 only.
+`QuicEarlyDataStore(ticketKey:)` lets a later store resume and
+refuse 0-RTT. Not an external PSK. `commitMigration` runs after
+PATH_RESPONSE. `driveLossRecovery` also fires a path PTO.
 
 ## HTTP
 

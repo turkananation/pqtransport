@@ -72,6 +72,13 @@ Future<void> main(List<String> args) async {
             body: Uint8List.fromList('pq-deflate'.codeUnits),
             version: HttpVersion.h1,
           );
+        case '/gzip':
+          return PqHttpResponse(
+            status: 200,
+            headers: const {'connection': 'close'},
+            body: Uint8List.fromList('pq-gzip'.codeUnits),
+            version: HttpVersion.h1,
+          );
         case '/echo':
           return PqHttpResponse(
             status: 200,
@@ -248,6 +255,45 @@ Future<void> main(List<String> args) async {
       return;
     }
     stdout.writeln('zlib request body was inflated before the handler');
+    final gzipHeaders = '${dir.path}/gzip.headers';
+    final gzipBody = '${dir.path}/gzip.body';
+    final gzipped = await runCurl([
+      '-D',
+      gzipHeaders,
+      '-o',
+      gzipBody,
+      '-H',
+      'Accept-Encoding: gzip',
+      'https://localhost:$port/gzip',
+    ]);
+    final gzipHead = File(gzipHeaders).existsSync()
+        ? await File(gzipHeaders).readAsString()
+        : '';
+    final gunzipped = await Process.run('python3', [
+      '-c',
+      'import gzip,pathlib,sys\n'
+          'raw=pathlib.Path(sys.argv[1]).read_bytes()\n'
+          'assert raw[:2]==bytes([0x1f,0x8b])\n'
+          'sys.stdout.buffer.write(gzip.decompress(raw))\n',
+      gzipBody,
+    ]);
+    if (gzipped.exitCode != 0 ||
+        gunzipped.exitCode != 0 ||
+        gunzipped.stdout.toString() != 'pq-gzip' ||
+        !gzipHead.toLowerCase().contains('content-encoding: gzip')) {
+      stderr.writeln(gzipped.stderr);
+      stderr.writeln(gunzipped.stderr);
+      stderr.writeln(gzipHead);
+      stderr.writeln(
+        'curl gzip exit ${gzipped.exitCode} '
+        'gzip ${gunzipped.exitCode} body=${gunzipped.stdout}',
+      );
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln(
+      'curl saved Content-Encoding: gzip; gzip.decompress yielded pq-gzip',
+    );
   } finally {
     await server?.close();
     await dir.delete(recursive: true);

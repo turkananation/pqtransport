@@ -1,6 +1,6 @@
 ---
 title: Features
-description: Feature matrix for pqtransport 0.2.0 — done, partial, fail-closed, not started.
+description: Feature matrix for pqtransport 0.2.1 — done, partial, fail-closed, not started.
 ---
 
 Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
@@ -33,7 +33,7 @@ Status: **Done** (tested), **Partial**, **Fail-closed**, **Not started**.
 | SNI, ALPN, key_share extensions | Done |
 | X.509 / certificate chains | Done. Opt-in, chain of 1 to 8, caller anchors. Default offer stays raw public key. Not WebPKI. Not a browser |
 | ChaCha20-Poly1305 records | Done (IANA `0x1303`; dart2js via pqforge 0.4.5) |
-| ECH (RFC 9849) | Done. One BoringSSL 0.20261020.0 flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via `PqHpke` (pqforge 0.4.10). Inner name `localhost`. Not OpenSSL. Not GREASE. Not DNS |
+| ECH (RFC 9849) | Done. One BoringSSL 0.20261020.0 flight. DHKEM(X25519, HKDF-SHA256) + AES-128-GCM via `PqHpke` (pqforge 0.4.14, HPKE since 0.4.10). Inner name `localhost`. Not OpenSSL. Not GREASE. Not DNS |
 | OpenSSL 3.5.9 RFC 10024 | Done. Three hybrid groups, raw-pk and X.509, both directions. Also X25519, secp256r1, secp384r1, and MLKEM1024. BoringSSL 0.20261020.0 is a TLS peer on those same groups except the two NIST hybrids. curl does HTTP/1.1 GETs, including keep-alive and `Connection: close` against `PqHttpServer`. `PqHttpClient` reassembles `s_server -max_send_frag 512`. Not a browser |
 
 ## UDP / DNS / mDNS / QUIC / HTTP

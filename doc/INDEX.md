@@ -1,8 +1,8 @@
 # pqtransport Documentation Index
 
-Last updated: 2026-09-17
+Last updated: 2026-11-18
 
-This is the canonical documentation root for `package:pqtransport` **0.2.0**.
+This is the canonical documentation root for `package:pqtransport` **0.2.1**.
 Use `doc/` links for project documentation. The README is the install
 entry; this folder is the evidence, architecture, and planning surface.
 
@@ -25,7 +25,7 @@ upgrade a claim this layer is not allowed to make. See
 
 | Area | Current state |
 | --- | --- |
-| Package version | `0.2.0` |
+| Package version | `0.2.1` |
 | SDK | `>=3.12.0 <4.0.0` |
 | Runtime dependencies | `pqforge ^0.4.13`, `swissarmyknife ^0.1.0` |
 | Native / FFI | None. No `dart:ffi`. No platform TLS (`SecureSocket`) on the PQ path. |

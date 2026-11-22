@@ -236,7 +236,7 @@ final class PqTransportCrypto {
     );
   }
 
-  /// FIPS 205 SLH-DSA-SHA2-128f. Archival only. Not the ML-DSA default.
+  /// FIPS 205 SLH-DSA-SHA2-128f, for the archival TXT path.
   PqKeyPair slhDsaSha2128fKeyGen() =>
       PqSlhDsaPrimitives.generateKeyPair(PqSlhDsaAlgorithm.sha2128f);
 

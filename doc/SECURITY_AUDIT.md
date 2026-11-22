@@ -83,13 +83,31 @@ same key.
 ### S7 — QUIC 0-RTT (LIM-05)
 
 AES and ChaCha20 header protection are done (OPEN-06, OPEN-16).
-0-RTT is self-interop. RFC 9000 §12.3 puts it in the Application
-Data space with 1-RTT. It is not a fourth space. RFC 9002 §6.2.1
-keeps that PTO disarmed until the handshake is confirmed. Early
-data is replayable. The server ticket is single-use, so a second
-connection with the same ticket completes and accepts no early
-data. Rejected early data is not resent as 1-RTT. ECH and 0-RTT
-together are refused. CRYPTO frames carry a live encapsulate.
+The ClientHello sends `psk_key_exchange_modes`
+with `psk_dhe_ke` before `pre_shared_key` (RFC 8446 §4.2.9). A
+`pre_shared_key` without that extension is `illegal_parameter`.
+`psk_ke` is not selected. RFC 9000 §12.3 puts early data in the
+Application Data space with 1-RTT. It is not a fourth space. RFC
+9002 §6.2.1 keeps that PTO disarmed until the handshake is
+confirmed. Early data is replayable. The server ticket is
+single-use, so a second connection with the same ticket completes
+and accepts no early data. Rejected early data is sent again as
+1-RTT, including FIN on a client-initiated unidirectional stream.
+One HTTP/3 request on the early bidirectional stream uses the QPACK
+static table only. The control stream is still 1-RTT. A 0-RTT
+DATAGRAM is delivered once and is not sent again on replay. A
+ClientHello may carry more than one PSK identity. The server
+selects the first identity it recognizes whose binder matches a
+single Truncate(ClientHello). A bad binder on a known identity is
+`decrypt_error`, and a later identity is not tried. Early data is
+accepted only for index 0. `ticketKey` seals the PSK into the
+identity. A store that did not issue the ticket can resume and
+must not accept 0-RTT. That seal is not an external PSK (RFC 9258)
+and it is not a cross-process anti-replay cache. ECH and
+0-RTT together are refused. CRYPTO frames carry a
+live encapsulate. quiche 0.30.0 sent `pq-0rtt` on stream 4 once
+(`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then
+completed and accepted none.
 
 ### S8 — UDP HKDF extra is shared (by design)
 
@@ -104,12 +122,14 @@ removed). Do not "fix" that by hashing the role.
 Do not document this as erasure. Side-channel posture is best-effort
 in Dart.
 
-### S10 — Authentication story is local
+### S10 — Authentication is the TLS peer, not WebPKI
 
-ML-KEM is not authenticated transport. 0.1.0 authenticates the TLS
-server with ML-DSA-65 over the transcript, and mDNS TXT with the same.
-There is no CT log, no WebPKI, no raw-pk negotiation. Callers who need
-a PKI must wait for OPEN-04 or supply their own verify hook later.
+ML-KEM does not authenticate the peer. The handshake authenticates
+with the negotiated signature. Raw public key is the default offer
+and uses ML-DSA-65 and ML-DSA-87. X.509 is opt-in: a caller-supplied
+chain of 1 to 8, caller anchors, and the schemes that path allows
+(ML-DSA, ECDSA P-256 and P-384, Ed25519, RSA-PSS). There is no CT
+log, no AIA, and no system trust store. Not WebPKI.
 
 ## Positive controls (keep)
 

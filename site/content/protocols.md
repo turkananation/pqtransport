@@ -1,6 +1,6 @@
 ---
 title: Protocols
-description: UDP, TLS 1.3, DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP in pqtransport 0.2.0.
+description: UDP, TLS 1.3, DNSSEC, DoH/DoT, mDNS, QUIC, and HTTP in pqtransport 0.2.1.
 ---
 
 Status vocabulary matches [`doc/FEATURES.md`](https://github.com/turkananation/pqtransport/blob/main/doc/FEATURES.md):
@@ -52,7 +52,7 @@ does HTTP/1.1 GETs with `--cacert`, including a reused connection and
 
 ECH (RFC 9849) is self-interop and one BoringSSL flight. The suite is
 DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, via `PqHpke`
-(pqforge 0.4.10). Inner name `localhost`, public name `public.example`.
+(pqforge 0.4.14, HPKE since 0.4.10). Inner name `localhost`, public name `public.example`.
 A client with an `EchConfig` does not send a cleartext second hello.
 Not an OpenSSL flight. Not GREASE. Not DNS. Not a browser.
 
@@ -82,7 +82,10 @@ proof answers a later name in that span. NSEC3 is hash algorithm 1,
 SHA-1 from pqforge 0.4.11. The iteration field is 0 through 65535.
 The iterative resolver's ceiling defaults to 0. That resolver follows
 referrals from root hints and returns secure, insecure, or bogus.
-The AD bit is not validation. Not an authoritative server.
+The AD bit is not validation. `DnsAuthoritativeZone` is a separate
+in-memory zone: AA on an answer, NODATA, and NXDOMAIN; a referral
+clears AA. It does not set AD and it does not sign. It is not this
+resolver.
 
 `PqDnsClient.lookup` is one query. `resolve` follows CNAME.
 `authenticateDns` takes `lookup`, not `resolve`. DoH is
@@ -100,8 +103,10 @@ Probe / announce / browse on 5353. Receivers join `224.0.0.251` /
 An optional second field, `pqslh=`, is SLH-DSA-SHA2-128f and is not
 the default. EventBus announcements per client. Real LAN mDNS uses
 `IoDatagramChannel.joinMulticast`. Browsers have no raw UDP (LIM-04).
-SLH-DSA-SHA2-128f is archival only. The other eleven sets are not
-used here, and TLS CertificateVerify stays ML-DSA.
+SLH-DSA-SHA2-128f is archival only on this path. The other eleven
+sets are not used for mDNS. TLS CertificateVerify may opt in to
+IANA `0x0911`–`0x091C`. That handshake test is SHA2-128f, and it
+is not the default signature.
 
 The call is `beginProbe`, two `completeProbe`s, then `announce`.
 `signTxt` takes `crypto`, `secretKey`, `name`, and `body`.

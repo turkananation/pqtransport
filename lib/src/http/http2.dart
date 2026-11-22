@@ -705,6 +705,34 @@ final class PqHttp2Session {
     return _sendBody(streamId, data, endStream: endStream, timeout: timeout);
   }
 
+  /// The next DATA payload on an open tunnel. WebSocket frames and
+  /// capsules are both just this payload.
+  Future<Result<Uint8List, PqTransportError>> readData(
+    int streamId, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (true) {
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining.isNegative) {
+        return Result.failure(PqTransportError.decodeFailure('http2 timeout'));
+      }
+      final next = await _waitFrame(remaining);
+      if (next.isFailure) return Result.failure(next.errorOrNull!);
+      final frame = next.valueOrNull!;
+      if (frame.type == http2FrameGoaway || frame.type == http2FrameRstStream) {
+        return Result.failure(PqTransportError.closed('http2 tunnel'));
+      }
+      if (frame.type == http2FrameData && frame.streamId == streamId) {
+        final body = http2Unpad(frame);
+        if (body.isFailure) return Result.failure(body.errorOrNull!);
+        return Result.success(body.valueOrNull!);
+      }
+      _frames.insert(0, frame);
+      return Result.failure(PqTransportError.decodeFailure('http2 data'));
+    }
+  }
+
   /// [untilFin] false returns after the response headers. A CONNECT
   /// tunnel has no message body before the capsules.
   Future<Result<PqHttpResponse, PqTransportError>> readResponse(
@@ -979,11 +1007,7 @@ final class PqHttp2Session {
           keptHeaders = now.valueOrNull!;
         }
       }
-      if (!untilFin &&
-          headersDone &&
-          !headersOpen &&
-          !headerPartsAreTrailers &&
-          keptHeaders != null) {
+      if (!untilFin && headersDone && !headersOpen && !headerPartsAreTrailers) {
         ended = true;
       }
     }

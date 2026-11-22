@@ -2,14 +2,14 @@
 
 Last updated: 2026-11-08
 
-Public names for 0.2.0. Adding a symbol to the web barrel requires a test that
+Public names for 0.2.1. Adding a symbol to the web barrel requires a test that
 imports only `package:pqtransport/pqtransport.dart`.
 
 ## Install
 
 ```yaml
 dependencies:
-  pqtransport: ^0.2.0
+  pqtransport: ^0.2.1
   pqforge: ^0.4.13
   swissarmyknife: ^0.1.0
 ```
@@ -67,8 +67,10 @@ ClientHello still offers the hybrid first.
 
 | Type | Role |
 |---|---|
-| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `peerAuthenticated` is true only after the client checked CertificateVerify. `allowUnauthenticated` skips that check and is not authentication; the bit stays false. Default certificate is RFC 7250 RawPublicKey. Opt-in X.509 is `certificateTypes: [TlsCertificateType.x509]` and `PqTlsServerIdentity.x509` (chain 1..8, caller anchors). |
-| `PqTlsServerIdentity` | ML-DSA-65 key pair |
+| `PqTlsClient` / `PqTlsServer` / `PqTlsSocket` | Handshake + records. `alpnProtocols` (default `http/1.1`). `peerAuthenticated` is true only after the client checked CertificateVerify. `allowUnauthenticated` skips that check and is not authentication; the bit stays false. Default certificate is RFC 7250 RawPublicKey. Opt-in X.509 is `certificateTypes: [TlsCertificateType.x509]` and `PqTlsServerIdentity.x509` (chain 1..8, caller anchors). `compressCertificate: true` offers zlib only when `zlibCertificateCompression` is true. The web build has no zlib. `clientIdentity` answers `TlsClientAuth` with one raw public key. An empty Certificate is `certificate_required`. A PSK resume does not send CertificateRequest. |
+| `PqTlsServerIdentity` | ML-DSA-65 key pair, or `PqTlsServerIdentity.slhDsa` for one FIPS 205 set. SLH-DSA is not the default. |
+| `TlsClientAuth` / `TlsClientIdentity` | Raw public-key allow-list and the client key that answers it. Not an X.509 client chain. |
+| `tlsSignatureForSlh` / `tlsSlhDsaAlgorithm` | IANA `0x0911`–`0x091C` ↔ the 12 FIPS 205 sets. |
 | `TlsState` / `TlsEvent` / `tlsClientMachine` / `tlsServerMachine` | Machines |
 | `TlsKeySchedule` | Suite-bound HKDF-SHA-384 (`0x1302`) or SHA-256 (`0x1303`) + exporter |
 | `TlsCipherSuite` | IANA `0x1302` / `0x1303` |
@@ -92,7 +94,9 @@ final key = client.exporter('app', Uint8List(0), 32);
 | Type | Role |
 |---|---|
 | `PqDnsClient` / `PqDnsResolver` | Stub lookup. Cache, breaker, RD, DO, CD, id match, TC retry, BADCOOKIE retry. `lookup` does not validate |
-| `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0 |
+| `DnsIterativeResolver` | Root hints, referrals, glue, qname minimization, CNAME, DNAME. `secure`, `insecure`, or `bogus`. NSEC3 ceiling defaults to 0. Not `DnsAuthoritativeZone` |
+| `DnsAuthoritativeZone` | In-memory zone. AA on an answer, NODATA, and NXDOMAIN. A referral clears AA. The AD bit is not set. The zone does not sign |
+| `encodeDnsAssign` / `decodeDnsAssign` / `encodePref64` / `decodePref64` | Provisional DNS_ASSIGN `0x1ACE79EC` and PREF64 `0x274C0FBC`. An empty body withdraws. Not a masque-go flight. Not stable IANA |
 | `authenticateDns` / `verifyDnssecRrset` | One signed name, or one RRset. Algorithms 5, 7, 8, 10, 13, 14, 15, and 16 via pqforge. Ed448 is the empty context |
 | `DohClient` | RFC 8484. `DohClient.h2` / `DohClient.h3`. Template `{?dns}` or a plain POST URI. GET is unpadded base64url. |
 | `DohUriTemplate.parse` | Accepts only a trailing `{?dns}`. Other expressions fail closed. |
@@ -115,13 +119,13 @@ is not read. `DnsIterativeResolver` walks root hints and returns
 |---|---|
 | `PqMdnsClient` / `PqMdnsServer` | Probe/announce/browse |
 | `signTxt` / `verifyTxt` | ML-DSA-65 TXT (`pqsig=`). Default announce path |
-| `signTxtArchival` / `verifyTxtArchival` | Optional SLH-DSA-SHA2-128f TXT (`pqslh=`). Does not replace `signTxt` |
+| `signTxtArchival` / `verifyTxtArchival` | Optional SLH-DSA-SHA2-128f TXT (`pqslh=`). Does not replace `signTxt`. mDNS stays this one set |
 | `PqHttpClient` / `PqHttpRequest` / `PqHttpResponse` | HTTP/1.1 and HTTP/2 over TLS. HTTP/3 over `PqQuicConn`. `roundTrip` follows ALPN. |
-| `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK |
-| `PqHttp3Session` / `Http3Frame` / `QpackCodec` | RFC 9114 session + RFC 9204 QPACK |
-| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC, 0-RTT, and 1-RTT STREAM. `writeEarly` before `start`. `sendNewSessionTicket` after the handshake. `driveLossRecovery` runs RFC 9002 when the deadline is due. |
-| `QuicResumptionTicket` / `QuicEarlyDataStore` | Single-use PSK ticket. `early_data` max `0xffffffff`. A second `take` accepts no early data. |
-| `QuicLossRecovery` / `QuicNewReno` / `QuicClock` | RFC 9002 loss detection, PTO, and NewReno. Compose without a connection: peek a packet number, seal, `canSend`, `onPacketSent`, `onAck`, `onLossDetectionTimeout`. `ssthresh` is null until the first loss (Appendix B infinite). 0-RTT uses the Application Data space. Its PTO stays off until `markHandshakeConfirmed`. |
+| `PqHttp2Session` / `Http2Frame` / `HpackCodec` | RFC 9113 session + RFC 7541 HPACK. `readData` / `writeData` carry tunnel bytes after extended CONNECT. One in-memory RFC 6455 data frame. Not `curl wss://`. |
+| `PqHttp3Session` / `Http3Frame` / `QpackCodec` | RFC 9114 session + RFC 9204 QPACK. `writeEarlyRequest` queues one static-table request before `start`. `readData` / `writeData` are the same tunnel, in memory. |
+| `PqQuicConn` / `QuicStreamFrame` / `QuicStreamReassembler` | TLS-in-QUIC, 0-RTT, and 1-RTT STREAM. `writeEarly` before `start`, including a client unidirectional stream and `fin`. `writeEarlyDatagram` is not resent. `moreTickets` offers further PSK identities; early data stays on index 0. `sendNewSessionTicket` after the handshake. `commitMigration` after PATH_RESPONSE. `driveLossRecovery` runs path 0 and each path PTO when the deadline is due. |
+| `QuicResumptionTicket` / `QuicEarlyDataStore` | Single-use 0-RTT while the issuing store holds the identity. `ticketKey` seals the PSK so another store can resume and still refuse 0-RTT. Not RFC 9258. |
+| `QuicLossRecovery` / `QuicNewReno` / `QuicPathPto` / `QuicClock` | RFC 9002 loss detection, PTO, and NewReno. An ECN-CE increase is a congestion event. Not CUBIC. `QuicPathPto` is one path other than path 0: a timeout probes and does not declare loss. Compose without a connection: peek a packet number, seal, `canSend`, `onPacketSent`, `onAck`, `onLossDetectionTimeout`. `ssthresh` is null until the first loss (Appendix B infinite). 0-RTT uses the Application Data space. Its PTO stays off until `markHandshakeConfirmed`. |
 | `QuicPacketCodec` / `QuicInitialCodec` / `QuicZeroRttCodec` / `QuicCryptoFrame` | 1-RTT, Initial, and 0-RTT header protection |
 | `QuicAckFrame` / `QuicAckProcessor` | RFC 9000 ACK |
 | `QuicTlsHandshake` / `QuicCryptoStream` | RFC 9001 TLS-in-QUIC (`quic: true`) |

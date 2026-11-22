@@ -229,6 +229,7 @@ const int dnsNsec3MaxIterations = 65535;
 
 /// RFC 1035. Authoritative answer.
 const int dnsFlagAa = 0x0400;
+const int dnsFlagQr = 0x8000;
 
 /// RFC 1035. Recursion desired. A stub sets this when it asks a resolver
 /// to chase the name. An iterative query to an authoritative server does not.
@@ -250,6 +251,7 @@ const int ednsOptionCookie = 10;
 
 /// RFC 1035. Response code is the low four bits.
 const int dnsRcodeMask = 0x000f;
+const int dnsRcodeFormErr = 1;
 const int dnsRcodeNxDomain = 3;
 
 /// RFC 3225. DNSSEC OK, in the OPT flags.
@@ -279,6 +281,11 @@ const int tls13Version = 0x0304;
 const int tlsRecordHeaderBytes = 5;
 const int tlsMaxPlaintextBytes = 16384;
 
+/// Largest handshake fragment this stack will seal. The record length
+/// on the wire is the ciphertext, and [decodePlainRecord] refuses a
+/// length above [tlsMaxPlaintextBytes].
+const int tlsRecordPlaintextLimit = tlsMaxPlaintextBytes - aeadTagBytes - 1;
+
 /// RFC 8446 §5.2: a TLSCiphertext fragment is at most 2^14 + 256 bytes.
 const int tlsMaxCiphertextBytes = 16640;
 const int tlsHandshakeReassemblyMaxBytes = 65536;
@@ -299,9 +306,11 @@ const int tlsHsServerHello = 2;
 const int tlsHsNewSessionTicket = 4;
 const int tlsHsEncryptedExtensions = 8;
 const int tlsHsCertificate = 11;
+const int tlsHsCertificateRequest = 13;
 const int tlsHsCertificateVerify = 15;
 const int tlsHsFinished = 20;
 const int tlsHsKeyUpdate = 24;
+const int tlsHsCompressedCertificate = 25;
 
 /// RFC 8446 §4.4.1 synthetic handshake wrapping Hash(ClientHello1) in an HRR
 /// transcript. Not sent on the wire.
@@ -317,7 +326,15 @@ const int tlsExtServerCertificateType = 20;
 const int tlsExtCookie = 44;
 const int tlsExtPreSharedKey = 41;
 const int tlsExtEarlyData = 42;
+const int tlsExtPskKeyExchangeModes = 45;
+const int tlsPskKe = 0;
+const int tlsPskDheKe = 1;
 const int tlsExtQuicTransportParameters = 57;
+
+/// RFC 8879. Algorithm 1 is the zlib wrapper. Brotli and zstd are not
+/// offered.
+const int tlsExtCompressCertificate = 27;
+const int tlsCertCompressZlib = 1;
 
 /// RFC 9849 encrypted_client_hello. ech_outer_extensions is 0xfd00.
 const int tlsExtEncryptedClientHello = 0xfe0d;
@@ -339,6 +356,35 @@ const int tlsSignatureRsaPssSha256 = 0x0804;
 const int tlsSignatureRsaPssSha384 = 0x0805;
 const int tlsSignatureRsaPssSha512 = 0x0806;
 
+/// IANA TLS SignatureScheme, draft-reddy-tls-slhdsa.
+const int tlsSignatureSlhDsaSha2128s = 0x0911;
+const int tlsSignatureSlhDsaSha2128f = 0x0912;
+const int tlsSignatureSlhDsaSha2192s = 0x0913;
+const int tlsSignatureSlhDsaSha2192f = 0x0914;
+const int tlsSignatureSlhDsaSha2256s = 0x0915;
+const int tlsSignatureSlhDsaSha2256f = 0x0916;
+const int tlsSignatureSlhDsaShake128s = 0x0917;
+const int tlsSignatureSlhDsaShake128f = 0x0918;
+const int tlsSignatureSlhDsaShake192s = 0x0919;
+const int tlsSignatureSlhDsaShake192f = 0x091A;
+const int tlsSignatureSlhDsaShake256s = 0x091B;
+const int tlsSignatureSlhDsaShake256f = 0x091C;
+
+/// FIPS 205 public-key sizes. 128, 192, and 256 share a size across
+/// the SHA2 and SHAKE sets. The OID selects the set.
+const int slhDsa128PublicKeyBytes = 32;
+const int slhDsa192PublicKeyBytes = 48;
+const int slhDsa256PublicKeyBytes = 64;
+const int slhDsa128SecretKeyBytes = 64;
+const int slhDsa192SecretKeyBytes = 96;
+const int slhDsa256SecretKeyBytes = 128;
+const int slhDsaSha2128sSignatureBytes = 7856;
+const int slhDsaSha2128fSignatureBytes = 17088;
+const int slhDsaSha2192sSignatureBytes = 16224;
+const int slhDsaSha2192fSignatureBytes = 35664;
+const int slhDsaSha2256sSignatureBytes = 29792;
+const int slhDsaSha2256fSignatureBytes = 49856;
+
 /// RFC 7250 CertificateType. Absent extension means X.509.
 const int tlsCertTypeX509 = 0;
 const int tlsCertTypeRawPublicKey = 2;
@@ -357,6 +403,7 @@ const int tlsAlertDecryptError = 51;
 const int tlsAlertBadCertificate = 42;
 const int tlsAlertUnsupportedCertificate = 43;
 const int tlsAlertCertificateUnknown = 46;
+const int tlsAlertCertificateRequired = 116;
 const int tlsAlertHandshakeFailure = 40;
 const int tlsAlertInternalError = 80;
 

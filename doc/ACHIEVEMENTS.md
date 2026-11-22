@@ -108,8 +108,14 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 | DNS RR round-trip; pointer cycle rejected | Done |
 | CircuitBreaker opens; cache expires at TTL | Done |
 | mDNS probe/announce/browse; ML-DSA TXT verify / mutate-fail | Done |
-| Optional SLH-DSA-SHA2-128f mDNS TXT (`pqslh=`); mutate fails | Done. Default announce stays ML-DSA-65. Not the other eleven sets. Not TLS CertificateVerify. |
-| QUIC 0-RTT early data, accepted once and empty on replay | Done. Application Data space, shared with 1-RTT. Not a fourth space. |
+| Optional SLH-DSA-SHA2-128f mDNS TXT (`pqslh=`); mutate fails | Done. Default announce stays ML-DSA-65. mDNS stays this one set. |
+| Opt-in SLH-DSA TLS CertificateVerify, IANA `0x0911`–`0x091C` | Done in memory. The handshake test is SHA2-128f. Not the default. Not a foreign peer. TLS records split. QUIC CRYPTO does not. |
+| One WebSocket text frame on HTTP/2 and HTTP/3 extended CONNECT | Done in memory. Not `curl wss://`. Not Autobahn. Not a browser. RFC 7692 stays HTTP/1.1. |
+| Raw public-key client certificate allow-list | Done in memory. Empty Certificate is `certificate_required`. Not on PSK resume. Not an X.509 client chain. |
+| `compress_certificate` zlib | Done when the ClientHello offers it. Not brotli. Not zstd. Not the default. The web build has no zlib. |
+| DNS_ASSIGN and PREF64 codecs | Encode and decode only. Provisional types. Not a masque-go flight. |
+| `DnsAuthoritativeZone` | In memory. AA, NODATA, NXDOMAIN, referral, REFUSED, FORMERR, CNAME. The AD bit is not set. The zone does not sign. |
+| QUIC 0-RTT early data, accepted once and empty on replay | Done. Application Data space, shared with 1-RTT. Not a fourth space. One in-memory HTTP/3 request, one DATAGRAM, and one client unidirectional stream. The DATAGRAM is not resent. quiche 0.30.0 sent `pq-0rtt` on stream 4 once. That flight is not an HTTP/3 request. |
 | CRYPTO frame carries 1216-byte share | Done (live ClientHello; OPEN-06) |
 | Packet protect round trip; bit-flip fails | Done (header protection) |
 | Flow control violation is an error | Done |
@@ -124,11 +130,18 @@ Peer stubs (fake flights) were allowed. Crypto stubs were not.
 Recorded so achievements cannot be misread:
 
 - BoringSSL on SecP256r1MLKEM768 or SecP384r1MLKEM1024. Those groups are not in BoringSSL 0.20261020.0. The X25519MLKEM768 handshake is a separate row above. `X509_verify_cert` on one OpenSSL leaf is not that handshake.
-- Third-party QUIC 0-RTT. This tree speaks 0-RTT to itself. Early
-  data is replayable. A replayed ticket is not accepted. Transport
-  parameters are not remembered. Not `curl --http3`.
-- Connection migration, ECN, multipath, anti-amplification, and
-  Handshake packet protection. Loss detection, PTO, and NewReno are in
-  tree. ChaCha header protection still fails closed.
-- Production DoH/DoT with ALPN.
+- Not `curl --http3`. Not `curl wss://`. Not Autobahn. Not a browser.
+- Not an X.509 client chain. Not WebPKI. Not brotli or zstd
+  certificate compression. Not a default SLH-DSA handshake.
+- DNS_ASSIGN and PREF64 are not a masque-go flight and not stable
+  IANA values. The in-memory zone does not sign and does not set AD.
+- G10 through G16, G22, G23, G26, and G27 stay open. `psk_ke` is
+  not selected. ECH together with 0-RTT stays refused.
+- Per-path PTO, `commitMigration`, and ECN-CE are in-memory only.
+  A path id above 0 sends one PATH_CHALLENGE on timeout and does not
+  declare packets lost. Not every RFC 10069 frame. No new per-path
+  PTO peer flight. `preferred_address` is not sent. The spin bit
+  stays clear. ACK frequency is not sent. ECN-CE is a NewReno event,
+  not CUBIC. Handshake packet protection, anti-amplification, ChaCha
+  header protection, and DoH/DoT are in this tree.
 - CMVP / FIPS 140 module validation.

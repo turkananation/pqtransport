@@ -339,6 +339,34 @@ final class QuicTransportParameters {
   }
 }
 
+/// RFC 9000 §7.4.1. A ticket must not remember connection-specific
+/// parameters. Flow-control limits stay: they are what bounds 0-RTT.
+Result<Uint8List, PqTransportError> quicTicketTransportParameters(
+  Uint8List wire,
+) {
+  final parsed = QuicTransportParameters.decode(wire);
+  if (parsed.isFailure) return Result.failure(parsed.errorOrNull!);
+  final p = parsed.valueOrNull!;
+  return Result.success(
+    QuicTransportParameters(
+      maxIdleTimeout: p.maxIdleTimeout,
+      maxUdpPayloadSize: p.maxUdpPayloadSize,
+      initialMaxData: p.initialMaxData,
+      initialMaxStreamDataBidiLocal: p.initialMaxStreamDataBidiLocal,
+      initialMaxStreamDataBidiRemote: p.initialMaxStreamDataBidiRemote,
+      initialMaxStreamDataUni: p.initialMaxStreamDataUni,
+      initialMaxStreamsBidi: p.initialMaxStreamsBidi,
+      initialMaxStreamsUni: p.initialMaxStreamsUni,
+      ackDelayExponent: p.ackDelayExponent,
+      maxAckDelay: p.maxAckDelay,
+      disableActiveMigration: p.disableActiveMigration,
+      activeConnectionIdLimit: p.activeConnectionIdLimit,
+      maxDatagramFrameSize: p.maxDatagramFrameSize,
+      initialMaxPathId: p.initialMaxPathId,
+    ).encode(),
+  );
+}
+
 /// Parameters this endpoint sends. A server's original destination CID is
 /// the DCID on the client's first Initial. It is not the server's source CID
 /// unless the client chose that value, which only the in-memory pair does.

@@ -1,5 +1,52 @@
 ## 0.2.1
 
+### Fixed
+
+- QUIC 0-RTT ClientHello sends `psk_key_exchange_modes` (extension 45)
+  with `psk_dhe_ke` before `pre_shared_key` (RFC 8446 §4.2.9). A
+  `pre_shared_key` without that extension is `illegal_parameter`.
+  `psk_ke` is not selected. `resumption_master` is
+  Hash(ClientHello..client Finished). A selected PSK omits Certificate
+  and CertificateVerify. The in-memory pair accepts early data once.
+  A rejected 0-RTT STREAM is sent again as 1-RTT, and `fin` is kept.
+  A client-initiated unidirectional stream is included. One HTTP/3
+  request on the early bidirectional stream uses the QPACK static
+  table only; the control stream is still 1-RTT. A 0-RTT DATAGRAM is
+  delivered once and is not sent again on replay. quiche 0.30.0 sent
+  `pq-0rtt` on stream 4 once
+  (`tool/interop/quiche/zero_rtt_flight.dart`). The same ticket then
+  completed and accepted none.
+- A path id above 0 has its own PTO. A timeout sends one
+  PATH_CHALLENGE and does not declare packets lost. Path 0 stays on
+  `QuicLossRecovery`. Not every RFC 10069 frame, and not a new peer
+  flight. A short header ends a UDP datagram (RFC 9000 §12.2).
+  `commitMigration` switches the destination connection ID after
+  PATH_RESPONSE. `preferred_address` is not sent. The spin bit stays
+  clear. ACK frequency is not sent. An ACK whose ECN-CE count rose
+  is a NewReno congestion event and does not mark packets lost. Not
+  CUBIC. `QuicEarlyDataStore(ticketKey:)` seals the PSK into the
+  ticket identity. The issuing store accepts 0-RTT once. A store
+  that did not issue the ticket resumes and refuses 0-RTT. Not an
+  external PSK (RFC 9258). A ClientHello may offer more than one PSK
+  identity. The server selects the first known identity whose binder
+  matches. A bad binder on a known identity is `decrypt_error`.
+  Early data is accepted only for index 0.
+- An ignored key share is the group's real client length. P-256 and
+  P-384 start with the uncompressed-point prefix. X448 is 56 bytes.
+  A codepoint with no fixed length is refused. The default hello
+  still sends no ignored share.
+- HTTP/2 and HTTP/3 inflate one request `Content-Encoding` before
+  the handler and encode one response coding from `Accept-Encoding`.
+  The HTTP/2 check is in-memory (`gzip` both ways). `PqHttpClient`
+  inflates HTTP/2 and HTTP/3 responses.
+- HTTP/1.1 `gzip` (RFC 1952). curl 8.16.0 linked to OpenSSL 3.5.9,
+  built without libz, saved `Content-Encoding: gzip`. CPython
+  `gzip.decompress` of that body is `pq-gzip`. Not `curl --compressed`.
+- Docs that name the current package say 0.2.1. ECH claims name
+  pqforge 0.4.14, which is the lock. HPKE arrived in 0.4.10.
+  SECURITY_AUDIT S10 matches opt-in X.509 and the raw public key
+  default. There is still no WebPKI, CT log, or system trust store.
+
 ### Added
 
 - HTTP/1.0 (RFC 9112). Host may be omitted. `Connection: close` is
@@ -36,7 +83,9 @@
 - The Relic carriage test writes the RFC 6455 101 and echoes one
   masked text frame. That client is this package. It is not
   Autobahn, not a browser, and not `curl wss://`. HTTP/2 and HTTP/3
-  extended CONNECT stay a byte pipe. They do not run this codec.
+  extended CONNECT can carry one RFC 6455 data frame in memory
+  after a 200 that does not end the stream. That is not this
+  HTTP/1.1 carriage, and RFC 7692 stays here.
 - HTTP/2 `PRIORITY_UPDATE` (RFC 9218) from libnghttp2 1.66.0.
   `h2connect` calls `nghttp2_submit_priority_update` with `u=1, i`
   after the peer's `SETTINGS_NO_RFC7540_PRIORITIES`. The server
@@ -61,9 +110,33 @@
   `Content-Encoding: deflate`. CPython `zlib.decompress` of that
   body is `pq-deflate`. CPython `zlib.compress` of `pq-in`, carried
   by the same curl as `Content-Encoding: deflate`, is the body the
-  handler sees. `gzip` uses the same `dart:io` encoder and was not
-  this flight. HTTP/2 and HTTP/3 do not decode content coding.
+  handler sees. `gzip` is the Fixed note above. HTTP/2 and HTTP/3
+  inflate and encode as that note says.
   This is not RFC 7692 permessage-deflate.
+- One masked RFC 6455 text frame on HTTP/2 and HTTP/3 extended
+  CONNECT, in memory, after a 200 that does not end the stream.
+  Not `curl wss://`. Not Autobahn. Not a browser. RFC 7692 stays
+  on the HTTP/1.1 carriage.
+- Optional client certificates. `TlsClientAuth` is a raw
+  public-key allow-list. An empty client Certificate is
+  `certificate_required`. A PSK resume does not ask. Not an X.509
+  client chain. Not WebPKI.
+- `compress_certificate` (RFC 8879) is zlib, algorithm 1, and only
+  when the ClientHello offers it. Not brotli. Not zstd. Not the
+  default ClientHello. The web build has no zlib.
+- SLH-DSA as TLS CertificateVerify for IANA `0x0911`–`0x091C`.
+  The handshake test is SHA2-128f. Not the default. Not a foreign
+  peer. The TLS record path splits a flight that does not fit.
+  The QUIC CRYPTO path is not split. mDNS `pqslh=` stays
+  SHA2-128f.
+- DNS_ASSIGN (`0x1ACE79EC`) and PREF64 (`0x274C0FBC`) encode and
+  decode. Provisional types from draft-ietf-masque-connect-ip-dns-07.
+  An empty capsule withdraws. Service priority 0, `ipv4hint`, and
+  `ipv6hint` are refused. Not a masque-go flight. Not stable IANA.
+- `DnsAuthoritativeZone` answers in memory: AA, NODATA, NXDOMAIN,
+  a referral with AA clear, REFUSED, FORMERR, and an unchased
+  CNAME. The AD bit is not set. The zone does not sign. It is not
+  the iterative resolver.
 - noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
   a QUICv1 handshake and establishes path 1 (RFC 10069). rustls
   checks the ML-DSA-65 chain. The group is X25519MLKEM768 after
@@ -72,8 +145,9 @@
   `initial_max_path_id` 1 and prints
   `noq-mp handshake=ok multipath=1 path=1`. A short-header packet
   that arrives before 1-RTT keys exist is discarded. This is one
-  second path. It is not every RFC 10069 frame. Extra paths have
-  no separate PTO.
+  second path. It is not every RFC 10069 frame. A path id above 0
+  has its own in-memory PTO (see Fixed). The noq flight does not
+  prove that PTO.
 
 ### Not in this version
 
@@ -82,9 +156,6 @@
   `unsupported_certificate`. `-M` prints `Enable multipath: Refused`
   on one path. A classical certificate was not minted. quiche
   0.30.0 has ML-DSA and only RFC 9000 path migration.
-- Foreign QUIC 0-RTT was not run. OpenSSL 3.5.9 `s_client -quic
-  -early_data` can emit early data. The flight in this tree is still
-  one handshake. The in-memory 0-RTT test is not that peer.
 - Not `curl --http3`. Not WebPKI. Not a browser. Not FIPS. Not CMVP.
 
 ## 0.2.0
@@ -106,7 +177,7 @@ DNS server, not a browser, and not WebPKI.
   a replay completes the handshake and accepts no early data. The
   `early_data` maximum is `0xffffffff`. Transport parameters are not
   remembered; the local flow-control window is the limit. ECH and
-  0-RTT together are refused. Self-interop only. Not `curl --http3`.
+  0-RTT together are refused. Not `curl --http3`.
   `test/quic/early_data_test.dart`.
 - Optional mDNS TXT archival signature SLH-DSA-SHA2-128f (`pqslh=`,
   `signTxtArchival` / `verifyTxtArchival`). The default announce path

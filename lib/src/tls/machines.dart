@@ -46,6 +46,11 @@ StateMachine<TlsState, TlsEvent> tlsClientMachine() {
     TlsEvent.receiveCertificate,
     TlsState.waitCertVerify,
   );
+  m.addTransition(
+    TlsState.waitCertificate,
+    TlsEvent.resumeWithPsk,
+    TlsState.waitFinished,
+  );
   m.addTransition(TlsState.waitCertificate, TlsEvent.fatal, TlsState.failed);
   m.addTransition(TlsState.waitCertificate, TlsEvent.close, TlsState.closed);
   m.addTransition(

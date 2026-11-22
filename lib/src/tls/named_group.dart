@@ -129,3 +129,41 @@ PqLengthLabel _shareLabel(TlsNamedGroup group, {required bool fromServer}) =>
             ? PqLengthLabel.hybridServerShare
             : PqLengthLabel.hybridClientShare,
     };
+
+/// Client key_share length for a group this stack may write without a
+/// real secret. Implemented groups use [TlsNamedGroup.clientShareBytes].
+/// The rest are the fixed lengths a peer will parse and then ignore.
+int? tlsIgnoredKeyShareLength(int codepoint) {
+  final known = TlsNamedGroup.byCodepoint(codepoint);
+  if (known != null) return known.clientShareBytes;
+  return switch (codepoint) {
+    0x001e => 56, // X448
+    0x0019 => 133, // secp521r1, uncompressed
+    0x0100 => 256, // ffdhe2048
+    0x0101 => 384,
+    0x0102 => 512,
+    0x0103 => 768,
+    0x0104 => 1024,
+    0x0200 => 800, // ML-KEM-512
+    0x0201 => mlKem768PublicKeyBytes,
+    _ => null,
+  };
+}
+
+/// A placeholder share of the group's real length. Elliptic-curve
+/// shares start with the uncompressed-point prefix so a known group
+/// passes the length check instead of failing as a 32-byte dummy.
+Uint8List tlsIgnoredKeyShare(int codepoint) {
+  final len = tlsIgnoredKeyShareLength(codepoint);
+  if (len == null) {
+    throw ArgumentError('no client key-share length for group $codepoint');
+  }
+  final share = Uint8List(len);
+  final known = TlsNamedGroup.byCodepoint(codepoint);
+  final elliptic =
+      known == TlsNamedGroup.secp256r1 ||
+      known == TlsNamedGroup.secp384r1 ||
+      codepoint == 0x0019;
+  if (elliptic) share[0] = uncompressedPointPrefix;
+  return share;
+}

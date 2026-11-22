@@ -1,6 +1,6 @@
 ---
 title: Peers
-description: What OpenSSL, BoringSSL, quiche, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.0.
+description: What OpenSSL, BoringSSL, quiche, curl, nghttp2, and nghttp3 have actually completed against pqtransport 0.2.1.
 ---
 
 These are the peers CI runs. None of them is a browser, and none of
@@ -37,9 +37,13 @@ ML-DSA-65 localhost certificate. The reverse also completes:
 0.30.0, linked to BoringSSL 0.20261020.0, completes a QUICv1
 handshake both ways and one HTTP/3 GET both ways on
 X25519MLKEM768 with an ML-DSA-65 certificate checked. The OpenSSL
-QUIC flights are not HTTP/3. QUIC 0-RTT is sent to this stack only:
-a long header beside the Initial and the 1-RTT short header. A
-third-party HTTP/3 client has not completed that path. Early data is
+QUIC flights are not HTTP/3. quiche 0.30.0 resumed and sent
+`pq-0rtt` on stream 4 before the handshake finished. The server
+accepted those bytes once. The same ticket completed again and
+accepted none. The ClientHello includes `psk_key_exchange_modes`
+with `psk_dhe_ke`. That flight is not an HTTP/3 request. The
+in-memory HTTP/3 0-RTT request is a separate pair, not this quiche
+flight. Early data is
 replayable. Extended CONNECT, PRIORITY_UPDATE, and HTTP datagrams
 are the quiche 0.30.0 flights, both ways. masque-go v0.6.0
 completed CONNECT-UDP, and connect-ip-go v0.6.0 completed
@@ -58,8 +62,8 @@ and did not open a second path. That refusal is not the claim.
 noq 1.5.0 (`bb1c63ee`) with rustls 0.23.46 on aws-lc-rs completes
 the handshake and establishes path 1. rustls checks the ML-DSA-65
 chain. The group is X25519MLKEM768 after HelloRetryRequest. That
-is one path, not every RFC 10069 frame. Extra paths have no
-separate PTO.
+is one path, not every RFC 10069 frame. A path id above 0 has its
+own PTO in memory. The noq flight does not prove that timer.
 
 ## Groups the TLS peers selected
 
